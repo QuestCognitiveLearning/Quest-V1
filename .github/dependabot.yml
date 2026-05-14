@@ -1,0 +1,69 @@
+# Dependabot config — automated security patch PRs.
+#
+# Runs weekly on Mondays. Opens grouped PRs so we don't drown in noise:
+#   - dev tools updates land together
+#   - radix-ui patches land together
+#   - everything else under one umbrella per ecosystem
+#
+# Security advisories are processed immediately regardless of schedule.
+# Adjust open-pull-requests-limit if PR volume becomes noisy.
+#
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # npm — frontend + edge function deps
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 8
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      # All radix-ui primitives bump together — they release in lockstep
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      # Vite ecosystem in one PR
+      vite:
+        patterns:
+          - "vite*"
+          - "@vitejs/*"
+      # Tooling / lint / format
+      dev-tools:
+        patterns:
+          - "@types/*"
+          - "eslint*"
+          - "@eslint/*"
+          - "typescript"
+          - "prettier*"
+        dependency-type: "development"
+      # Tailwind ecosystem
+      tailwind:
+        patterns:
+          - "tailwind*"
+          - "@tailwindcss/*"
+          - "autoprefixer"
+          - "postcss"
+      # Supabase libs
+      supabase:
+        patterns:
+          - "@supabase/*"
+
+  # GitHub Actions workflow security updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(actions)"
+    labels:
+      - "github-actions"

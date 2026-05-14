@@ -1,0 +1,56 @@
+/**
+ * @file   a11y.css
+ * @desc   Global accessibility baselines — focus rings, reduced-motion, screen
+ *         reader utilities. Loaded once from main.jsx.
+ * @author Quest Learning core team
+ */
+
+/* Visible focus ring on any keyboard-focused interactive element.
+   Mouse users won't see this thanks to :focus-visible. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* Respect user OS preference for reduced motion.
+   Disables non-essential animations / transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;          /* essential override for vestibular safety */
+    animation-iteration-count: 1 !important;        /* essential override */
+    transition-duration: 0.01ms !important;         /* essential override */
+    scroll-behavior: auto !important;               /* essential override */
+  }
+}
+
+/* Screen-reader-only utility — visually hidden, still announced. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Skip-to-content link — anchor at top of page for keyboard users. */
+.skip-to-content {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  background: var(--color-text-primary);
+  color: var(--color-text-inverse);
+  padding: var(--spacing-2) var(--spacing-4);
+  z-index: var(--z-tooltip);
+  text-decoration: none;
+  transition: top var(--transition-base);
+}
+.skip-to-content:focus {
+  top: 0;
+}

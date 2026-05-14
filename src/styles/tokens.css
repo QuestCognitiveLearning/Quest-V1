@@ -1,0 +1,114 @@
+/**
+ * @file   tokens.css
+ * @desc   Design tokens — single source of truth for colors, spacing, typography,
+ *         z-index layers, transitions, and shadows. Tailwind utilities map to
+ *         these values via tailwind.config.js (or via direct var() reference).
+ * @author Quest Learning core team
+ */
+
+:root {
+  /* === Colors — brand === */
+  --color-brand-50:           #eff6ff;
+  --color-brand-100:          #dbeafe;
+  --color-brand-200:          #bfdbfe;
+  --color-brand-500:          #3b82f6;
+  --color-brand-600:          #2563eb;   /* primary action */
+  --color-brand-700:          #1d4ed8;   /* primary hover */
+  --color-brand-800:          #1e40af;
+
+  /* === Colors — accent (teacher purple) === */
+  --color-accent-500:         #8b5cf6;
+  --color-accent-600:         #7c3aed;
+  --color-accent-700:         #6d28d9;
+
+  /* === Colors — semantic === */
+  --color-success-500:        #22c55e;
+  --color-success-600:        #16a34a;
+  --color-warning-500:        #f59e0b;
+  --color-warning-600:        #d97706;
+  --color-danger-500:         #ef4444;
+  --color-danger-600:         #dc2626;
+  --color-info-500:           #06b6d4;
+
+  /* === Colors — surfaces === */
+  --color-surface-base:       #ffffff;
+  --color-surface-muted:      #f9fafb;
+  --color-surface-elevated:   #ffffff;
+
+  /* === Colors — text === */
+  --color-text-primary:       #111827;
+  --color-text-secondary:     #4b5563;
+  --color-text-muted:         #9ca3af;
+  --color-text-inverse:       #ffffff;
+
+  /* === Colors — borders === */
+  --color-border-subtle:      #e5e7eb;
+  --color-border-default:     #d1d5db;
+  --color-border-strong:      #9ca3af;
+
+  /* === Spacing scale (matches Tailwind's default scale in rem) === */
+  --spacing-0:                0;
+  --spacing-1:                0.25rem;
+  --spacing-2:                0.5rem;
+  --spacing-3:                0.75rem;
+  --spacing-4:                1rem;
+  --spacing-6:                1.5rem;
+  --spacing-8:                2rem;
+  --spacing-12:               3rem;
+  --spacing-16:               4rem;
+  --spacing-24:               6rem;
+
+  /* === Typography === */
+  --font-family-body:         'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-family-display:      'Poppins', system-ui, -apple-system, sans-serif;
+  --font-family-mono:         ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+
+  --font-size-xs:             0.75rem;
+  --font-size-sm:             0.875rem;
+  --font-size-base:           1rem;
+  --font-size-lg:             1.125rem;
+  --font-size-xl:             1.25rem;
+  --font-size-2xl:            1.5rem;
+  --font-size-3xl:            1.875rem;
+  --font-size-4xl:            2.25rem;
+  --font-size-5xl:            3rem;
+
+  --line-height-tight:        1.25;
+  --line-height-normal:       1.5;
+  --line-height-relaxed:      1.625;
+
+  /* === Border radius === */
+  --radius-sm:                0.25rem;
+  --radius-md:                0.5rem;
+  --radius-lg:                0.75rem;
+  --radius-xl:                1rem;
+  --radius-2xl:               1.5rem;
+  --radius-full:              9999px;
+
+  /* === Shadows === */
+  --shadow-sm:                0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md:                0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg:                0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-xl:                0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+
+  /* === Z-index layers — never hard-code z-index values elsewhere === */
+  --z-base:                   0;
+  --z-dropdown:               100;
+  --z-sticky:                 200;
+  --z-overlay:                500;
+  --z-modal:                  1000;
+  --z-popover:                1050;
+  --z-toast:                  1100;
+  --z-tooltip:                1200;
+  --z-max:                    2147483647;
+
+  /* === Transitions === */
+  --transition-fast:          120ms ease-in-out;
+  --transition-base:          150ms ease-in-out;
+  --transition-slow:          250ms ease-in-out;
+
+  /* === Focus ring (a11y) === */
+  --focus-ring-color:         var(--color-brand-600);
+  --focus-ring-offset:        2px;
+  --focus-ring-width:         2px;
+}

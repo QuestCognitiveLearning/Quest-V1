@@ -1,0 +1,10 @@
+project_id = "lgymrkodypbqghyjocxg"
+
+# Config.toml keys are case-insensitive at the Supabase API layer, so the
+# names below are intentionally lowercase to match the canonical slugs the
+# platform stores. They control whether the JWT is verified on incoming
+# requests — Stripe and the cron job don't carry one, so we disable it.
+#
+# To apply these flags, deploy with the explicit --no-verify-jwt flag:
+#   supabase functions deploy stripeWebhook --no-verify-jwt
+#   supabase functions deploy checkDueReviews --no-verify-jwt
