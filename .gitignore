@@ -3,6 +3,10 @@
 .env.*
 !.env.example
 
+# Claude Code per-machine permission list. May contain inline
+# database credentials in shell snippets — must never be tracked.
+.claude/
+
 # Logs
 logs
 *.log
