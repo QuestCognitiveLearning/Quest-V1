@@ -83,22 +83,19 @@ function RequireAuth({ pageName, children }) {
 }
 
 /**
- * `/` route. Signed-out → Landing; signed-in → MainPage (LearningHub today).
+ * `/` route. Always renders the Landing page, regardless of auth state.
+ * Signed-in users reaching `/` see the marketing site — they navigate to
+ * their dashboard via the in-app nav or by following a deep link. This makes
+ * questlearning.co the canonical "front door" of the product. Signing out
+ * also lands the user here (custom-sdk's logout sends to `/`).
  */
 function RootRoute() {
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isLoadingAuth } = useAuth();
   if (isLoadingAuth) return <FullPageSpinner />;
   const LandingPage = Pages.Landing;
-  if (!isAuthenticated) {
-    return (
-      <LayoutWrapper currentPageName="Landing">
-        <LandingPage />
-      </LayoutWrapper>
-    );
-  }
   return (
-    <LayoutWrapper currentPageName={mainPageKey}>
-      <MainPage />
+    <LayoutWrapper currentPageName="Landing">
+      <LandingPage />
     </LayoutWrapper>
   );
 }

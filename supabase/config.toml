@@ -8,3 +8,4 @@ project_id = "lgymrkodypbqghyjocxg"
 # To apply these flags, deploy with the explicit --no-verify-jwt flag:
 #   supabase functions deploy stripeWebhook --no-verify-jwt
 #   supabase functions deploy checkDueReviews --no-verify-jwt
+#   supabase functions deploy contactForm --no-verify-jwt

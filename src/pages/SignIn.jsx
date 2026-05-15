@@ -6,7 +6,13 @@ import { useAuth } from '@/lib/AuthContext';
 export default function SignIn() {
   const { isAuthenticated, isLoadingAuth } = useAuth();
   const location = useLocation();
-  const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
+  // Allow landing-page CTAs ("Start Free Trial", "Get Started", etc.) to deep-link
+  // straight to the signup form via `?mode=signup`. Falls back to sign-in otherwise.
+  const initialMode = (() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('mode') === 'signup' ? 'signup' : 'signin';
+  })();
+  const [mode, setMode] = useState(initialMode); // 'signin' | 'signup'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -15,17 +21,23 @@ export default function SignIn() {
   const [trace, setTrace] = useState([]);
   const log = (msg) => setTrace((t) => [...t, `${new Date().toISOString().slice(11, 19)} ${msg}`]);
 
-  // If already signed in, send them where they were headed.
+  // If already signed in, send them where they were headed. Default landing
+  // page is `/LearningHub` (the main authed dashboard), NOT `/` — `/` now
+  // always renders the public landing, so falling back to it would put the
+  // user in a confusing loop: click "Sign Up" while signed in → bounced back
+  // to landing → click "Sign Up" again → bounced back again.
   useEffect(() => {
     if (isLoadingAuth) return;
     if (isAuthenticated) {
       const params = new URLSearchParams(location.search);
-      const next = params.get('next') || '/';
+      const next = params.get('next') || '/LearningHub';
       window.location.replace(next);
     }
   }, [isAuthenticated, isLoadingAuth, location.search]);
 
-  const next = new URLSearchParams(location.search).get('next') || '/';
+  // Used by the post-signin/signup handlers to know where to send the user
+  // after success. Same default rule as the auto-redirect above.
+  const next = new URLSearchParams(location.search).get('next') || '/LearningHub';
 
   const handleGoogle = async () => {
     setBusy(true);

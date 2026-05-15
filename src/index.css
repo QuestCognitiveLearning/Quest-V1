@@ -201,3 +201,269 @@ button:focus-visible {
   font-size: inherit !important;
   color: currentColor !important;
 }
+
+
+/* === landing-v3 === */
+/* Plus Jakarta Sans applied only inside .lp-v3 wrapper, not globally */
+.lp-v3 {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  color: #0F172A;
+  background: #EEF3FB;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.lp-v3 *,
+.lp-v3 ::before,
+.lp-v3 ::after {
+  font-family: inherit;
+}
+
+/* Smooth scrolling for anchor links */
+.lp-v3 { scroll-behavior: smooth; }
+
+/* Headline em color */
+.lp-v3 h1 em,
+.lp-v3 h2 em,
+.lp-v3 h3 em,
+.lp-v3 .em-brand {
+  font-style: normal;
+  color: #2563EB;
+}
+
+/* Hero photo backdrop */
+.lp-v3-hero {
+  position: relative;
+}
+.lp-v3-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0 0 28px 28px;
+  background:
+    linear-gradient(180deg, rgba(238,243,251,0) 0%, rgba(238,243,251,0.62) 88%, #EEF3FB 100%),
+    linear-gradient(125deg, rgba(37,99,235,0.62) 0%, rgba(29,78,216,0.55) 55%, rgba(67,56,202,0.5) 100%),
+    url('/hero-classroom-v3.png') right center/cover no-repeat;
+  background-blend-mode: normal, multiply, normal;
+  filter: contrast(1.08) saturate(1.05);
+  z-index: 0;
+  pointer-events: none;
+}
+.lp-v3-hero > * { position: relative; z-index: 1; }
+
+/* Hero feed carousel */
+@keyframes lpv3-feedSlide {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-960px, 0, 0); }
+}
+.lp-v3-feed-strip {
+  display: flex;
+  width: max-content;
+  animation: lpv3-feedSlide 16s linear infinite;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+.lp-v3-feed-strip:hover { animation-play-state: paused; }
+
+/* Pulse for "live" dot */
+@keyframes lpv3-pulse {
+  0%, 100% { transform: scale(1);   opacity: 1;    }
+  50%      { transform: scale(0.7); opacity: 0.5;  }
+}
+.lp-v3-pulse {
+  animation: lpv3-pulse 1.6s ease-in-out infinite;
+}
+
+/* Typing dots */
+@keyframes lpv3-typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+.lp-v3-typing span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #94A3B8;
+  display: inline-block;
+  animation: lpv3-typingBounce 1.2s ease-in-out infinite;
+}
+.lp-v3-typing span:nth-child(2) { animation-delay: 0.15s; }
+.lp-v3-typing span:nth-child(3) { animation-delay: 0.3s; }
+
+/* ===================================================================
+ * KnowledgeMap — radial SVG knowledge graph with draw-in entrance.
+ *
+ * No infinite pulses. On mount the wrapper gets `.mounted`, which triggers
+ * a single staggered entrance:
+ *   1. Center node fades + scales in
+ *   2. Center "ping" — one-shot halo
+ *   3. Radial lines draw outward (stroke-dashoffset trick)
+ *   4. Primary nodes fade + scale in
+ *   5. Branch lines draw outward
+ *   6. Secondary nodes fade + scale in
+ *   7. Progress bars on each primary node fill from 0 → target width
+ * Each animated piece reads its own `--delay` from inline style, so stagger
+ * ordering lives in JSX (no per-element CSS rule needed).
+ * =================================================================== */
+
+.lp-v3 .km-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.lp-v3 .km-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+/* Concentric grid rings — never animated, just quiet structure. */
+.lp-v3 .km-ring {
+  fill: none;
+  stroke: #2563EB;
+  stroke-width: 1;
+  stroke-dasharray: 3 6;
+  opacity: 0.35;
+}
+
+/* ---------- Lines (draw-in via stroke-dashoffset) ---------- */
+/*
+ * Each line starts fully "dashed off" — invisible — and animates its
+ * dashoffset to 0, which paints the stroke from start to end.
+ * We use a large dasharray (1000) that exceeds any line length so the math
+ * is trivially correct without computing per-line geometry.
+ */
+.lp-v3 .km-line {
+  stroke: #2563EB;
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+}
+.lp-v3 .km-line-1 { stroke-width: 3.4; stroke-opacity: 0.85; }
+.lp-v3 .km-line-2 { stroke-width: 2.4; stroke-opacity: 0.55; }
+
+.lp-v3 .km-wrap.mounted .km-line {
+  animation: kmLineDraw 520ms cubic-bezier(.2,.8,.2,1) var(--delay, 0s) forwards;
+}
+@keyframes kmLineDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ---------- Nodes (fade + scale in) ---------- */
+/*
+ * `transform-box: fill-box; transform-origin: center` makes scale() pivot on
+ * the group's local bbox rather than the SVG's 0,0 origin. Without this the
+ * node would scale away from the top-left corner of the viewport.
+ */
+.lp-v3 .km-center,
+.lp-v3 .km-node-1,
+.lp-v3 .km-node-2 {
+  opacity: 0;
+  transform: scale(0.65);
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.lp-v3 .km-wrap.mounted .km-center,
+.lp-v3 .km-wrap.mounted .km-node-1,
+.lp-v3 .km-wrap.mounted .km-node-2 {
+  animation: kmNodeIn 560ms cubic-bezier(.2,.8,.2,1) var(--delay, 0s) forwards;
+}
+@keyframes kmNodeIn {
+  0%   { opacity: 0; transform: scale(0.65); }
+  70%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ---------- Center "ping" halo (one-shot) ---------- */
+.lp-v3 .km-center-pulse {
+  fill: none;
+  stroke: #2563EB;
+  stroke-width: 2;
+  opacity: 0;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.lp-v3 .km-wrap.mounted .km-center-pulse {
+  animation: kmCenterPing 1.8s ease-out 320ms 1 forwards;
+}
+@keyframes kmCenterPing {
+  0%   { opacity: 0.55; transform: scale(1);   }
+  100% { opacity: 0;    transform: scale(1.7); }
+}
+
+/* ---------- Primary/secondary node rings + labels ---------- */
+.lp-v3 .km-node-ring   { fill: none; stroke: #2563EB; stroke-width: 3; }
+.lp-v3 .km-node-ring-2 { fill: none; stroke: #1D4ED8; stroke-width: 2.2; opacity: 0.75; }
+.lp-v3 .km-label-1     { fill: #0F172A; font-weight: 600; font-size: 19px; }
+.lp-v3 .km-label-2     { fill: #475569; font-weight: 500; font-size: 13.5px; }
+.lp-v3 .km-center-label{
+  fill: #fff;
+  font-weight: 700;
+  font-size: 38px;
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Progress bars on primary nodes ---------- */
+.lp-v3 .km-track { fill: #E2E8F0; }
+.lp-v3 .km-fill {
+  fill: #2563EB;
+  width: 0;
+}
+.lp-v3 .km-wrap.mounted .km-fill {
+  animation: kmFillGrow 700ms cubic-bezier(.2,.8,.2,1) var(--delay, 0s) forwards;
+}
+@keyframes kmFillGrow {
+  to { width: var(--w); }
+}
+
+/* Hide outline on lp-v3 buttons unless focused via keyboard */
+.lp-v3 button { font-family: inherit; }
+
+/* Section base */
+.lp-v3-section { padding: 72px 0; }
+@media (max-width: 768px) {
+  .lp-v3-section { padding: 52px 0; }
+}
+
+/* Container */
+.lp-v3-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Fade-in animation */
+@keyframes lpv3-stageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.lp-v3-stage-in {
+  animation: lpv3-stageIn 360ms cubic-bezier(.2,.7,.2,1);
+}
+
+/* Blink cursor */
+@keyframes lpv3-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.lp-v3-blink { animation: lpv3-blink 1s steps(2) infinite; }
+
+/* Hero CTA primary shadow */
+.lp-v3-cta-shadow {
+  box-shadow: 0 10px 26px -10px rgba(37,99,235,0.55), 0 2px 6px rgba(37,99,235,0.18);
+}
+
+/* Card softness */
+.lp-v3-soft-shadow {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+.lp-v3-deep-shadow {
+  box-shadow: 0 24px 60px -24px rgba(15,23,42,0.22), 0 4px 12px rgba(15,23,42,0.06);
+}
+
+/* Carousel hide scrollbar */
+.lp-v3-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.lp-v3-no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* StickyCta animation */
+@keyframes lpv3-stickyIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.lp-v3-sticky { animation: lpv3-stickyIn 280ms cubic-bezier(.2,.7,.2,1); }

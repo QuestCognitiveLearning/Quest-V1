@@ -237,8 +237,10 @@ class UserEntity extends CustomEntity {
 
   async logout(redirectUrl) {
     await supabase.auth.signOut();
-    if (redirectUrl) window.location.href = redirectUrl;
-    else window.location.reload();
+    // Default to the landing page after sign-out. A `reload()` here would leave
+    // the user on the current (now-protected) URL and RequireAuth would punt
+    // them to /SignIn — we want them at the public landing instead.
+    window.location.href = redirectUrl || '/';
   }
 
   redirectToLogin(nextUrl) {
