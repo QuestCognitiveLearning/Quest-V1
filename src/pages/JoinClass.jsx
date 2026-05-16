@@ -108,10 +108,12 @@ export default function JoinClass() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[length:40px_40px]"></div>
       </div>
 
-      <div className="flex gap-20 items-center w-full max-w-5xl relative z-10">
-        <div className="w-full max-w-md">
+      {/* Single-card centered modal. The outer `flex items-center justify-center`
+          on the page is responsible for centering — we just need a width cap
+          so the card doesn't stretch full-page on wide monitors. */}
+      <div className="w-full max-w-md relative z-10">
         <Card className="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
-          
+
           <CardContent className="p-8">
             <div className="flex justify-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -180,8 +182,6 @@ export default function JoinClass() {
             </div>
           </CardContent>
         </Card>
-        </div>
-
       </div>
 
       <NotificationModal

@@ -49,7 +49,7 @@ export default function StudentSidebar({
             height="96"
             className="w-24 h-auto"
           />
-          <div>
+          <div className="-ml-[23px]">
             <h1 className="text-sm font-bold tracking-tight">Quest Learning</h1>
             <p className="text-xs text-white/70">Redefining Education</p>
           </div>

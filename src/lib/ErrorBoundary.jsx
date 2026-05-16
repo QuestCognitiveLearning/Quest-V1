@@ -1,5 +1,19 @@
 import React from 'react';
 
+// Recognize the "your bundle is stale because we just deployed" family of
+// errors. When the user's tab was loaded before a deploy, lazy-loaded chunks
+// 404 because Vite generates new content-hashed filenames per build.
+function isStaleChunkError(err) {
+  const msg = String(err?.message || err || '');
+  return (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('Loading chunk') ||
+    msg.includes('Loading CSS chunk')
+  );
+}
+
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -9,6 +23,18 @@ export default class ErrorBoundary extends React.Component {
     return { error };
   }
   componentDidCatch(error, info) {
+    // Stale-chunk path: try a single auto-reload to pick up the new HTML.
+    // Recursion guard via sessionStorage keeps a broken deploy from looping.
+    if (isStaleChunkError(error)) {
+      const key = '__quest_chunk_reload_at';
+      const last = Number(sessionStorage.getItem(key) || 0);
+      if (Date.now() - last > 30_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        console.warn('[stale-chunk] auto-reloading for new deploy');
+        window.location.reload();
+        return; // bail out before the error UI flashes
+      }
+    }
     console.error('React crash:', error, info);
     this.setState({ info });
   }

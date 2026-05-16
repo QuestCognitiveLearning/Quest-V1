@@ -34,14 +34,23 @@ export default function VideoOnlyModal({ subunit, curriculumName, onClose, onVid
           });
         }
 
+        // Long-form gate (client-side defense in depth). The youtubeSearch
+        // edge function strips ≤60s videos server-side, but if a future call
+        // site bypasses it or the durations lookup races, this ensures
+        // Shorts / clips never reach the picker.
+        const eligibleItems = data.items.filter((item) => {
+          const duration = durationMap[item.id.videoId] || 0;
+          return duration > 60;
+        });
+
         // Generate all summaries in parallel
         const summaries = await Promise.all(
-          data.items.map(item => 
+          eligibleItems.map(item =>
             generateVideoSummary(item.snippet.title, item.snippet.description)
           )
         );
-        
-        const videoSummaries = data.items.map((item, index) => ({
+
+        const videoSummaries = eligibleItems.map((item, index) => ({
           videoId: item.id.videoId,
           title: item.snippet.title,
           thumbnail: item.snippet.thumbnails.high.url,

@@ -9,6 +9,23 @@ const CENTER_SIZE = 130;
 const UNIT_SIZE = 85;
 const SUBUNIT_SIZE = 65;
 
+/**
+ * When the curriculum has more than this many units, alternate units onto two
+ * concentric rings instead of one. With 1 ring + N units, each unit owns
+ * 360/N° of angular space; the subunit fan is 120°. Beyond N=8 the fans
+ * collide. Staggering doubles the angular budget per ring, and the second
+ * ring physically separates adjacent units further in 2D.
+ */
+const STAGGER_THRESHOLD = 8;
+
+/**
+ * Extra radius applied to "outer ring" units when staggering is active.
+ * 90px is chosen to keep the outermost subunit (sitting at unit.radius +
+ * SUBUNIT_RADIUS = 220 + 90 + 130 = 440 from center) inside a reasonable
+ * canvas. See `containerHeight` below for the matching container size bump.
+ */
+const STAGGER_OFFSET = 90;
+
 function polarToXY(center, radius, angleDeg) {
   const rad = angleDeg * Math.PI / 180;
   return {
@@ -152,11 +169,26 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
    // Update line color based on curriculum color
    const lineColor = colors.stroke.replace(/[0-9a-f]{6}/i, '') || "#93C5FD";
 
-  // Calculate angles for units (evenly distributed)
+  // Crowding-aware layout. With <=8 units we keep the single-ring layout +
+  // wide 120° subunit fan. Beyond that, we alternate units onto two rings
+  // (inner = even index, outer = odd index) and narrow each fan to fit the
+  // tighter per-ring angular budget. This keeps subunits from colliding when
+  // a teacher builds a large curriculum (e.g. a 12-unit AP Bio map).
+  const needsStagger = units.length > STAGGER_THRESHOLD;
+  // When staggered, the angular budget per ring is 720°/N (since N/2 units
+  // share each ring). Use 85% as a safety margin so adjacent fans never touch.
+  const subunitFanDegrees = needsStagger
+    ? Math.min(120, 0.85 * 720 / units.length)
+    : 120;
+
+  // Calculate angles + per-unit radius for units
   const unitsWithAngles = units.map((unit, index) => {
     const angle = index / units.length * 360 - 90; // Start from top
+    // Odd-indexed units push out to the outer ring when staggering is on.
+    const unitRadius =
+      needsStagger && index % 2 === 1 ? UNIT_RADIUS + STAGGER_OFFSET : UNIT_RADIUS;
     const displayText = getOneWord(unit.unit_name, usedWords);
-    return { ...unit, angle, displayText };
+    return { ...unit, angle, unitRadius, displayText };
   });
 
   // Calculate angles for subunits around each unit
@@ -164,8 +196,8 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
     const unitSubunits = subunits.filter((s) => s.unit_id === unit.id);
     const totalSubs = unitSubunits.length;
 
-    // Spread subunits around the unit
-    const spreadAngle = totalSubs > 1 ? 120 / (totalSubs - 1) : 0;
+    // Spread subunits around the unit using the dynamic fan.
+    const spreadAngle = totalSubs > 1 ? subunitFanDegrees / (totalSubs - 1) : 0;
 
     return unitSubunits.map((sub, subIndex) => {
       const offset = (subIndex - (totalSubs - 1) / 2) * spreadAngle;
@@ -176,12 +208,21 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
   }).flat();
 
   return (
-     <div className="bg-zinc-50 relative w-full h-[800px] overflow-hidden flex items-center justify-center" style={{ fontFamily: '"Poppins", sans-serif' }}>
+     <div
+       className="bg-zinc-50 relative w-full overflow-hidden flex items-center justify-center"
+       style={{
+         // Stretch the canvas when staggering — outer-ring subunits sit at
+         // UNIT_RADIUS + STAGGER_OFFSET + SUBUNIT_RADIUS from center (≈440px)
+         // which would clip out of an 800px-tall canvas centered at y=400.
+         height: needsStagger ? '1000px' : '800px',
+         fontFamily: '"Poppins", sans-serif',
+       }}
+     >
        {/* Connection lines layer */}
        <svg className="absolute inset-0 w-full h-full pointer-events-none">
          {/* Center → Units */}
          {unitsWithAngles.map((unit) => {
-           const pos = polarToXY(CENTER, UNIT_RADIUS, unit.angle);
+           const pos = polarToXY(CENTER, unit.unitRadius, unit.angle);
            return (
              <Line
                key={unit.id}
@@ -196,7 +237,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
 
         {/* Units → Subunits */}
         {unitsWithAngles.map((unit) => {
-          const unitPos = polarToXY(CENTER, UNIT_RADIUS, unit.angle);
+          const unitPos = polarToXY(CENTER, unit.unitRadius, unit.angle);
           const unitSubunits = subunitsWithAngles.filter((s) => s.unitId === unit.id);
 
           return unitSubunits.map((sub) => {
@@ -235,7 +276,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
 
       {/* Unit Nodes */}
       {unitsWithAngles.map((unit) => {
-        const pos = polarToXY(CENTER, UNIT_RADIUS, unit.angle);
+        const pos = polarToXY(CENTER, unit.unitRadius, unit.angle);
         const completionPercent = getUnitCompletionPercent(unit.id);
         return (
           <div
@@ -263,7 +304,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
 
       {/* Subunit Nodes with Circular Progress */}
       {unitsWithAngles.map((unit) => {
-        const unitPos = polarToXY(CENTER, UNIT_RADIUS, unit.angle);
+        const unitPos = polarToXY(CENTER, unit.unitRadius, unit.angle);
         const unitSubunits = subunitsWithAngles.filter((s) => s.unitId === unit.id);
 
         return unitSubunits.map((sub) => {

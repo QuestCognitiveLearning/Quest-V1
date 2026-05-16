@@ -1,21 +1,50 @@
-import React, { useState, useEffect } from "react";
+/**
+ * @file   Pricing.jsx
+ * @desc   Post-signup pricing page that teachers land on after creating their
+ *         account. Re-uses the v3 landing's pricing card design so the visual
+ *         is consistent across marketing + product. Actions differ from the
+ *         landing — here the buttons do real work:
+ *           - Basic        → updates the user's subscription_status to 'free'
+ *           - Premium      → kicks off Stripe Checkout (createCheckout)
+ *           - Enterprise   → opens the in-app contact form modal (no mailto)
+ *
+ * @author Quest Learning core team
+ */
+
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Check, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
-import { toast } from "sonner";
+import ContactSalesModal from "@/components/shared/ContactSalesModal";
+
+const C = {
+  paper: "#EEF3FB",
+  card: "#FFFFFF",
+  ink: "#0F172A",
+  ink3: "#475569",
+  muted: "#64748B",
+  line: "#E2E8F0",
+  brand: "#2563EB",
+  brandDeep: "#1D4ED8",
+  brandSoft: "#DBEAFE",
+};
+
+const FONT = "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
 
 export default function Pricing() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [priceIds, setPriceIds] = useState(null);
+  const [contactOpen, setContactOpen] = useState(false);
 
   // First-time teacher = signed in as teacher but no subscription_status yet.
   // We show different framing (welcome, no "back" button) for that case.
-  const isFirstTimeTeacher = !!user && user.account_type === "teacher" && !user.subscription_status;
+  const isFirstTimeTeacher =
+    !!user && user.account_type === "teacher" && !user.subscription_status;
 
   useEffect(() => {
     checkUserAuth();
@@ -26,15 +55,14 @@ export default function Pricing() {
     try {
       const userData = await quest.auth.me();
       setUser(userData);
-    } catch (err) {
+    } catch {
       console.log("User not authenticated");
     }
   };
 
   const loadPriceIds = async () => {
     try {
-      const response = await quest.functions.invoke('getStripePrices');
-      console.log('Stripe prices response:', response.data);
+      const response = await quest.functions.invoke("getStripePrices");
       setPriceIds(response.data);
     } catch (err) {
       console.error("Failed to load price IDs:", err);
@@ -42,52 +70,99 @@ export default function Pricing() {
     }
   };
 
-  const plans = [
+  // ─── Plan actions ───────────────────────────────────────────────────────
+
+  const activateBasic = async () => {
+    setLoading(true);
+    try {
+      if (!user) {
+        window.location.href = "/SignIn?mode=signup";
+        return;
+      }
+      if (user.account_type !== "teacher") {
+        toast.error("Subscription is only available for teachers");
+        setLoading(false);
+        return;
+      }
+      await quest.auth.updateMe({
+        subscription_status: "free",
+        subscription_tier: "free",
+      });
+      toast.success("Basic plan activated!");
+      navigate(createPageUrl("TeacherDashboard"));
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Failed to activate plan. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const startPremiumTrial = async () => {
+    setLoading(true);
+    try {
+      if (!user) {
+        sessionStorage.setItem("signupRole", "teacher");
+        sessionStorage.setItem("nextUrl", window.location.href);
+        window.location.href = "/SignIn?mode=signup&next=/Pricing";
+        return;
+      }
+      if (user.account_type !== "teacher") {
+        toast.error("Premium subscription is only available for teachers");
+        setLoading(false);
+        return;
+      }
+      if (window.self !== window.top) {
+        toast.error("Please open the published app to complete checkout");
+        setLoading(false);
+        return;
+      }
+      if (user.subscription_status === "free" || !user.subscription_status) {
+        if (!priceIds || !priceIds.premium_price_id) {
+          toast.error("Stripe products not configured. Please refresh and try again.");
+          setLoading(false);
+          return;
+        }
+        const response = await quest.functions.invoke("createCheckout", {
+          priceId: priceIds.premium_price_id,
+          successUrl: `${window.location.origin}${createPageUrl("TeacherDashboard")}?checkout=success`,
+          cancelUrl: window.location.href,
+        });
+        if (response.data.url) window.location.href = response.data.url;
+      } else {
+        toast.success("You're already subscribed to Premium!");
+        navigate(createPageUrl("TeacherDashboard"));
+      }
+    } catch (error) {
+      console.error("Checkout error:", error);
+      toast.error("Failed to start checkout. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const TIERS = [
     {
+      id: "basic",
       name: "Basic",
+      desc: "Perfect for trying out live sessions",
       price: "Free",
-      description: "Perfect for trying out live sessions",
+      per: "",
+      cta: "Get Started Free",
+      popular: false,
       features: [
         "Access to live learning sessions",
         "Basic progress tracking",
-        "Community support"
+        "Community support",
       ],
-      cta: "Get Started Free",
-      popular: false,
-      action: async () => {
-        setLoading(true);
-        try {
-          if (!user) {
-            window.location.href = '/login?next=' + encodeURIComponent(window.location.href);
-            return;
-          }
-
-          if (user.account_type !== 'teacher') {
-            toast.error("Subscription is only available for teachers");
-            setLoading(false);
-            return;
-          }
-
-          // Set user to basic tier
-          await quest.auth.updateMe({ 
-            subscription_status: 'free',
-            subscription_tier: 'free'
-          });
-
-          toast.success("Basic plan activated!");
-          navigate(createPageUrl("TeacherDashboard"));
-        } catch (error) {
-          console.error("Error:", error);
-          toast.error("Failed to activate plan. Please try again.");
-          setLoading(false);
-        }
-      }
+      action: activateBasic,
     },
     {
+      id: "premium",
       name: "Premium",
+      desc: "Full access to transform your learning",
       price: "$30",
-      period: "/month",
-      description: "Full access to transform your learning",
+      per: "/ month",
+      cta: "Start Free Trial",
+      popular: true,
       features: [
         "30-day free trial",
         "Unlimited live sessions",
@@ -96,69 +171,18 @@ export default function Pricing() {
         "Spaced repetition system",
         "Progress analytics & insights",
         "Inquiry-based learning modules",
-        "Priority support"
+        "Priority support",
       ],
-      cta: "Start Free Trial",
-      popular: true,
-      action: async () => {
-        setLoading(true);
-        try {
-          // If not authenticated, redirect to teacher signup
-          if (!user) {
-            sessionStorage.setItem('signupRole', 'teacher');
-            sessionStorage.setItem('nextUrl', window.location.href);
-            window.location.href = '/login?next=' + encodeURIComponent(window.location.href);
-            return;
-          }
-
-          if (user.account_type !== 'teacher') {
-            toast.error("Premium subscription is only available for teachers");
-            setLoading(false);
-            return;
-          }
-
-          // Check if running in iframe (preview mode)
-          if (window.self !== window.top) {
-            toast.error("Please open the published app to complete checkout");
-            setLoading(false);
-            return;
-          }
-
-          // For new users, check if they already have a subscription
-          if (user.subscription_status === 'free' || !user.subscription_status) {
-            // New user - start the free trial flow
-            if (!priceIds || !priceIds.premium_price_id) {
-              console.error("Price IDs not loaded:", priceIds);
-              toast.error("Stripe products not configured. Please refresh and try again.");
-              setLoading(false);
-              return;
-            }
-
-            const response = await quest.functions.invoke('createCheckout', {
-              priceId: priceIds.premium_price_id,
-              successUrl: `${window.location.origin}${createPageUrl('TeacherDashboard')}?checkout=success`,
-              cancelUrl: window.location.href,
-            });
-
-            if (response.data.url) {
-              window.location.href = response.data.url;
-            }
-          } else {
-            // Existing subscriber or already on trial
-            toast.success("You're already subscribed to Premium!");
-            navigate(createPageUrl("TeacherDashboard"));
-          }
-        } catch (error) {
-          console.error("Checkout error:", error);
-          toast.error("Failed to start checkout. Please try again.");
-          setLoading(false);
-        }
-      }
+      action: startPremiumTrial,
     },
     {
+      id: "enterprise",
       name: "Enterprise",
+      desc: "For large schools and districts",
       price: "Custom",
-      description: "For large schools and districts",
+      per: "",
+      cta: "Contact Sales",
+      popular: false,
       features: [
         "Everything in Premium",
         "Unlimited users",
@@ -167,159 +191,358 @@ export default function Pricing() {
         "Advanced analytics & reporting",
         "SSO & security features",
         "Custom training & onboarding",
-        "Priority 24/7 support"
+        "Priority 24/7 support",
       ],
-      cta: "Contact Sales",
-      popular: false,
-      action: () => {
-        window.location.href = "mailto:sales@questlearning.co?subject=Enterprise Plan Inquiry";
-      }
-    }
+      action: () => setContactOpen(true),
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Back button — hidden for first-time teachers so the pricing step
-          feels like part of onboarding, not an interruption. */}
+    <div
+      className="min-h-screen"
+      style={{
+        background: C.paper,
+        fontFamily: FONT,
+        color: C.ink,
+      }}
+    >
+      {/* Back button — hidden during first-time teacher onboarding so the
+          pricing step feels like part of signup, not an interruption. */}
       {!isFirstTimeTeacher && (
-        <div className="container mx-auto max-w-7xl px-6 pt-8">
-          <Button
-            variant="ghost"
+        <div className="max-w-[1200px] mx-auto px-6 pt-8">
+          <button
+            type="button"
             onClick={() => navigate(createPageUrl("Landing"))}
-            className="mb-4"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold"
+            style={{
+              color: C.ink3,
+              background: "transparent",
+              border: 0,
+              cursor: "pointer",
+              padding: "8px 4px",
+            }}
           >
-            ← Back
-          </Button>
+            <ArrowLeft size={16} strokeWidth={2.2} />
+            Back
+          </button>
         </div>
       )}
 
       {/* Header */}
-      <section className={`${isFirstTimeTeacher ? "pt-20" : "pt-12"} pb-20 px-6`}>
-        <div className="container mx-auto max-w-7xl text-center">
+      <section
+        style={{
+          padding: `${isFirstTimeTeacher ? 72 : 48}px 24px 32px`,
+        }}
+      >
+        <div
+          className="text-center mx-auto"
+          style={{ maxWidth: 720 }}
+        >
           {isFirstTimeTeacher && (
-            <motion.p
-              className="text-sm font-semibold text-blue-600 mb-3 uppercase tracking-wider"
+            <motion.span
+              className="inline-block"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4 }}
+              style={{
+                color: C.brand,
+                fontWeight: 700,
+                fontSize: 12.5,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+              }}
             >
-              One last step
-            </motion.p>
+              One Last Step
+            </motion.span>
           )}
           <motion.h1
-            className="text-5xl lg:text-6xl font-bold text-gray-900 mb-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            style={{
+              fontWeight: 800,
+              color: C.ink,
+              fontSize: "clamp(32px, 4.2vw, 52px)",
+              lineHeight: 1.05,
+              letterSpacing: "-0.025em",
+              marginTop: isFirstTimeTeacher ? 12 : 0,
+              marginBottom: 12,
+            }}
           >
             {isFirstTimeTeacher ? (
-              <>Welcome! Pick your <span className="text-blue-600">starting plan</span></>
+              <>
+                Welcome — pick your{" "}
+                <em style={{ fontStyle: "normal", color: C.brand }}>
+                  starting plan.
+                </em>
+              </>
             ) : (
-              <>Choose Your <span className="text-blue-600">Learning Path</span></>
+              <>
+                Free to Start.{" "}
+                <em style={{ fontStyle: "normal", color: C.brand }}>
+                  Scales With You.
+                </em>
+              </>
             )}
           </motion.h1>
           <motion.p
-            className="text-xl text-gray-600 mb-2"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
+            style={{ color: C.muted, fontSize: 17, lineHeight: 1.55 }}
           >
             {isFirstTimeTeacher
               ? "Start free, or unlock the full platform with Premium. You can change anytime."
-              : "Start with a free plan or unlock full potential with Premium"}
+              : "Students join free with a class code. Teachers unlock the full platform with Premium."}
           </motion.p>
         </div>
       </section>
 
-      {/* Pricing Cards */}
-      <section className="pb-24 px-6">
-        <div className="container mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-3 gap-8">
-            {plans.map((plan, idx) => (
+      {/* Pricing cards */}
+      <section style={{ paddingBottom: 80, paddingLeft: 24, paddingRight: 24 }}>
+        <div
+          className="mx-auto grid md:grid-cols-3"
+          style={{
+            maxWidth: 1200,
+            gap: 20,
+            paddingTop: 12,
+            alignItems: "stretch",
+          }}
+        >
+          {TIERS.map((t, idx) => {
+            const popular = t.popular;
+            const isLoading = loading && popular;
+            return (
               <motion.div
-                key={plan.name}
-                className={`relative bg-white rounded-3xl p-8 ${
-                  plan.popular
-                    ? "border-4 border-blue-600 shadow-2xl"
-                    : "border-2 border-gray-200 shadow-md"
-                }`}
+                key={t.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: idx * 0.1 }}
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  background: popular
+                    ? "linear-gradient(180deg, #FFFFFF 0%, #EFF6FF 100%)"
+                    : C.card,
+                  border: popular
+                    ? `2px solid ${C.brand}`
+                    : `1px solid ${C.line}`,
+                  borderRadius: 28,
+                  padding: 32,
+                  boxShadow: popular
+                    ? "0 24px 60px -24px rgba(37,99,235,0.22), 0 4px 12px rgba(15,23,42,0.06)"
+                    : "0 8px 24px rgba(15, 23, 42, 0.06)",
+                  transform: popular ? "translateY(-8px)" : undefined,
+                }}
               >
-                {plan.popular && (
-                  <div className="absolute -top-5 left-1/2 transform -translate-x-1/2">
-                    <span className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-semibold">
-                      Most Popular
-                    </span>
+                {popular && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: -14,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: C.brand,
+                      color: "#fff",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      padding: "6px 14px",
+                      borderRadius: 999,
+                    }}
+                  >
+                    Most Popular
                   </div>
                 )}
 
-                <div className="mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-                  <p className="text-gray-600 text-sm mb-4">{plan.description}</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-5xl font-bold ${plan.popular ? "text-blue-600" : "text-gray-900"}`}>
-                      {plan.price}
-                    </span>
-                    {plan.period && (
-                      <span className="text-gray-500 text-lg">{plan.period}</span>
-                    )}
-                    </div>
-                    {plan.name === "Premium" && (
-                    <p className="text-sm text-gray-500 mt-2">30-day free trial</p>
-                    )}
-                    </div>
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: 22,
+                      letterSpacing: "-0.02em",
+                      color: C.ink,
+                    }}
+                  >
+                    {t.name}
+                  </div>
+                  <div style={{ color: C.muted, fontSize: 13.5, marginTop: 4 }}>
+                    {t.desc}
+                  </div>
+                </div>
 
-                <ul className="space-y-4 mb-8">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <Check className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-700 text-sm">{feature}</span>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 4,
+                    paddingBottom: 16,
+                    borderBottom: `1px solid ${C.line}`,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontWeight: 800,
+                      fontSize: 56,
+                      lineHeight: 1,
+                      letterSpacing: "-0.025em",
+                      color: popular ? C.brand : C.ink,
+                    }}
+                  >
+                    {t.price}
+                  </span>
+                  {t.per && (
+                    <span
+                      style={{
+                        color: C.muted,
+                        fontWeight: 600,
+                        fontSize: 14,
+                      }}
+                    >
+                      {t.per}
+                    </span>
+                  )}
+                </div>
+
+                <ul
+                  style={{
+                    listStyle: "none",
+                    margin: 0,
+                    padding: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                    flex: 1,
+                  }}
+                >
+                  {t.features.map((f, i) => (
+                    <li
+                      key={i}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "18px 1fr",
+                        gap: 10,
+                        alignItems: "start",
+                        fontSize: 14,
+                        color: "#1E293B",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <Check
+                        size={16}
+                        strokeWidth={2.4}
+                        style={{ color: C.brand, marginTop: 2 }}
+                      />
+                      <span>{f}</span>
                     </li>
                   ))}
                 </ul>
 
-                <Button
-                  onClick={plan.action}
-                  className={`w-full h-14 text-lg rounded-xl ${
-                    plan.popular
-                      ? "bg-blue-600 hover:bg-blue-700 text-white"
-                      : plan.name === "Enterprise"
-                      ? "bg-purple-600 hover:bg-purple-700 text-white"
-                      : "bg-gray-600 hover:bg-gray-700 text-white"
-                  }`}
-                  disabled={loading && plan.popular}
+                <button
+                  type="button"
+                  onClick={t.action}
+                  disabled={isLoading}
+                  style={{
+                    width: "100%",
+                    height: 48,
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    border: 0,
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                    color: "#fff",
+                    background: popular
+                      ? C.brand
+                      : t.id === "enterprise"
+                      ? C.ink
+                      : "#0F172A",
+                    boxShadow: popular
+                      ? "0 10px 22px -10px rgba(37,99,235,0.55)"
+                      : "none",
+                    transition: "background 200ms ease, transform 200ms ease",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    opacity: isLoading ? 0.85 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (isLoading) return;
+                    e.currentTarget.style.background = popular
+                      ? C.brandDeep
+                      : "#1E293B";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = popular
+                      ? C.brand
+                      : t.id === "enterprise"
+                      ? C.ink
+                      : "#0F172A";
+                  }}
                 >
-                  {loading && plan.popular ? (
+                  {isLoading ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Loading...
+                      <Loader2 size={16} className="animate-spin" />
+                      Loading…
                     </>
                   ) : (
-                    plan.cta
+                    t.cta
                   )}
-                </Button>
+                </button>
               </motion.div>
-            ))}
-          </div>
-
-          {/* Money-back guarantee */}
-          <motion.div
-            className="text-center mt-12"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-          >
-            <p className="text-gray-600">
-              Premium includes a 30-day free trial
-            </p>
-            <p className="text-gray-500 text-sm mt-2">
-              Questions? <a href="mailto:support@questlearning.co" className="text-blue-600 hover:underline">Contact our team</a>
-            </p>
-          </motion.div>
+            );
+          })}
         </div>
+
+        {/* Footer note */}
+        <motion.div
+          className="text-center mx-auto"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          style={{ marginTop: 48, maxWidth: 720 }}
+        >
+          <p style={{ color: C.muted, fontSize: 14 }}>
+            Premium includes a 30-day free trial — no credit card required to
+            start the basic plan.
+          </p>
+          <p style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>
+            Questions?{" "}
+            <button
+              type="button"
+              onClick={() => setContactOpen(true)}
+              style={{
+                color: C.brand,
+                background: "none",
+                border: 0,
+                padding: 0,
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: 2,
+                fontSize: "inherit",
+                fontFamily: "inherit",
+              }}
+            >
+              Contact our team
+            </button>
+          </p>
+        </motion.div>
       </section>
+
+      <ContactSalesModal
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        topic="Enterprise Plan Inquiry"
+        heading="Talk to our sales team"
+        subheading="Tell us about your school or district — we'll get back within a day."
+        defaults={{
+          name: user?.full_name || "",
+          email: user?.email || "",
+        }}
+      />
     </div>
   );
 }

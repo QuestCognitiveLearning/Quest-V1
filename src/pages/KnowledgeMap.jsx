@@ -74,10 +74,56 @@ export default function KnowledgeMap() {
 
       setUser(currentUser);
 
-      // Show demo overlay for first-time students
+      // Demo gate — fire ONCE per student, ever.
+      //
+      // Three guards layered (fail-safe ordering):
+      //   1. SERVER FLAG `users.onboarding_demo_seen` — durable across
+      //      browsers, devices, and localStorage clears. Set via updateMe
+      //      the instant we decide to show the demo (NOT on close), so a
+      //      Navattic iframe error / accidental close / page navigation
+      //      can't cause it to replay. This is the canonical source of truth.
+      //   2. localStorage flag — synchronous fallback when the server write
+      //      hasn't propagated yet within the same session.
+      //   3. `created_date` < 24h — hard ceiling. Even if both flags above
+      //      somehow failed, accounts older than 24h never see the demo.
       const demoKey = `student_demo_seen_${currentUser.id}`;
-      if (!localStorage.getItem(demoKey)) {
+      const createdAt = currentUser.created_date ? new Date(currentUser.created_date).getTime() : null;
+      const ageHours = createdAt ? (Date.now() - createdAt) / 3_600_000 : null;
+      const isBrandNew = createdAt && (Date.now() - createdAt) < 24 * 60 * 60 * 1000;
+      const serverAlreadyShown = !!currentUser.onboarding_demo_seen;
+      const localAlreadyShown = !!localStorage.getItem(demoKey);
+      const willShow = isBrandNew && !serverAlreadyShown && !localAlreadyShown;
+
+      // Verbose decision log — keep this so we can diagnose any future
+      // "demo popped when it shouldn't have" reports without re-instrumenting.
+      console.groupCollapsed(
+        `%c[demo-gate] student %c${willShow ? "SHOW" : "SKIP"}`,
+        "color:#2563EB;font-weight:bold",
+        willShow
+          ? "color:#16A34A;font-weight:bold"
+          : "color:#64748B;font-weight:bold",
+      );
+      console.log("user.id              =", currentUser.id);
+      console.log("account age (hours)  =", ageHours?.toFixed(2) ?? "(unknown)");
+      console.log("isBrandNew (<24h)    =", isBrandNew);
+      console.log("server flag          =", serverAlreadyShown, "  (users.onboarding_demo_seen)");
+      console.log("localStorage flag    =", localAlreadyShown,  "  (key:", demoKey + ")");
+      console.log("→ student has seen demo =", serverAlreadyShown || localAlreadyShown);
+      console.log("→ DECISION              =", willShow ? "SHOW (and burn flags)" : "SKIP");
+      console.groupEnd();
+
+      if (willShow) {
         setShowStudentDemo(true);
+        localStorage.setItem(demoKey, "true"); // synchronous fast-path
+        // Fire-and-forget server write. If it fails (offline, transient
+        // network), the localStorage flag still prevents replay this session
+        // and the next page load will re-attempt. Don't block UI on this.
+        quest.auth
+          .updateMe({ onboarding_demo_seen: true })
+          .then(() => console.log("[demo-gate] student server flag → true"))
+          .catch((err) =>
+            console.warn("[demo-gate] server flag write failed:", err)
+          );
       }
 
       const enrollmentsData = await quest.entities.StudentEnrollment.filter({ student_id: currentUser.id });

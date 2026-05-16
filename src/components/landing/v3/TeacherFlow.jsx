@@ -570,19 +570,27 @@ export default function TeacherFlow() {
   const inView = useInView(sectionRef, { once: true, margin: "-15% 0px" });
   const [active, setActive] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
-  // 2.5s per step × 5 steps = 12.5s total walkthrough on first scroll-in.
-  const PER_STEP_MS = 2500;
+  // Step 1 stays on screen for 3.5s (a touch longer to read its intro);
+  // the remaining four steps move every 2.5s. Total walkthrough = 13.5s.
+  // STEP_DURATIONS_MS[i] = how long step `i` is visible before advancing.
+  const STEP_DURATIONS_MS = [3500, 2500, 2500, 2500, 2500];
 
   useEffect(() => {
     if (!autoplay || !inView) return;
     // Manually schedule each transition so we can stop precisely after step 4
-    // (the 5th and final stage). A naive `setInterval % 5` would loop endlessly.
+    // (the 5th and final stage). A naive `setInterval` with one delay would
+    // either treat all steps the same or loop endlessly.
     const timeouts = [];
+    let elapsed = 0;
     for (let i = 1; i < 5; i++) {
-      timeouts.push(setTimeout(() => setActive(i), i * PER_STEP_MS));
+      elapsed += STEP_DURATIONS_MS[i - 1];
+      const fireAt = elapsed;
+      timeouts.push(setTimeout(() => setActive(i), fireAt));
     }
-    // Once the last step lands, disable autoplay so it rests there.
-    timeouts.push(setTimeout(() => setAutoplay(false), 5 * PER_STEP_MS));
+    // Once the last step has been visible for its own duration, disable
+    // autoplay so it rests on step 5 instead of looping.
+    elapsed += STEP_DURATIONS_MS[4];
+    timeouts.push(setTimeout(() => setAutoplay(false), elapsed));
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [autoplay, inView]);
 

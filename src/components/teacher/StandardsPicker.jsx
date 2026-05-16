@@ -252,6 +252,15 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
   const [translating, setTranslating] = useState(false);
   const [translatedUnits, setTranslatedUnits] = useState(null);
   const [coveredRawIds, setCoveredRawIds] = useState(new Set());
+  // revealedCount = how many subunits (in flat order across all units) have
+  // been "stepped in" so far. Drives both the right-side card reveal and the
+  // left-side checkmark sweep — they share this counter so they stay in sync.
+  const [revealedCount, setRevealedCount] = useState(0);
+  const totalSubunits = (translatedUnits || []).reduce(
+    (sum, u) => sum + (u.subunits?.length || 0),
+    0,
+  );
+  const reveallComplete = totalSubunits > 0 && revealedCount >= totalSubunits;
 
   useEffect(() => {
     runTranslation();
@@ -264,16 +273,19 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
     try {
       const res = await quest.integrations.Core.InvokeLLM({
         model: LLM_MODELS.STANDARDS_PICKER,
-        prompt: `You are an expert curriculum designer. Convert these raw educational standards for "${subjectName}" into a well-organized, comprehensive curriculum with MANY units.
+        prompt: `You are an expert curriculum designer. Convert these raw educational standards for "${subjectName}" into a well-organized, comprehensive curriculum.
 
 Rules:
 1. Create a reasonable number of units based on the content — not too few, not too many. Each unit should cover a distinct conceptual area. Let the standards naturally dictate how many units there are.
 2. Each unit should have a balanced number of subunits. Do NOT make units too broad or pack too many subunits into one.
 3. Convert each standard into a SHORT, punchy subunit name (4-8 words max). Be specific, not generic. Example: "Analyze characteristics of life and engage in argument about the designation of viruses as non-living" → "Viruses as Non-Living Organisms"
-4. Only merge standards if they are truly identical concepts described differently. Keep distinct ideas as separate subunits.
-5. For each translated subunit, include the IDs of the raw standards it covers in "covered_ids".
+4. CONSOLIDATE related standards into a single subunit whenever they cover the same teachable concept. A subunit should be the size of one focused 10–15 minute video — large enough that a single YouTube lesson can plausibly cover it, small enough to remain specific. Each subunit becomes one video, so avoid creating many tiny subunits about minor variations of the same idea. When in doubt, merge.
+   - DO merge: "Identify the structure of DNA" + "Describe the function of DNA" + "Explain DNA replication basics" → ONE subunit "DNA Structure, Function & Replication".
+   - DO merge: "Analyze the cell membrane" + "Describe membrane transport" → ONE subunit "Cell Membrane & Transport".
+   - DO NOT merge across genuinely different concepts (e.g., do not merge "Mitosis" with "Genetic Inheritance" — those are separate teachable units).
+5. For each subunit, list the IDs of EVERY raw standard it covers in "covered_ids". A merged subunit will have multiple ids; that is expected and good.
 6. Unit names should be clear and specific (e.g. "Cell Structure & Function" not just "Cells").
-7. CRITICAL: Every single raw standard must be covered by at least one subunit — do not skip or omit any. If a standard doesn't fit neatly into an existing unit, create a new unit for it.
+7. CRITICAL: Every single raw standard must be covered by at least one subunit — do not skip or omit any. Merging is fine and encouraged; dropping is not.
 
 Return JSON only:
 {
@@ -316,28 +328,33 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description |
       });
 
       const units = res.units || [];
-
-      // Build covered IDs set incrementally for animation effect
-      const allCovered = new Set();
-      units.forEach(u => u.subunits?.forEach(s => s.covered_ids?.forEach(id => allCovered.add(id))));
-
-      // Reveal covered IDs unit by unit with small delay for animation
-      let delay = 0;
-      for (const unit of units) {
-        for (const sub of (unit.subunits || [])) {
-          const ids = sub.covered_ids || [];
-          delay += 80;
-          setTimeout(() => {
-            setCoveredRawIds(prev => {
-              const next = new Set(prev);
-              ids.forEach(id => next.add(id));
-              return next;
-            });
-          }, delay);
-        }
-      }
-
       setTranslatedUnits(units);
+      setRevealedCount(0);
+      setCoveredRawIds(new Set());
+
+      // Animate subunits onto the right-side panel one at a time, and check
+      // off their corresponding raw standards on the left in lockstep. Same
+      // counter (revealedCount) drives both — they can never get out of sync.
+      const flat = [];
+      units.forEach((u, ui) => {
+        (u.subunits || []).forEach((s, si) => {
+          flat.push({ unitIdx: ui, subIdx: si, ids: s.covered_ids || [] });
+        });
+      });
+
+      // ~220ms per step feels intentional without dragging. For a typical
+      // 25-subunit curriculum the whole sweep takes ~5.5s.
+      const REVEAL_MS = 220;
+      flat.forEach((step, i) => {
+        setTimeout(() => {
+          setRevealedCount((c) => Math.max(c, i + 1));
+          setCoveredRawIds((prev) => {
+            const next = new Set(prev);
+            step.ids.forEach((id) => next.add(id));
+            return next;
+          });
+        }, (i + 1) * REVEAL_MS);
+      });
     } catch (e) {
       setTranslatedUnits([]);
     } finally {
@@ -400,8 +417,10 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description |
           <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center gap-2 shrink-0">
             <Sparkles className="w-4 h-4 text-indigo-500" />
             <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">AI Curriculum</span>
-            {translating && <Loader2 className="w-3 h-3 animate-spin text-indigo-400 ml-auto" />}
-            {!translating && translatedUnits && (
+            {(translating || (translatedUnits && !reveallComplete)) && (
+              <Loader2 className="w-3 h-3 animate-spin text-indigo-400 ml-auto" />
+            )}
+            {!translating && translatedUnits && reveallComplete && (
               <span className="ml-auto text-xs text-green-600 font-medium flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Ready
               </span>
@@ -416,22 +435,44 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description |
             )}
             {!translating && translatedUnits && (
               <div className="space-y-3">
-                {translatedUnits.map((unit, ui) => (
-                  <div key={ui} className="border border-indigo-100 rounded-xl overflow-hidden">
-                    <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-2 flex items-center gap-2">
-                      <div className="w-5 h-5 bg-white/20 rounded-md flex items-center justify-center text-white text-xs font-bold">{ui + 1}</div>
-                      <span className="text-white text-xs font-semibold">{unit.unit_name}</span>
-                    </div>
-                    <div className="p-2 space-y-1">
-                      {(unit.subunits || []).map((sub, si) => (
-                        <div key={si} className="flex items-center gap-2 px-2 py-1.5 bg-indigo-50 rounded-lg">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                          <span className="text-xs text-indigo-800 font-medium">{sub.name}</span>
+                {(() => {
+                  // Walk units in order and figure out how many subunits of
+                  // each have entered via the staged reveal. `cursor` tracks
+                  // our position in the flat ordering used by revealedCount.
+                  let cursor = 0;
+                  return translatedUnits.map((unit, ui) => {
+                    const subs = unit.subunits || [];
+                    const start = cursor;
+                    cursor += subs.length;
+                    // How many of THIS unit's subunits are currently visible.
+                    const visible = Math.max(0, Math.min(subs.length, revealedCount - start));
+                    // Don't render the unit card at all until its first
+                    // subunit has been stepped in.
+                    if (visible === 0) return null;
+                    return (
+                      <div
+                        key={ui}
+                        className="border border-indigo-100 rounded-xl overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-300"
+                      >
+                        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-2 flex items-center gap-2">
+                          <div className="w-5 h-5 bg-white/20 rounded-md flex items-center justify-center text-white text-xs font-bold">{ui + 1}</div>
+                          <span className="text-white text-xs font-semibold">{unit.unit_name}</span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                        <div className="p-2 space-y-1">
+                          {subs.slice(0, visible).map((sub, si) => (
+                            <div
+                              key={si}
+                              className="flex items-center gap-2 px-2 py-1.5 bg-indigo-50 rounded-lg animate-in fade-in slide-in-from-bottom-1 duration-300"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                              <span className="text-xs text-indigo-800 font-medium">{sub.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
             {!translating && translatedUnits?.length === 0 && (

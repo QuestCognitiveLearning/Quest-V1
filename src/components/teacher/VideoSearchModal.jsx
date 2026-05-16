@@ -87,14 +87,23 @@ export default function VideoSearchModal({ subunit, curriculumName, onClose, onV
           });
         }
 
+        // Long-form gate (client-side defense in depth). The youtubeSearch
+        // edge function already strips ≤60s videos server-side, but if a
+        // future call site bypasses it or the durations lookup races, this
+        // ensures Shorts / clips never reach the picker.
+        const eligibleItems = data.items.filter((item) => {
+          const duration = durationMap[item.id.videoId] || 0;
+          return duration > 60;
+        });
+
         // For live sessions, use simple summaries from title/description only
         // For curriculum, generate AI summaries from transcripts
         const videoSummaries = await Promise.all(
-          data.items.map(async (item) => {
+          eligibleItems.map(async (item) => {
             let summary;
             if (isLiveSession) {
               // Quick summary from title and description only
-              summary = decodeHTMLEntities(item.snippet.description).substring(0, 200) || 
+              summary = decodeHTMLEntities(item.snippet.description).substring(0, 200) ||
                        `Educational content about ${decodeHTMLEntities(item.snippet.title)}`;
             } else {
               // Full transcript-based AI summary for curriculum
@@ -111,7 +120,7 @@ export default function VideoSearchModal({ subunit, curriculumName, onClose, onV
             };
           })
         );
-        
+
         setVideos(videoSummaries);
       }
     } catch (error) {

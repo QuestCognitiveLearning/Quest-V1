@@ -52,12 +52,52 @@ export default function TeacherDashboard() {
       const currentUser = await quest.auth.me();
       setTeacher(currentUser);
 
-      // Show demo for new premium/trial teachers (first visit only)
+      // Demo gate — fire ONCE per teacher, ever. Three layered guards:
+      //   1. SERVER FLAG `users.onboarding_demo_seen` — durable across
+      //      browsers/devices/localStorage clears. Canonical source of truth.
+      //   2. localStorage flag — synchronous fallback within the same session.
+      //   3. `created_date` < 24h — hard ceiling so accounts older than 24h
+      //      never see the demo regardless of either flag state.
+      // Same pattern as KnowledgeMap.jsx (student side) — kept in sync.
       const demoKey = `demo_shown_${currentUser.id}`;
       const isPremium = currentUser.subscription_status === 'premium' || currentUser.subscription_status === 'trial';
-      if (isPremium && !localStorage.getItem(demoKey)) {
+      const createdAt = currentUser.created_date ? new Date(currentUser.created_date).getTime() : null;
+      const ageHours = createdAt ? (Date.now() - createdAt) / 3_600_000 : null;
+      const isBrandNew = createdAt && (Date.now() - createdAt) < 24 * 60 * 60 * 1000;
+      const serverAlreadyShown = !!currentUser.onboarding_demo_seen;
+      const localAlreadyShown = !!localStorage.getItem(demoKey);
+      const willShow = isPremium && isBrandNew && !serverAlreadyShown && !localAlreadyShown;
+
+      // Mirror of KnowledgeMap.jsx's verbose log so the teacher path is
+      // easy to diagnose too.
+      console.groupCollapsed(
+        `%c[demo-gate] teacher %c${willShow ? 'SHOW' : 'SKIP'}`,
+        'color:#2563EB;font-weight:bold',
+        willShow
+          ? 'color:#16A34A;font-weight:bold'
+          : 'color:#64748B;font-weight:bold',
+      );
+      console.log('user.id              =', currentUser.id);
+      console.log('account age (hours)  =', ageHours?.toFixed(2) ?? '(unknown)');
+      console.log('isBrandNew (<24h)    =', isBrandNew);
+      console.log('isPremium (paid/trial)=', isPremium, '  (status:', currentUser.subscription_status + ')');
+      console.log('server flag          =', serverAlreadyShown, '  (users.onboarding_demo_seen)');
+      console.log('localStorage flag    =', localAlreadyShown,  '  (key:', demoKey + ')');
+      console.log('→ teacher has seen demo =', serverAlreadyShown || localAlreadyShown);
+      console.log('→ DECISION              =', willShow ? 'SHOW (and burn flags)' : 'SKIP');
+      console.groupEnd();
+
+      if (willShow) {
         setShowDemo(true);
         localStorage.setItem(demoKey, 'true');
+        // Fire-and-forget server write. If it fails, the localStorage flag
+        // still prevents replay this session and we retry on next mount.
+        quest.auth
+          .updateMe({ onboarding_demo_seen: true })
+          .then(() => console.log('[demo-gate] teacher server flag → true'))
+          .catch((err) =>
+            console.warn('[demo-gate] server flag write failed:', err)
+          );
       }
 
       const teacherClasses = await quest.entities.Class.filter({ teacher_id: currentUser.id });

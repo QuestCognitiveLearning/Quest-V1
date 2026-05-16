@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
+import ContactSalesModal from "@/components/shared/ContactSalesModal";
 
 // Free + Premium CTAs go to signup (`?mode=signup` opens the signup form directly
-// on the SignIn page). Enterprise opens an email since it needs sales conversation.
-const buildTiers = (navigate) => [
+// on the SignIn page). Enterprise opens the in-app ContactSalesModal — same UX
+// as the post-signup Pricing page — instead of a mailto popup.
+const buildTiers = (navigate, openContact) => [
   {
     id: "basic",
     name: "Basic",
@@ -63,16 +65,14 @@ const buildTiers = (navigate) => [
       "Custom training & onboarding",
       "Priority 24/7 support",
     ],
-    action: () => {
-      window.location.href =
-        "mailto:admin@questlearning.co?subject=Enterprise%20Plan%20Inquiry";
-    },
+    action: () => openContact(),
   },
 ];
 
 export default function Pricing() {
   const navigate = useNavigate();
-  const TIERS = buildTiers(navigate);
+  const [contactOpen, setContactOpen] = useState(false);
+  const TIERS = buildTiers(navigate, () => setContactOpen(true));
   return (
     <section id="pricing" className="bg-[#EEF3FB]" style={{ padding: "72px 0" }}>
       <div className="lp-v3-container">
@@ -174,6 +174,14 @@ export default function Pricing() {
           })}
         </div>
       </div>
+
+      <ContactSalesModal
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        topic="Enterprise Plan Inquiry"
+        heading="Talk to our sales team"
+        subheading="Tell us about your school or district — we'll get back within a day."
+      />
     </section>
   );
 }
