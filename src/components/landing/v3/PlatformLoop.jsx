@@ -154,11 +154,15 @@ export default function PlatformLoop() {
         </div>
 
         <div className="relative">
+          {/* Responsive grid:
+              - Mobile (default): 2 columns → 4 cards wrap into a 2×2 block,
+                so step 3/4 sit BELOW step 1/2 instead of overflowing right.
+              - lg+: 7-column row with thin arrow connectors interleaved
+                between cards (1fr  arrow  1fr  arrow  1fr  arrow  1fr).
+              Each arrow `<div>` below uses `hidden lg:flex` so it disappears
+              on mobile where the linear "→" doesn't make sense. */}
           <div
-            className="grid items-stretch gap-3"
-            style={{
-              gridTemplateColumns: "1fr 24px 1fr 24px 1fr 24px 1fr",
-            }}
+            className="grid items-stretch gap-3 grid-cols-2 lg:[grid-template-columns:1fr_24px_1fr_24px_1fr_24px_1fr]"
           >
             {PHASES.map((p, i) => {
               const isOn = active === i;
@@ -226,7 +230,7 @@ export default function PlatformLoop() {
                   </button>
                   {i < PHASES.length - 1 && (
                     <div
-                      className="flex items-center justify-center self-center transition-colors"
+                      className="hidden lg:flex items-center justify-center self-center transition-colors"
                       style={{
                         color:
                           active === i || active === i + 1 ? "#2563EB" : "#CBD5E1",
@@ -260,9 +264,11 @@ export default function PlatformLoop() {
             })}
           </div>
 
-          {/* Refine & rerun back arrow */}
+          {/* Refine & rerun back arrow — desktop only. On mobile the cards
+              are stacked in a 2×2 grid, so a horizontal U-shape would be
+              nonsensical. */}
           <div
-            className="relative mt-3"
+            className="relative mt-3 hidden lg:block"
             style={{ height: 56, color: "#475569", opacity: 0.85 }}
             aria-hidden="true"
           >

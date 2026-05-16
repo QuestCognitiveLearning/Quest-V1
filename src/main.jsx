@@ -7,6 +7,7 @@
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { Analytics } from '@vercel/analytics/react'
 import App from '@/App.jsx'
 import ErrorBoundary from '@/lib/ErrorBoundary'
 import '@/styles/tokens.css'  // design tokens (must load before Tailwind)
@@ -57,6 +58,10 @@ window.addEventListener('unhandledrejection', (e) => { handleStaleChunk(e.reason
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ErrorBoundary>
     <App />
+    {/* Vercel Web Analytics — pageviews + per-route insights. Only emits
+        events in production; no-op in local dev. No cookies, no consent
+        banner needed. Dashboard lives at vercel.com/.../analytics. */}
+    <Analytics />
   </ErrorBoundary>
 )
 
