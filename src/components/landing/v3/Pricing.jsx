@@ -3,35 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
 import ContactSalesModal from "@/components/shared/ContactSalesModal";
 
-// Free + Premium CTAs go to signup (`?mode=signup` opens the signup form directly
+// Premium CTA goes to signup (`?mode=signup` opens the signup form directly
 // on the SignIn page). Enterprise opens the in-app ContactSalesModal — same UX
 // as the post-signup Pricing page — instead of a mailto popup.
 const buildTiers = (navigate, openContact) => [
   {
-    id: "basic",
-    name: "Basic",
-    desc: "Perfect for trying out live sessions",
-    price: "Free",
-    per: "",
-    cta: "Get Started Free",
-    popular: false,
-    features: [
-      "Access to live learning sessions",
-      "Basic progress tracking",
-      "Community support",
-    ],
-    action: () => navigate("/SignIn?mode=signup"),
-  },
-  {
     id: "premium",
     name: "Premium",
     desc: "Full access to transform your learning",
-    price: "$30",
+    price: "$39",
     per: "/ month",
     cta: "Start Free Trial",
     popular: true,
     features: [
-      "30-day free trial",
+      "7-day free trial",
       "Unlimited live sessions",
       "AI-generated curriculum",
       "Personalized learning paths",
@@ -88,14 +73,14 @@ export default function Pricing() {
               letterSpacing: "-0.025em",
             }}
           >
-            Free to Start. <em className="not-italic text-[#2563EB]">Scales With You.</em>
+            Simple Pricing. <em className="not-italic text-[#2563EB]">Built for Teachers.</em>
           </h2>
           <p className="text-[17px] text-[#64748B]">
-            Students join free with a class code. Teachers unlock the full platform with Premium.
+            Students join free with a class code. Teachers get full access with Premium — start with a 7-day free trial.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 lg:gap-5 items-stretch pt-3">
+        <div className="grid md:grid-cols-2 max-w-3xl mx-auto gap-4 lg:gap-5 items-stretch pt-3">
           {TIERS.map((t) => {
             const popular = t.popular;
             return (

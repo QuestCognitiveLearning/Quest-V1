@@ -21,7 +21,7 @@ Deno.serve((req) => {
   if (!ipLimit.allowed) return tooManyRequestsResponse(ipLimit);
 
   return json({
-    premium_price_id: 'price_1SsvWlK8xO8FkG1xlWNQUDDl',
+    premium_price_id: 'price_1TY7vGK8xO8FkG1xd8ArliXn',
     premium_product_id: 'prod_TqcAYSDsVBEGAG',
   });
 });

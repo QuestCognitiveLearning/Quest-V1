@@ -10,24 +10,12 @@ export default function PricingInfo() {
 
   const plans = [
     {
-      name: "Basic",
-      price: "Free",
-      description: "Perfect for trying out live sessions",
-      features: [
-        "Access to live learning sessions",
-        "Basic progress tracking",
-        "Community support"
-      ],
-      cta: "Get Started Free",
-      popular: false,
-    },
-    {
       name: "Premium",
-      price: "$30",
+      price: "$39",
       period: "/month",
       description: "Full access to transform your learning",
       features: [
-        "30-day free trial",
+        "7-day free trial",
         "Unlimited live sessions",
         "AI-generated curriculum",
         "Personalized learning paths",
@@ -97,7 +85,7 @@ export default function PricingInfo() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            Start with a free plan or unlock full potential with Premium
+            Unlock the full Premium platform — start with a 7-day free trial
           </motion.p>
         </div>
       </section>
@@ -105,7 +93,7 @@ export default function PricingInfo() {
       {/* Pricing Cards */}
       <section className="pb-24 px-6">
         <div className="container mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-3 gap-8">
+          <div className="grid lg:grid-cols-2 max-w-4xl mx-auto gap-8">
             {plans.map((plan, idx) => (
               <motion.div
                 key={plan.name}
@@ -138,7 +126,7 @@ export default function PricingInfo() {
                     )}
                   </div>
                   {plan.name === "Premium" && (
-                    <p className="text-sm text-gray-500 mt-2">30-day free trial</p>
+                    <p className="text-sm text-gray-500 mt-2">7-day free trial</p>
                   )}
                 </div>
 
@@ -175,7 +163,7 @@ export default function PricingInfo() {
             transition={{ duration: 0.6, delay: 0.5 }}
           >
             <p className="text-gray-600">
-              Premium includes a 30-day free trial
+              Premium includes a 7-day free trial
             </p>
             <p className="text-gray-500 text-sm mt-2">
               Questions? <a href="mailto:support@questlearning.co" className="text-blue-600 hover:underline">Contact our team</a>

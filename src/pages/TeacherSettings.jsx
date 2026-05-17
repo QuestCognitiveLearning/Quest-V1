@@ -14,7 +14,7 @@ export default function TeacherSettings() {
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
   const [priceIds, setPriceIds] = useState(null);
-  const [trialProgress, setTrialProgress] = useState({ daysLeft: 0, totalDays: 30, percentage: 0 });
+  const [trialProgress, setTrialProgress] = useState({ daysLeft: 0, totalDays: 7, percentage: 0 });
 
   useEffect(() => {
     loadTeacherData();
@@ -26,13 +26,14 @@ export default function TeacherSettings() {
      const currentUser = await quest.auth.me();
      setTeacher(currentUser);
 
-     // Calculate trial or grace period progress
+     // Calculate trial or grace period progress.
+     // Trial = 7-day free trial. Grace period = 30 days post-conversion.
      const endDate = currentUser.trial_end_date || currentUser.grace_period_end_date;
      if (endDate) {
        const now = new Date();
        const end = new Date(endDate);
        const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
-       const totalDays = 30;
+       const totalDays = currentUser.subscription_status === 'grace_period' ? 30 : 7;
        const percentage = Math.max(0, Math.min(100, (daysLeft / totalDays) * 100));
        setTrialProgress({ daysLeft, totalDays, percentage });
      }
@@ -219,17 +220,21 @@ export default function TeacherSettings() {
                   </div>
                 </div>
                 
-                {/* Trial Progress Bar */}
+                {/* Trial / Grace-period progress bar */}
                 <div className="p-4 bg-white rounded-lg border border-purple-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-gray-700">Trial Period</span>
+                    <span className="text-sm font-semibold text-gray-700">
+                      {subscriptionStatus === 'grace_period' ? 'Subscription Period' : 'Trial Period'}
+                    </span>
                     <span className="text-sm font-bold text-purple-600">
                       {trialProgress.daysLeft} of {trialProgress.totalDays} days left
                     </span>
                   </div>
                   <Progress value={trialProgress.percentage} className="h-2.5" />
                   <p className="text-xs text-gray-500 mt-2">
-                    Your trial will automatically convert to a paid subscription after {trialProgress.daysLeft} days
+                    {subscriptionStatus === 'grace_period'
+                      ? `Your subscription period renews in ${trialProgress.daysLeft} days`
+                      : `Your trial will automatically convert to a paid subscription after ${trialProgress.daysLeft} days`}
                   </p>
                 </div>
                 <div>

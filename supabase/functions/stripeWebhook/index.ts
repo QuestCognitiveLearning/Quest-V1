@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
       if (!userId) break;
 
       const trialEnd = new Date();
-      trialEnd.setDate(trialEnd.getDate() + 30);
+      trialEnd.setDate(trialEnd.getDate() + 7);
 
       await admin.from('users').update({
         subscription_status: 'trial',

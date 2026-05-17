@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     line_items: [{ price: value.priceId, quantity: 1 }],
     mode: 'subscription',
     subscription_data: {
-      trial_period_days: 30,
+      trial_period_days: 7,
       metadata: { app_user_id: user.id },
     },
     success_url: value.successUrl,

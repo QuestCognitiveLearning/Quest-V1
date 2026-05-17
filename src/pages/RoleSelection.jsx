@@ -279,7 +279,7 @@ export default function RoleSelection() {
 
         {/* Trust strip */}
         <div className="mt-9 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-gray-500 text-[12.5px] font-medium">
-          <TrustItem>30-day free trial on Premium</TrustItem>
+          <TrustItem>7-day free trial on Premium</TrustItem>
           <span className="hidden md:inline-block w-px h-3.5 bg-gray-300" />
           <TrustItem>FERPA · COPPA aligned</TrustItem>
           <span className="hidden md:inline-block w-px h-3.5 bg-gray-300" />

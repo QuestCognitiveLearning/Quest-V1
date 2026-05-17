@@ -4,7 +4,6 @@
  *         account. Re-uses the v3 landing's pricing card design so the visual
  *         is consistent across marketing + product. Actions differ from the
  *         landing — here the buttons do real work:
- *           - Basic        → updates the user's subscription_status to 'free'
  *           - Premium      → kicks off Stripe Checkout (createCheckout)
  *           - Enterprise   → opens the in-app contact form modal (no mailto)
  *
@@ -72,31 +71,6 @@ export default function Pricing() {
 
   // ─── Plan actions ───────────────────────────────────────────────────────
 
-  const activateBasic = async () => {
-    setLoading(true);
-    try {
-      if (!user) {
-        window.location.href = "/SignIn?mode=signup";
-        return;
-      }
-      if (user.account_type !== "teacher") {
-        toast.error("Subscription is only available for teachers");
-        setLoading(false);
-        return;
-      }
-      await quest.auth.updateMe({
-        subscription_status: "free",
-        subscription_tier: "free",
-      });
-      toast.success("Basic plan activated!");
-      navigate(createPageUrl("TeacherDashboard"));
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error("Failed to activate plan. Please try again.");
-      setLoading(false);
-    }
-  };
-
   const startPremiumTrial = async () => {
     setLoading(true);
     try {
@@ -141,30 +115,15 @@ export default function Pricing() {
 
   const TIERS = [
     {
-      id: "basic",
-      name: "Basic",
-      desc: "Perfect for trying out live sessions",
-      price: "Free",
-      per: "",
-      cta: "Get Started Free",
-      popular: false,
-      features: [
-        "Access to live learning sessions",
-        "Basic progress tracking",
-        "Community support",
-      ],
-      action: activateBasic,
-    },
-    {
       id: "premium",
       name: "Premium",
       desc: "Full access to transform your learning",
-      price: "$30",
+      price: "$39",
       per: "/ month",
       cta: "Start Free Trial",
       popular: true,
       features: [
-        "30-day free trial",
+        "7-day free trial",
         "Unlimited live sessions",
         "AI-generated curriculum",
         "Personalized learning paths",
@@ -271,16 +230,16 @@ export default function Pricing() {
           >
             {isFirstTimeTeacher ? (
               <>
-                Welcome — pick your{" "}
+                Welcome — start your{" "}
                 <em style={{ fontStyle: "normal", color: C.brand }}>
-                  starting plan.
+                  free trial.
                 </em>
               </>
             ) : (
               <>
-                Free to Start.{" "}
+                Simple Pricing.{" "}
                 <em style={{ fontStyle: "normal", color: C.brand }}>
-                  Scales With You.
+                  Built for Teachers.
                 </em>
               </>
             )}
@@ -292,8 +251,8 @@ export default function Pricing() {
             style={{ color: C.muted, fontSize: 17, lineHeight: 1.55 }}
           >
             {isFirstTimeTeacher
-              ? "Start free, or unlock the full platform with Premium. You can change anytime."
-              : "Students join free with a class code. Teachers unlock the full platform with Premium."}
+              ? "Try the full Premium platform free for 7 days. Cancel anytime."
+              : "Students join free with a class code. Teachers get full access with Premium — start with a 7-day free trial."}
           </motion.p>
         </div>
       </section>
@@ -301,9 +260,9 @@ export default function Pricing() {
       {/* Pricing cards */}
       <section style={{ paddingBottom: 80, paddingLeft: 24, paddingRight: 24 }}>
         <div
-          className="mx-auto grid md:grid-cols-3"
+          className="mx-auto grid md:grid-cols-2"
           style={{
-            maxWidth: 1200,
+            maxWidth: 880,
             gap: 20,
             paddingTop: 12,
             alignItems: "stretch",
@@ -506,8 +465,7 @@ export default function Pricing() {
           style={{ marginTop: 48, maxWidth: 720 }}
         >
           <p style={{ color: C.muted, fontSize: 14 }}>
-            Premium includes a 30-day free trial — no credit card required to
-            start the basic plan.
+            Premium includes a 7-day free trial. Cancel anytime before it ends.
           </p>
           <p style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>
             Questions?{" "}
