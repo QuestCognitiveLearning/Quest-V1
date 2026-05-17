@@ -17,7 +17,6 @@ import {
   LogOut,
   ChevronLeft,
   TrendingUp,
-  GraduationCap,
   FileText
 } from "lucide-react";
 
@@ -112,11 +111,6 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
 
 
         <nav className="flex-1 overflow-y-auto py-2 px-2">
-          <button onClick={() => handleNavigation("live", "TeacherLiveSession")} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "live" ? "bg-white/20" : "hover:bg-white/10"}`}>
-            <GraduationCap className="w-4 h-4" />
-            <span>Live Sessions</span>
-          </button>
-
           <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("dashboard", "TeacherDashboard") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "dashboard" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
             <BarChart3 className="w-4 h-4" />
             <span>Dashboard</span>
