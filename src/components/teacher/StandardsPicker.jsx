@@ -302,7 +302,7 @@ Return JSON only:
 }
 
 Raw standards:
-${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description || s.statementNotation || s.listId || "(no description)", depth: s.depth })), null, 2)}`,
+${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description || s.statementNotation || s.listId || "(no description)" })))}`,
         response_json_schema: {
           type: "object",
           properties: {

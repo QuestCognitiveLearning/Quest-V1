@@ -16,7 +16,7 @@ export const LLM_MODELS = {
   CASE_STUDY_GENERATION:  'gpt-5-mini',  // Drives grading. Benchmark winner.
   ATTENTION_CHECKS:       'gpt-5-mini',  // Must not forward-reference future segments
   INQUIRY_CONTENT:        'gpt-5-mini',  // Image prompt quality → image quality
-  STANDARDS_PICKER:       'gpt-5-mini',  // Can hallucinate CCSS/NGSS codes otherwise
+  STANDARDS_PICKER:       'gpt-4.1-mini', // Reformat-only task; mini is plenty fast and accurate. Switched off gpt-5-mini because full standard sets timed out the edge worker.
 
   // Mid-tier. Comparison / scoring tasks where the answer is bounded.
   CASE_STUDY_GRADING:     'gpt-4.1-mini', // Compares student answer to model answer
