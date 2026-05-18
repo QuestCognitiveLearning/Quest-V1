@@ -251,6 +251,7 @@ function SelectionPanel({
 function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) {
   const [translating, setTranslating] = useState(false);
   const [translatedUnits, setTranslatedUnits] = useState(null);
+  const [translationError, setTranslationError] = useState("");
   const [coveredRawIds, setCoveredRawIds] = useState(new Set());
   // revealedCount = how many subunits (in flat order across all units) have
   // been "stepped in" so far. Drives both the right-side card reveal and the
@@ -269,6 +270,7 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
   const runTranslation = async () => {
     setTranslating(true);
     setTranslatedUnits(null);
+    setTranslationError("");
     setCoveredRawIds(new Set());
     try {
       const res = await quest.integrations.Core.InvokeLLM({
@@ -356,6 +358,10 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description |
         }, (i + 1) * REVEAL_MS);
       });
     } catch (e) {
+      // Surface the server's error message so failures are debuggable instead
+      // of just showing a blank "could not translate" state.
+      const msg = e?.message || e?.error || (typeof e === 'string' ? e : 'Unknown error');
+      setTranslationError(msg);
       setTranslatedUnits([]);
     } finally {
       setTranslating(false);
@@ -476,7 +482,22 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description |
               </div>
             )}
             {!translating && translatedUnits?.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-10">Could not translate standards. Try again.</p>
+              <div className="text-center py-10 px-4 space-y-3">
+                <p className="text-xs text-gray-500">Could not translate standards.</p>
+                {translationError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 text-left">
+                    {translationError}
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={runTranslation}
+                  className="text-xs"
+                >
+                  Try again
+                </Button>
+              </div>
             )}
           </div>
         </div>

@@ -27,7 +27,7 @@ import { invokeLLMWithUsage } from '../_shared/llm.ts';
 import { clientIp, rateLimitByIp, rateLimitByUser, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 import { guardLLMRequest, logLLMUsage, guardFailureResponse } from '../_shared/llmGuard.ts';
 
-const MAX_PROMPT_CHARS = 50_000;
+const MAX_PROMPT_CHARS = 200_000;
 
 const DEFAULT_SYSTEM_PROMPT =
   'You generate content for an English-language education platform. All output (questions, answer choices, explanations, summaries, scenarios) MUST be written in clear, natural English. Translate any non-English source material rather than echoing it. Never output text in another language.';
