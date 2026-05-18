@@ -358,10 +358,26 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description |
         }, (i + 1) * REVEAL_MS);
       });
     } catch (e) {
-      // Surface the server's error message so failures are debuggable instead
-      // of just showing a blank "could not translate" state.
-      const msg = e?.message || e?.error || (typeof e === 'string' ? e : 'Unknown error');
-      setTranslationError(msg);
+      // Supabase functions.invoke wraps non-2xx as FunctionsHttpError with a
+      // generic message; the real cause is in e.context.response. Try to read
+      // that body so the user (and any future debugger) sees the actual error.
+      let msg = e?.message || (typeof e === 'string' ? e : '');
+      try {
+        const resp = e?.context?.response || e?.context;
+        if (resp && typeof resp.text === 'function') {
+          const body = await resp.text();
+          if (body) {
+            try {
+              const parsed = JSON.parse(body);
+              msg = `${parsed.error || parsed.message || body} (HTTP ${resp.status || '?'})`;
+            } catch {
+              msg = `${body} (HTTP ${resp.status || '?'})`;
+            }
+          }
+        }
+      } catch { /* keep whatever we already had */ }
+      console.error('[StandardsPicker] translation failed:', e, '→', msg);
+      setTranslationError(msg || 'Unknown error');
       setTranslatedUnits([]);
     } finally {
       setTranslating(false);
