@@ -50,13 +50,13 @@ function VAI({ on }) {
 function VStudent({ on }) {
   const stages = ["Inquiry", "Instruction", "Recall", "Apply"];
   return (
-    <div className="flex gap-1 w-full">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-1 w-full">
       {stages.map((s, i) => {
         const isNow = on && i === 1;
         return (
           <div
             key={s}
-            className={`flex-1 flex flex-col items-center gap-1 py-1.5 rounded-md border ${
+            className={`flex flex-col items-center gap-1 py-1.5 rounded-md border ${
               isNow
                 ? "border-[#F97316] bg-[#FFF7ED]"
                 : on
