@@ -37,6 +37,7 @@ const PUBLIC_PAGES = [
   'JoinClass',
   'SignIn',
   'ResetPassword',
+  'Try',
 ];
 
 /**
