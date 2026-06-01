@@ -96,7 +96,7 @@ export default function CtaFinal() {
                 letterSpacing: "-0.025em",
               }}
             >
-              Bring Quest to <em className="not-italic text-[#F97316]">your school.</em>
+              Bring Quest to <em className="not-italic" style={{ color: "#F97316" }}>your school.</em>
             </h2>
             <p className="text-white/80 text-base mt-4 mb-7 max-w-[50ch]">
               Tell us about your school — we'll get back within a day.
