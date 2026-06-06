@@ -174,7 +174,7 @@ export default function EmailGate({ open, onClose, result, onAfterDownload }) {
                   href="/SignIn?mode=signup&source=leadmagnet"
                   className="text-indigo-700 font-semibold underline"
                 >
-                  Set up a free classroom
+                  Try it free to access other features
                 </a>
               </p>
             </div>

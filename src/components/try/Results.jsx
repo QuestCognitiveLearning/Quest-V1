@@ -160,14 +160,14 @@ export default function Results({ result, onStartOver }) {
               Want to run this live with your students?
             </h3>
             <p className="text-sm text-slate-600 mt-1">
-              Set up a free classroom in 90 seconds &mdash; no card required.
-              Get leaderboards, AI tutoring, and live response tracking.
+              Unlock leaderboards, AI tutoring, live response tracking, branded
+              parent reports, and the full curriculum builder.
             </p>
           </div>
           <Button
             onClick={() => (window.location.href = '/SignIn?mode=signup&source=leadmagnet')}
           >
-            Set up free classroom
+            Try it free to access other features
           </Button>
         </div>
       )}

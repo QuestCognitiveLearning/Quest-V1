@@ -93,18 +93,48 @@ export default function Try() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40">
-      {/* Lightweight header (no in-page anchor links — those belong on the landing page). */}
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-white/80 border-b border-slate-200/60">
+    <div
+      className="min-h-screen bg-[#EEF3FB]"
+      style={{
+        fontFamily:
+          "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
+      }}
+    >
+      {/* Header — mirrors the homepage chrome (logo + wordmark, paper bg). */}
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#EEF3FB]/90 border-b border-[#E2E8F0]">
         <div className="max-w-[1200px] mx-auto px-6 h-[68px] flex items-center justify-between">
-          <a href="/" className="font-bold text-slate-900 text-lg tracking-tight">
-            Quest Learning
+          <a href="/" className="flex items-center gap-2.5">
+            <img
+              src="/quest-logo-on-white.png"
+              alt="Quest"
+              className="w-8 h-8 rounded-lg object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <span className="text-[#0F172A] font-bold text-[17px] tracking-tight">
+              Quest Learning
+            </span>
           </a>
           <div className="flex items-center gap-3">
-            <a href="/" className="text-sm text-slate-600 hover:text-slate-900 hidden sm:inline">
+            <a
+              href="/"
+              className="text-sm font-medium text-[#475569] hover:text-[#2563EB] hidden sm:inline"
+            >
               Home
             </a>
-            <Button size="sm" variant="outline" onClick={() => navigate('/SignIn')}>
+            <a
+              href="/Pricing"
+              className="text-sm font-medium text-[#475569] hover:text-[#2563EB] hidden sm:inline"
+            >
+              Pricing
+            </a>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/SignIn')}
+              className="border-[#E2E8F0] text-[#0F172A] hover:border-[#2563EB] hover:text-[#2563EB]"
+            >
               Sign in
             </Button>
           </div>
