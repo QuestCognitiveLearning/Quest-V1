@@ -84,7 +84,7 @@ export default function Layout({ children, currentPageName }) {
 
       // Teacher-specific routing
       if (user.account_type === "teacher") {
-        const allTeacherPages = ["Pricing", "TeacherLiveSession", "CreateLiveSession", "ManageLiveSession", "TeacherDashboard", "TeacherClasses", "TeacherClassDetail", "TeacherCurricula", "CreateCurriculum", "ManageCurriculum", "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics", "TeacherStudentDetail", "TranscriptTester", "TeacherSettings"];
+        const allTeacherPages = ["Pricing", "TeacherLiveSession", "CreateLiveSession", "ManageLiveSession", "TeacherDashboard", "TeacherClasses", "TeacherClassDetail", "TeacherCurricula", "CreateCurriculum", "ManageCurriculum", "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics", "TeacherStudentDetail", "TranscriptTester", "TeacherSettings", "Generate", "BrandingSettings"];
         
         // Free teachers have live sessions, settings, AND Pricing so they
         // can always come back to upgrade. New teachers (subscription_status
