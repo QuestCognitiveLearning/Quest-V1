@@ -77,31 +77,6 @@ export default function VideoPicker({ onPicked }) {
 
   return (
     <div className="w-full max-w-3xl mx-auto">
-      {/* URL input */}
-      <form onSubmit={handleUrlSubmit} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-        <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
-          <LinkIcon className="w-4 h-4" /> Paste a YouTube URL
-        </label>
-        <div className="flex gap-2">
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://www.youtube.com/watch?v=..."
-            className="flex-1"
-            disabled={submitting}
-          />
-          <Button type="submit" disabled={submitting || !url.trim()}>
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generate'}
-          </Button>
-        </div>
-      </form>
-
-      <div className="flex items-center gap-4 my-6">
-        <div className="flex-1 h-px bg-slate-200" />
-        <span className="text-xs uppercase tracking-wider text-slate-500">or search YouTube</span>
-        <div className="flex-1 h-px bg-slate-200" />
-      </div>
-
       {/* Search */}
       <form onSubmit={handleSearch} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
         <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
@@ -150,6 +125,31 @@ export default function VideoPicker({ onPicked }) {
             ))}
           </div>
         )}
+      </form>
+
+      <div className="flex items-center gap-4 my-6">
+        <div className="flex-1 h-px bg-slate-200" />
+        <span className="text-xs uppercase tracking-wider text-slate-500">or paste a URL</span>
+        <div className="flex-1 h-px bg-slate-200" />
+      </div>
+
+      {/* URL input */}
+      <form onSubmit={handleUrlSubmit} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
+          <LinkIcon className="w-4 h-4" /> Paste a YouTube URL
+        </label>
+        <div className="flex gap-2">
+          <Input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            className="flex-1"
+            disabled={submitting}
+          />
+          <Button type="submit" disabled={submitting || !url.trim()}>
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generate'}
+          </Button>
+        </div>
       </form>
 
       {error && (
