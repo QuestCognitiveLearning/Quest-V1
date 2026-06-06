@@ -112,18 +112,26 @@ export default function Pricing() {
                   </div>
                 </div>
 
-                <div className="flex items-baseline gap-1 pb-4 border-b border-[#E2E8F0]">
-                  <span
-                    className={`font-extrabold text-[56px] leading-none tracking-tight ${
-                      popular ? "text-[#2563EB]" : "text-[#0F172A]"
-                    }`}
-                  >
-                    {t.price}
-                  </span>
-                  {t.per && (
-                    <span className="text-[#64748B] font-semibold text-sm">
-                      {t.per}
+                <div className="pb-4 border-b border-[#E2E8F0]">
+                  <div className="flex items-baseline gap-1">
+                    <span
+                      className={`font-extrabold text-[56px] leading-none tracking-tight ${
+                        popular ? "text-[#2563EB]" : "text-[#0F172A]"
+                      }`}
+                    >
+                      {t.price}
                     </span>
+                    {t.per && (
+                      <span className="text-[#64748B] font-semibold text-sm">
+                        {t.per}
+                      </span>
+                    )}
+                  </div>
+                  {popular && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 bg-[#DCFCE7] text-[#15803D] font-bold text-[11px] tracking-[0.08em] uppercase px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
+                      Free for 7 days
+                    </div>
                   )}
                 </div>
 
@@ -154,6 +162,11 @@ export default function Pricing() {
                 >
                   {t.cta}
                 </button>
+                {popular && (
+                  <p className="text-center text-[12.5px] text-[#64748B] mt-1">
+                    No charge for 7 days. Cancel anytime before day 7.
+                  </p>
+                )}
               </div>
             );
           })}

@@ -335,34 +335,61 @@ export default function Pricing() {
 
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 4,
                     paddingBottom: 16,
                     borderBottom: `1px solid ${C.line}`,
                   }}
                 >
-                  <span
-                    style={{
-                      fontWeight: 800,
-                      fontSize: 56,
-                      lineHeight: 1,
-                      letterSpacing: "-0.025em",
-                      color: popular ? C.brand : C.ink,
-                    }}
-                  >
-                    {t.price}
-                  </span>
-                  {t.per && (
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                     <span
                       style={{
-                        color: C.muted,
-                        fontWeight: 600,
-                        fontSize: 14,
+                        fontWeight: 800,
+                        fontSize: 56,
+                        lineHeight: 1,
+                        letterSpacing: "-0.025em",
+                        color: popular ? C.brand : C.ink,
                       }}
                     >
-                      {t.per}
+                      {t.price}
                     </span>
+                    {t.per && (
+                      <span
+                        style={{
+                          color: C.muted,
+                          fontWeight: 600,
+                          fontSize: 14,
+                        }}
+                      >
+                        {t.per}
+                      </span>
+                    )}
+                  </div>
+                  {popular && (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginTop: 10,
+                        background: "#DCFCE7",
+                        color: "#15803D",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        padding: "5px 10px",
+                        borderRadius: 999,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 999,
+                          background: "#16A34A",
+                        }}
+                      />
+                      Free for 7 days
+                    </div>
                   )}
                 </div>
 
@@ -451,6 +478,19 @@ export default function Pricing() {
                     t.cta
                   )}
                 </button>
+                {popular && (
+                  <p
+                    style={{
+                      textAlign: "center",
+                      fontSize: 12.5,
+                      color: C.muted,
+                      marginTop: 4,
+                      marginBottom: 0,
+                    }}
+                  >
+                    No charge for 7 days. Cancel anytime before day 7.
+                  </p>
+                )}
               </motion.div>
             );
           })}
