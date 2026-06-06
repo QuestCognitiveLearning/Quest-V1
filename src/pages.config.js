@@ -43,6 +43,7 @@ export const PAGES = {
   "PracticeSession":      lazy(() => import('./pages/PracticeSession')),
   "Pricing":              lazy(() => import('./pages/Pricing')),
   "PricingInfo":          lazy(() => import('./pages/PricingInfo')),
+  "BrandingSettings":     lazy(() => import('./pages/BrandingSettings')),
   "Progress":             lazy(() => import('./pages/Progress')),
   "ResetPassword":        lazy(() => import('./pages/ResetPassword')),
   "RoleSelection":        lazy(() => import('./pages/RoleSelection')),
