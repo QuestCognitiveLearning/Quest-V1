@@ -131,8 +131,8 @@ export default function Hero() {
   const eyebrow = isStudent
     ? "Inquiry · Instruction · Recalling · Applying"
     : "AI Curriculum · Live Sessions · Parent Reports";
-  const headlinePre = isStudent ? "Learn to" : "Whether you're a teacher or tutor,";
-  const headlineEm = isStudent ? "remember." : "we save you time.";
+  const headlinePre = isStudent ? "Learn to" : "Teacher or Tutor?";
+  const headlineEm = isStudent ? "remember." : "We save you time.";
   const lede = isStudent
     ? "Inquiry, instruction, recall, and applying — wired into every lesson. Your Knowledge Map shows what you've mastered and what's due."
     : "Standards in, full curriculum out — quizzes, free-response, attention checks, and case studies. Edit anything, regenerate anything, then teach.";
