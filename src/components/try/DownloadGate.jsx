@@ -51,7 +51,7 @@ export default function DownloadGate({ open, onClose, onAuthorized, format }) {
 
       const { data: checkout } = await quest.functions.invoke('createCheckout', {
         priceId,
-        successUrl: `${window.location.origin}/Try?trial=success`,
+        successUrl: `${window.location.origin}/try?trial=success`,
         cancelUrl: window.location.href,
       });
       if (checkout?.url) {

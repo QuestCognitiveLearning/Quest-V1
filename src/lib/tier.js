@@ -25,7 +25,7 @@ export const TIER_LIMITS = {
     enterpriseFeatures: false,
   },
   classroom: {
-    maxClasses: 3,
+    maxClasses: INF,
     maxStudents: INF,
     aiGenerationsPerMonth: INF,
     liveSessionsEnabled: true,

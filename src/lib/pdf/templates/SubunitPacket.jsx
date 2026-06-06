@@ -58,6 +58,13 @@ export default function SubunitPacket({
             day: "numeric",
           })}`,
         ]}
+        features={[
+          `${questions?.length || 0} multiple-choice knowledge check questions`,
+          scenario
+            ? `${prompts?.length || 0} free-response prompts grounded in a real-world scenario`
+            : "Free-response prompts (case study)",
+          "Answer key + model answers in the back",
+        ]}
         branding={branding}
       />
 

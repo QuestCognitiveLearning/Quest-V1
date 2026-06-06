@@ -56,6 +56,11 @@ export default function CaseStudyPacket({
             day: "numeric",
           })}`,
         ]}
+        features={[
+          "Real-world scenario in a tinted callout for easy student focus",
+          `${prompts.length} free-response prompts with ruled answer space`,
+          "4-point rubric and model answers for the teacher",
+        ]}
         branding={branding}
       />
 

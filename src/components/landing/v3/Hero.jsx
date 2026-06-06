@@ -221,7 +221,7 @@ export default function Hero() {
               {!isStudent && (
                 <button
                   type="button"
-                  onClick={() => navigate("/Try")}
+                  onClick={() => navigate("/try")}
                   className="inline-flex items-center gap-2 h-[50px] px-5 rounded-xl bg-white/80 hover:bg-white border border-[#E2E8F0] hover:border-[#2563EB] text-[#0F172A] hover:text-[#2563EB] font-semibold text-[14.5px] transition-colors"
                 >
                   Try free YouTube quiz tool

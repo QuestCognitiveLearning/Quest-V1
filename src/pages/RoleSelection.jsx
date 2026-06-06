@@ -74,9 +74,15 @@ export default function RoleSelection() {
           });
         } catch { /* non-essential */ }
         navigate(createPageUrl("JoinClass"));
+      } else if (role === "tutor") {
+        // account_type stays 'teacher' to satisfy the legacy enum; the new
+        // role lives in `new_role` (Phase 3 column) and routes to /Pricing
+        // with Studio pre-selected.
+        await quest.auth.updateMe({ account_type: "teacher", new_role: "tutor" });
+        navigate(createPageUrl("Pricing") + "?intent=studio");
       } else {
-        await quest.auth.updateMe({ account_type: "teacher" });
-        navigate(createPageUrl("Pricing"));
+        await quest.auth.updateMe({ account_type: "teacher", new_role: "teacher" });
+        navigate(createPageUrl("Pricing") + "?intent=classroom");
       }
     } catch (err) {
       showError("Save Failed", "Failed to save your selection. Please try again.");
@@ -172,7 +178,7 @@ export default function RoleSelection() {
             className="font-bold tracking-tight m-0 text-gray-900"
             style={{ fontSize: 'clamp(2.25rem, 4vw + 1rem, 3.5rem)', lineHeight: 1.05, letterSpacing: '-0.035em' }}
           >
-            Are you here to{" "}
+            How will you{" "}
             <span
               style={{
                 background: 'linear-gradient(110deg, #1e4fe0, #5388fb)',
@@ -181,28 +187,17 @@ export default function RoleSelection() {
                 color: 'transparent',
               }}
             >
-              learn
-            </span>{" "}
-            or to{" "}
-            <span
-              style={{
-                background: 'linear-gradient(110deg, #7c3aed, #a855f7)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-              }}
-            >
-              teach
+              use Quest
             </span>
             ?
           </h1>
           <p className="mt-3.5 text-[17px] leading-relaxed text-gray-500">
-            Pick your role to get a tailored experience.
+            Pick your role to get a tailored experience. Switch anytime in settings.
           </p>
         </div>
 
-        {/* Two role cards */}
-        <div className="grid md:grid-cols-2 gap-6 w-full max-w-[1080px]">
+        {/* Three role cards */}
+        <div className="grid md:grid-cols-3 gap-5 w-full max-w-[1180px]">
           <RoleCard
             role="student"
             hover={hover}
@@ -274,6 +269,50 @@ export default function RoleSelection() {
             ctaShadow="rgba(124,58,237,.55)"
             hoverShadow="rgba(124,58,237,.30)"
             hoverRing="rgba(168,85,247,.08)"
+          />
+
+          <RoleCard
+            role="tutor"
+            hover={hover}
+            setHover={setHover}
+            savingRole={savingRole}
+            onClick={() => handleSelectRole("tutor")}
+            accentBg={GRAD_TEACHER_SOFT}
+            icon={<Sparkles className="w-8 h-8" strokeWidth={2} />}
+            iconGradient={"linear-gradient(135deg, #F97316, #FB923C)"}
+            iconGlow="rgba(249,115,22,.45)"
+            accentColor="#F97316"
+            accentBorder="#ffd5b3"
+            badge={
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full"
+                style={{
+                  background: 'linear-gradient(135deg, #fff1e6, #fff)',
+                  border: '1px solid #ffd5b3',
+                  color: '#c2410c',
+                  fontFamily: FONT_MONO,
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  letterSpacing: '.06em',
+                }}
+              >
+                STUDIO
+              </span>
+            }
+            title="Tutor"
+            tagline="Look like a $200/hour tutor."
+            description="Branded session packets, automated parent progress reports, and AI session prep — the whole tutoring business in one tab."
+            features={[
+              "Your logo + brand on every PDF",
+              "Auto-sent parent progress reports",
+              "AI Socratic tutor between sessions",
+            ]}
+            micro={<TeacherMicro />}
+            cta="Continue as Tutor"
+            ctaGradient={"linear-gradient(135deg, #F97316, #FB923C)"}
+            ctaShadow="rgba(249,115,22,.55)"
+            hoverShadow="rgba(249,115,22,.30)"
+            hoverRing="rgba(251,146,60,.08)"
           />
         </div>
 

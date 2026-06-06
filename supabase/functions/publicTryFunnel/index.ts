@@ -76,24 +76,59 @@ async function videoDetails(videoId: string) {
   };
 }
 
-async function generateQuizAndCaseStudy(args: { title: string; transcript: string }) {
+type GenerationOptions = {
+  count?: number;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  gradeLevel?: 'Elementary' | 'Middle' | 'High' | 'Undergraduate';
+  includeCaseStudy?: boolean;
+};
+
+const GRADE_LABEL: Record<string, string> = {
+  Elementary: 'grades 3–5',
+  Middle: 'grades 6–8',
+  High: 'grades 9–12',
+  Undergraduate: 'college freshman level',
+};
+
+async function generateQuizAndCaseStudy(
+  args: { title: string; transcript: string; options?: GenerationOptions },
+) {
   const trimmed = args.transcript.length > 18_000
     ? args.transcript.slice(0, 18_000)
     : args.transcript;
+
+  const count = Math.min(20, Math.max(3, args.options?.count ?? 10));
+  const difficulty = args.options?.difficulty ?? 'medium';
+  const gradeLabel = args.options?.gradeLevel ? GRADE_LABEL[args.options.gradeLevel] : null;
+  const includeCaseStudy = args.options?.includeCaseStudy !== false;
+
+  const audienceLine = gradeLabel
+    ? `Target audience: students at ${gradeLabel}. Calibrate vocabulary and complexity accordingly.`
+    : 'Target audience: high school students.';
+
+  const difficultyLine = {
+    easy: 'Questions should test recall and basic comprehension of explicitly stated facts.',
+    medium: 'Questions should test comprehension, application, and light reasoning. Mix recall with inference.',
+    hard: 'Questions should test deeper reasoning, application to novel situations, and synthesis across multiple parts of the video.',
+  }[difficulty];
+
+  const caseStudyTask = includeCaseStudy
+    ? `\n\n2. A "case study" / discussion scenario. One realistic short scenario (3–6 sentences) that applies the video's central concept to a new situation, followed by 4 open-ended discussion questions a teacher can pose to students.`
+    : '\n\n(Case study omitted at user request — return case_study with empty scenario and an empty discussion_questions array.)';
 
   const prompt = `You are a curriculum designer creating a printable classroom handout based on a YouTube video.
 
 VIDEO TITLE: ${args.title}
 
+${audienceLine}
+
 VIDEO TRANSCRIPT (may be truncated):
 ${trimmed}
 
 YOUR TASK:
-Produce TWO things, both grounded only in the transcript above:
+Produce ${includeCaseStudy ? 'TWO things' : 'ONE thing'}, both grounded only in the transcript above:
 
-1. A 10-question multiple-choice quiz. Each question has 4 choices (A–D) and exactly one correct answer. Questions should test comprehension, key facts, and reasoning — not trivia from outside the transcript.
-
-2. A "case study" / discussion scenario. One realistic short scenario (3–6 sentences) that applies the video's central concept to a new situation, followed by 4 open-ended discussion questions a teacher can pose to students.
+1. A ${count}-question multiple-choice quiz. Each question has 4 choices (A–D) and exactly one correct answer. ${difficultyLine} Do not include trivia from outside the transcript.${caseStudyTask}
 
 LANGUAGE: Write all output in clear English regardless of the transcript language.
 
@@ -235,6 +270,21 @@ Deno.serve(async (req) => {
       const videoId = String(body.videoId ?? '');
       if (!VIDEO_ID_RE.test(videoId)) return json({ error: 'Invalid videoId' }, 400, req);
 
+      // Defensive: caller's customize panel ships these as a nested object.
+      const rawOpts = (body as Record<string, unknown>).options as Record<string, unknown> | undefined;
+      const options: GenerationOptions = {
+        count: typeof rawOpts?.count === 'number' ? rawOpts.count : undefined,
+        difficulty: ['easy', 'medium', 'hard'].includes(String(rawOpts?.difficulty))
+          ? (rawOpts!.difficulty as 'easy' | 'medium' | 'hard')
+          : undefined,
+        gradeLevel: ['Elementary', 'Middle', 'High', 'Undergraduate'].includes(
+          String(rawOpts?.gradeLevel),
+        )
+          ? (rawOpts!.gradeLevel as GenerationOptions['gradeLevel'])
+          : undefined,
+        includeCaseStudy: rawOpts?.includeCaseStudy === false ? false : true,
+      };
+
       // Fetch metadata + transcript in parallel.
       const [meta, transcript] = await Promise.all([
         videoDetails(videoId),
@@ -248,6 +298,7 @@ Deno.serve(async (req) => {
       const { quiz, case_study } = await generateQuizAndCaseStudy({
         title: meta.title,
         transcript: transcript.transcript,
+        options,
       });
 
       if (quiz.length === 0) {

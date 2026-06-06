@@ -54,7 +54,7 @@ const PLAN_DEFS = [
   {
     productName: "Quest Learning Classroom",
     productDescription:
-      "Up to 3 classes, unlimited students, AI generations, live sessions, Panda Tutor.",
+      "Unlimited classes and students, unlimited AI generations, live sessions, AI Panda Tutor.",
     metadata: { tier: "classroom", founding_member: "true" },
     prices: [
       {

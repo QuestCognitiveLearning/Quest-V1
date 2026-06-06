@@ -38,7 +38,7 @@ const PUBLIC_PAGES = [
   'JoinClass',
   'SignIn',
   'ResetPassword',
-  'Try',
+  'try',
   'Studio',
   'Classroom',
   'Enterprise',
@@ -119,8 +119,9 @@ function AuthenticatedApp() {
     <Suspense fallback={<FullPageSpinner />}>
       <Routes>
         <Route path="/" element={<RootRoute />} />
-        <Route path="/quiz-from-video" element={<Navigate to="/Try" replace />} />
-        <Route path="/quiz-from-video/*" element={<Navigate to="/Try" replace />} />
+        <Route path="/Try" element={<Navigate to="/try" replace />} />
+        <Route path="/quiz-from-video" element={<Navigate to="/try" replace />} />
+        <Route path="/quiz-from-video/*" element={<Navigate to="/try" replace />} />
         <Route path="/studio" element={<Navigate to="/Studio" replace />} />
         <Route path="/classroom" element={<Navigate to="/Classroom" replace />} />
         <Route path="/enterprise" element={<Navigate to="/Enterprise" replace />} />

@@ -128,7 +128,7 @@ export default function Classroom() {
             <ArrowRight size={16} />
           </button>
           <a
-            href="/Try"
+            href="/try"
             className="inline-flex items-center gap-2 h-12 px-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] text-[#0F172A] hover:text-[#2563EB] font-semibold text-[15px]"
           >
             Try the free YouTube tool

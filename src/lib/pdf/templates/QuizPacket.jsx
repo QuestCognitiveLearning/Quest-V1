@@ -67,46 +67,13 @@ export default function QuizPacket({
             day: "numeric",
           })}`,
         ]}
+        features={[
+          `${total} multiple-choice questions with answer key`,
+          "Print and hand out, project on a screen, or assign as take-home",
+          "Run it live in Quest for instant leaderboards and analytics",
+        ]}
         branding={branding}
       />
-
-      <Page size="LETTER" style={styles.page}>
-        <Text style={styles.sectionEyebrow}>Teacher&apos;s Guide</Text>
-        <Text style={styles.h1}>How to use this packet</Text>
-
-        <View style={{ marginTop: 14 }}>
-          {[
-            "Print one packet per student and hand out at the start of class.",
-            "Project on a screen and run as a class discussion using the answer key.",
-            "Assign as take-home practice. Allow 30–45 minutes.",
-            "Run it live: enter this quiz into Quest's live session mode for instant leaderboards.",
-          ].map((line, i) => (
-            <View
-              key={i}
-              style={{
-                flexDirection: "row",
-                marginBottom: 10,
-                alignItems: "flex-start",
-                gap: 10,
-              }}
-            >
-              <Text style={{ fontFamily: "Helvetica-Bold", color: COLORS.brand }}>
-                {i + 1}.
-              </Text>
-              <Text style={[styles.body, { flex: 1 }]}>{line}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.divider} />
-        <Text style={styles.muted}>
-          {standards
-            ? `Standards alignment: ${standards}`
-            : "No specific standards code was provided for this quiz."}
-        </Text>
-
-        <Footer branding={branding} />
-      </Page>
 
       {pages.map((pageQs, pi) => (
         <Page key={pi} size="LETTER" style={styles.page}>

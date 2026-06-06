@@ -17,12 +17,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/components/lib/supabase-client';
-import { ArrowRight, Sparkles, Youtube, FileText } from 'lucide-react';
+import { ArrowRight, Sparkles, Youtube, FileText, Rocket, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import VideoPicker from '@/components/try/VideoPicker';
 import GenerationLoader from '@/components/try/GenerationLoader';
 import Results from '@/components/try/Results';
+import CustomizePanel, { DEFAULT_OPTIONS } from '@/components/try/CustomizePanel';
 import Footer from '@/components/landing/v3/Footer';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  FREE_QUOTA,
+  getQuotaRemaining,
+  getQuotaUsed,
+  incrementQuota,
+  isQuotaExhausted,
+} from '@/lib/freeQuota';
 
 const CACHE_KEY = 'quest_try_result_v1';
 
@@ -33,7 +48,13 @@ export default function Try() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [genStatus, setGenStatus] = useState('running'); // running | done | error
+  const [options, setOptions] = useState(DEFAULT_OPTIONS);
+  const [quotaUsed, setQuotaUsed] = useState(getQuotaUsed());
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
   const inFlight = useRef(false);
+
+  const remaining = Math.max(0, FREE_QUOTA - quotaUsed);
+  const refreshQuotaCounter = () => setQuotaUsed(getQuotaUsed());
 
   // Restore cached result if the user is returning from sign-up or Stripe.
   useEffect(() => {
@@ -62,19 +83,31 @@ export default function Try() {
 
   const startGeneration = async ({ videoId }) => {
     if (inFlight.current) return;
+    if (isQuotaExhausted()) {
+      setShowQuotaModal(true);
+      return;
+    }
     inFlight.current = true;
     setStage('loading');
     setGenStatus('running');
     setError('');
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('publicTryFunnel', {
-        body: { action: 'generate', videoId },
+        body: { action: 'generate', videoId, options },
       });
       if (fnErr) throw fnErr;
       if (data?.error) throw new Error(data.error);
+      if (data?.quotaExceeded) {
+        setShowQuotaModal(true);
+        setStage('pick');
+        setGenStatus('running');
+        return;
+      }
       if (!data?.quiz?.length) throw new Error('No quiz generated. Try a different video.');
       setResult(data);
       try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+      incrementQuota();
+      refreshQuotaCounter();
       setGenStatus('done');
     } catch (err) {
       const msg = err?.message || 'Generation failed. Try a different video.';
@@ -117,6 +150,19 @@ export default function Try() {
             </span>
           </a>
           <div className="flex items-center gap-3">
+            <div
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold ${
+                remaining === 0
+                  ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                  : remaining <= 2
+                  ? 'bg-amber-50 text-amber-800 border border-amber-100'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-100'
+              }`}
+              title="Free handouts available on this browser"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {remaining}/{FREE_QUOTA} free handouts left
+            </div>
             <a
               href="/"
               className="text-sm font-medium text-[#475569] hover:text-[#2563EB] hidden sm:inline"
@@ -168,7 +214,10 @@ export default function Try() {
                 <span className="flex items-center gap-1.5"><ArrowRight className="w-4 h-4" /> No signup to preview</span>
               </div>
             </div>
-            <VideoPicker onPicked={startGeneration} />
+            <div className="max-w-3xl mx-auto space-y-5">
+              <CustomizePanel options={options} onChange={setOptions} />
+              <VideoPicker onPicked={startGeneration} />
+            </div>
           </>
         )}
 
@@ -200,6 +249,51 @@ export default function Try() {
       </main>
 
       <Footer />
+
+      <Dialog open={showQuotaModal} onOpenChange={setShowQuotaModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
+              <Rocket className="w-5 h-5 text-indigo-700" />
+            </div>
+            <DialogTitle className="text-center text-xl">
+              You&apos;ve used all {FREE_QUOTA} free handouts.
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              Start your 7-day free trial of Premium for unlimited handouts plus the full Quest platform.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2 text-sm text-slate-700 mt-2 mb-3">
+            {[
+              'Unlimited PDF + Word handouts',
+              'Full curriculum builder + standards alignment',
+              'Live classroom sessions with leaderboards',
+              'AI Panda Tutor for every student',
+              'Branded packets and parent progress reports',
+            ].map((f) => (
+              <li key={f} className="flex gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                {f}
+              </li>
+            ))}
+          </ul>
+          <Button
+            className="w-full"
+            onClick={() =>
+              (window.location.href = '/SignIn?mode=signup&source=leadmagnet&intent=trial')
+            }
+          >
+            Start free 7-day trial
+          </Button>
+          <button
+            type="button"
+            onClick={() => setShowQuotaModal(false)}
+            className="block mx-auto mt-3 text-xs text-slate-500 hover:text-slate-700"
+          >
+            Maybe later
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

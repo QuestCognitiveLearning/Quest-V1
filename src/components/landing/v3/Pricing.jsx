@@ -11,14 +11,14 @@ const buildTiers = (navigate, openContact) => [
   {
     id: "classroom",
     name: "Classroom",
-    desc: "For individual teachers running 1–3 classes.",
+    desc: "For individual teachers ready to ditch lesson-plan Sundays.",
     price: "$29",
     standardPrice: "$49",
     per: "/ month",
     cta: "Start 7-day free trial",
     popular: false,
     features: [
-      "Up to 3 classes, unlimited students",
+      "Unlimited classes and students",
       "Unlimited AI quiz + case study generation",
       "Live classroom sessions with leaderboards",
       "AI Panda Tutor for every student",
