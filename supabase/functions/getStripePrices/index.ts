@@ -4,24 +4,39 @@
  *         No auth required — the IDs themselves are not secrets. IP-rate-
  *         limited so a hot loop can't burn through the edge-function quota.
  *
- *         TODO [config]: move price IDs to env vars
- *         (STRIPE_PRICE_PREMIUM_MONTHLY) so live vs. test isn't hardcoded
- *         and rotation doesn't require a code change.
+ *         Reads price IDs from env vars so live / test can be swapped without
+ *         a code change. The legacy `premium_price_id` is kept in the
+ *         response shape so existing callers (e.g. the /Try DownloadGate that
+ *         still calls `pricesResp?.premium_price_id`) keep working — it now
+ *         aliases STRIPE_PRICE_CLASSROOM_MONTHLY (the lowest-friction option)
+ *         and falls back to the hardcoded legacy ID until env vars land.
+ *
  * @author Quest Learning core team
  */
 import { handlePreflight, json } from '../_shared/cors.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 
+const LEGACY_PRICE_ID = 'price_1TY7vGK8xO8FkG1xd8ArliXn';
+
 Deno.serve((req) => {
   const pre = handlePreflight(req);
   if (pre) return pre;
 
-  // Public endpoint — IP-only limit. Pricing page calls this once on load.
   const ipLimit = rateLimitByIp(clientIp(req), { maxRequests: 60, windowMs: 60_000 });
   if (!ipLimit.allowed) return tooManyRequestsResponse(ipLimit);
 
+  const classroomMonthly = Deno.env.get('STRIPE_PRICE_CLASSROOM_MONTHLY') || LEGACY_PRICE_ID;
+  const classroomAnnual  = Deno.env.get('STRIPE_PRICE_CLASSROOM_ANNUAL')  || null;
+  const studioMonthly    = Deno.env.get('STRIPE_PRICE_STUDIO_MONTHLY')    || null;
+  const studioAnnual     = Deno.env.get('STRIPE_PRICE_STUDIO_ANNUAL')     || null;
+  const studioSeat       = Deno.env.get('STRIPE_PRICE_STUDIO_SEAT')       || null;
+
   return json({
-    premium_price_id: 'price_1TY7vGK8xO8FkG1xd8ArliXn',
+    premium_price_id: classroomMonthly,
     premium_product_id: 'prod_TqcAYSDsVBEGAG',
+    tiers: {
+      classroom: { monthly: classroomMonthly, annual: classroomAnnual },
+      studio:    { monthly: studioMonthly,    annual: studioAnnual, seat: studioSeat },
+    },
   });
 });

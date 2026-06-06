@@ -5,6 +5,8 @@ import { quest } from "@/api/questClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import TeacherLayout from "../components/teacher/TeacherLayout";
+import UpgradeModal from "@/components/shared/UpgradeModal";
+import { canCreateClass, getUserTier, getLimits } from "@/lib/tier";
 import { 
   Users, 
   Plus, 
@@ -29,10 +31,25 @@ export default function TeacherClasses() {
   const [curricula, setCurricula] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [newClass, setNewClass] = useState({
     class_name: "",
     curriculum_id: ""
   });
+
+  const tierCap = teacher ? getLimits(teacher).maxClasses : Infinity;
+  const overCap = teacher && !canCreateClass(teacher, classes.length);
+  const upgradeReason = `You're on the ${getUserTier(teacher) === "free" ? "Free" : "Classroom"} plan, which allows up to ${
+    tierCap === Infinity ? "unlimited" : tierCap
+  } active ${tierCap === 1 ? "class" : "classes"}. Upgrade to Studio for unlimited classes, branded packets, and automated parent reports.`;
+
+  const tryOpenCreate = () => {
+    if (overCap) {
+      setShowUpgrade(true);
+      return;
+    }
+    setShowCreateForm(true);
+  };
 
   useEffect(() => {
     loadData();
@@ -148,7 +165,7 @@ export default function TeacherClasses() {
                 </div>
               </div>
               <Button
-                onClick={() => setShowCreateForm(true)}
+                onClick={tryOpenCreate}
                 disabled={curricula.length === 0}
                 className="bg-white text-[#2563EB] hover:bg-blue-50 font-semibold shadow-md border-0"
               >
@@ -245,7 +262,7 @@ export default function TeacherClasses() {
             <h3 className="text-xl font-bold text-gray-900 mb-2">No classes yet</h3>
             <p className="text-gray-400 text-sm mb-6">Create your first class to get started</p>
             {curricula.length > 0 && (
-              <Button onClick={() => setShowCreateForm(true)} className="bg-blue-600 hover:bg-blue-700 rounded-xl">
+              <Button onClick={tryOpenCreate} className="bg-blue-600 hover:bg-blue-700 rounded-xl">
                 <Plus className="w-4 h-4 mr-2" /> Create Class
               </Button>
             )}
@@ -318,6 +335,12 @@ export default function TeacherClasses() {
           </div>
         )}
       </div>
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        recommendedTier="studio"
+        reason={upgradeReason}
+      />
     </TeacherLayout>
   );
 }

@@ -9,11 +9,14 @@ import { adminClient } from '../_shared/client.ts';
 import { getMe } from '../_shared/auth.ts';
 import { stripe } from '../_shared/stripe.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
+import { mapPriceIdToTier, type Tier } from '../_shared/tier.ts';
 
 const WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET')!;
-// Stripe burst-retries on transient failures; allow generous capacity but
-// still cap to deflect amplification attempts using a stolen signature.
 const WEBHOOK_IP_BUDGET = { maxRequests: 600, windowMs: 60_000 };
+
+function firstPriceId(sub: { items?: { data?: Array<{ price?: { id?: string } }> } }): string | null {
+  return sub?.items?.data?.[0]?.price?.id || null;
+}
 
 async function syncFromCustomer(userId: string) {
   const customers = await stripe.customers.list({ limit: 100 });
@@ -23,19 +26,26 @@ async function syncFromCustomer(userId: string) {
 
   let status = 'free';
   let tier = 'free';
+  let newTier: Tier = 'free';
   if (subs.data.length > 0) {
     const sub = subs.data[0];
     if (sub.status === 'active' || sub.status === 'trialing') {
       const inTrial = sub.trial_end && new Date(sub.trial_end * 1000) > new Date();
       status = inTrial ? 'trial' : 'premium';
       tier = 'premium';
+      newTier = mapPriceIdToTier(firstPriceId(sub));
     }
   }
-  await adminClient().from('users').update({
+  const update: Record<string, unknown> = {
     subscription_status: status,
     subscription_tier: tier,
+    tier: newTier,
     last_subscription_update: new Date().toISOString(),
-  }).eq('id', userId);
+  };
+  if (newTier !== 'free') {
+    update.tier_started_at = new Date().toISOString();
+  }
+  await adminClient().from('users').update(update).eq('id', userId);
 }
 
 Deno.serve(async (req) => {
@@ -64,18 +74,21 @@ Deno.serve(async (req) => {
 
     let status = 'free';
     let tier = 'free';
+    let newTier: Tier = 'free';
     const update: Record<string, unknown> = {};
     const activeSub = subs.data.find((s) => s.status === 'active' || s.status === 'trialing');
     if (activeSub) {
       const inTrial = activeSub.trial_end && new Date(activeSub.trial_end * 1000) > new Date();
       status = inTrial ? 'trial' : 'premium';
       tier = 'premium';
+      newTier = mapPriceIdToTier(firstPriceId(activeSub));
       if (inTrial) update.trial_end_date = new Date(activeSub.trial_end! * 1000).toISOString();
     } else {
       const canceled = subs.data.find((s) => s.cancel_at || s.status === 'past_due');
       if (canceled?.current_period_end) {
         status = 'grace_period';
         tier = 'premium';
+        newTier = mapPriceIdToTier(firstPriceId(canceled));
         update.grace_period_end_date = new Date(canceled.current_period_end * 1000).toISOString();
       }
     }
@@ -83,11 +96,12 @@ Deno.serve(async (req) => {
     await admin.from('users').update({
       subscription_status: status,
       subscription_tier: tier,
+      tier: newTier,
       last_subscription_update: new Date().toISOString(),
       ...update,
     }).eq('id', user.id);
 
-    return json({ subscription_status: status, subscription_tier: tier });
+    return json({ subscription_status: status, subscription_tier: tier, tier: newTier });
   }
 
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
