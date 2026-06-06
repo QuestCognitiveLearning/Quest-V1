@@ -131,8 +131,8 @@ export default function Hero() {
   const eyebrow = isStudent
     ? "Inquiry · Instruction · Recalling · Applying"
     : "AI Curriculum · Live Sessions · Parent Reports";
-  const headlinePre = isStudent ? "Learn to" : "Save";
-  const headlineEm = isStudent ? "remember." : "time.";
+  const headlinePre = isStudent ? "Learn to" : "Whether you're a teacher or tutor,";
+  const headlineEm = isStudent ? "remember." : "we save you time.";
   const lede = isStudent
     ? "Inquiry, instruction, recall, and applying — wired into every lesson. Your Knowledge Map shows what you've mastered and what's due."
     : "Standards in, full curriculum out — quizzes, free-response, attention checks, and case studies. Edit anything, regenerate anything, then teach.";
@@ -170,7 +170,7 @@ export default function Hero() {
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${audience === "teacher" ? "bg-white" : "bg-[#94A3B8]"}`} />
-                For Teachers
+                For Educators
               </button>
               <button
                 type="button"
