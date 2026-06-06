@@ -1,19 +1,20 @@
 /**
  * @file   Pricing.jsx
- * @desc   Post-signup pricing page that teachers land on after creating their
- *         account. Re-uses the v3 landing's pricing card design so the visual
- *         is consistent across marketing + product. Actions differ from the
- *         landing — here the buttons do real work:
- *           - Premium      → kicks off Stripe Checkout (createCheckout)
- *           - Enterprise   → opens the in-app contact form modal (no mailto)
+ * @desc   3-tier pricing: Classroom / Studio / Enterprise. Founding-member
+ *         pricing is the default ($29/$59) — standard prices are shown
+ *         struck-through above so visitors see the discount. Monthly/Annual
+ *         toggle. Existing teachers keep their grandfathered subscription.
  *
- * @author Quest Learning core team
+ *         CTAs:
+ *           Classroom → Stripe Checkout (createCheckout)
+ *           Studio    → Stripe Checkout for Studio prices
+ *           Enterprise → in-app contact form modal
  */
 
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
@@ -33,15 +34,24 @@ const C = {
 
 const FONT = "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
 
+const STANDARD_PRICES = {
+  classroom: { monthly: 49, annual: 399 },
+  studio: { monthly: 99, annual: 799 },
+};
+
+const FOUNDING_PRICES = {
+  classroom: { monthly: 29, annual: 250 },
+  studio: { monthly: 59, annual: 499 },
+};
+
 export default function Pricing() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [billing, setBilling] = useState("monthly"); // monthly | annual
+  const [loading, setLoading] = useState({ tier: null });
   const [user, setUser] = useState(null);
   const [priceIds, setPriceIds] = useState(null);
   const [contactOpen, setContactOpen] = useState(false);
 
-  // First-time teacher = signed in as teacher but no subscription_status yet.
-  // We show different framing (welcome, no "back" button) for that case.
   const isFirstTimeTeacher =
     !!user && user.account_type === "teacher" && !user.subscription_status;
 
@@ -55,7 +65,7 @@ export default function Pricing() {
       const userData = await quest.auth.me();
       setUser(userData);
     } catch {
-      console.log("User not authenticated");
+      // public visitor
     }
   };
 
@@ -69,88 +79,122 @@ export default function Pricing() {
     }
   };
 
-  // ─── Plan actions ───────────────────────────────────────────────────────
+  const checkout = async (tier) => {
+    if (!user) {
+      sessionStorage.setItem("signupRole", "teacher");
+      sessionStorage.setItem("nextUrl", window.location.href);
+      window.location.href = `/SignIn?mode=signup&next=/Pricing&intent=${tier}`;
+      return;
+    }
+    if (window.self !== window.top) {
+      toast.error("Please open the published app to complete checkout");
+      return;
+    }
+    const priceId =
+      tier === "classroom"
+        ? billing === "annual"
+          ? priceIds?.tiers?.classroom?.annual
+          : priceIds?.tiers?.classroom?.monthly || priceIds?.premium_price_id
+        : billing === "annual"
+        ? priceIds?.tiers?.studio?.annual
+        : priceIds?.tiers?.studio?.monthly;
 
-  const startPremiumTrial = async () => {
-    setLoading(true);
+    if (!priceId) {
+      toast.error(
+        tier === "studio"
+          ? "Studio pricing is rolling out shortly. Contact our team to get early access."
+          : "Stripe products not configured. Please refresh."
+      );
+      if (tier === "studio") setContactOpen(true);
+      return;
+    }
+    setLoading({ tier });
     try {
-      if (!user) {
-        sessionStorage.setItem("signupRole", "teacher");
-        sessionStorage.setItem("nextUrl", window.location.href);
-        window.location.href = "/SignIn?mode=signup&next=/Pricing";
-        return;
-      }
-      if (user.account_type !== "teacher") {
-        toast.error("Premium subscription is only available for teachers");
-        setLoading(false);
-        return;
-      }
-      if (window.self !== window.top) {
-        toast.error("Please open the published app to complete checkout");
-        setLoading(false);
-        return;
-      }
-      if (user.subscription_status === "free" || !user.subscription_status) {
-        if (!priceIds || !priceIds.premium_price_id) {
-          toast.error("Stripe products not configured. Please refresh and try again.");
-          setLoading(false);
-          return;
-        }
-        const response = await quest.functions.invoke("createCheckout", {
-          priceId: priceIds.premium_price_id,
-          successUrl: `${window.location.origin}${createPageUrl("TeacherDashboard")}?checkout=success`,
-          cancelUrl: window.location.href,
-        });
-        if (response.data.url) window.location.href = response.data.url;
-      } else {
-        toast.success("You're already subscribed to Premium!");
-        navigate(createPageUrl("TeacherDashboard"));
-      }
-    } catch (error) {
-      console.error("Checkout error:", error);
+      const response = await quest.functions.invoke("createCheckout", {
+        priceId,
+        successUrl: `${window.location.origin}${createPageUrl(
+          "TeacherDashboard"
+        )}?checkout=success`,
+        cancelUrl: window.location.href,
+      });
+      if (response.data?.url) window.location.href = response.data.url;
+    } catch (err) {
+      console.error("Checkout error:", err);
       toast.error("Failed to start checkout. Please try again.");
-      setLoading(false);
+      setLoading({ tier: null });
     }
   };
 
   const TIERS = [
     {
-      id: "premium",
-      name: "Premium",
-      desc: "Full access to transform your learning",
-      price: "$39",
-      per: "/ month",
-      cta: "Start Free Trial",
+      id: "classroom",
+      name: "Classroom",
+      desc: "For individual teachers running 1–3 classes.",
+      price:
+        billing === "annual"
+          ? `$${FOUNDING_PRICES.classroom.annual}`
+          : `$${FOUNDING_PRICES.classroom.monthly}`,
+      per: billing === "annual" ? "/ year" : "/ month",
+      standardPrice:
+        billing === "annual"
+          ? `$${STANDARD_PRICES.classroom.annual}`
+          : `$${STANDARD_PRICES.classroom.monthly}`,
+      cta: "Start 7-day free trial",
+      popular: false,
+      features: [
+        "Up to 3 classes, unlimited students",
+        "Unlimited AI quiz + case study generation",
+        "Live classroom sessions with leaderboards",
+        "AI Panda Tutor for every student",
+        "Print-ready PDF + Word handouts",
+        "Standards alignment for K-12 + College",
+        "Priority email support",
+      ],
+      action: () => checkout("classroom"),
+    },
+    {
+      id: "studio",
+      name: "Studio",
+      desc: "For tutors + tutoring businesses with paying parents.",
+      price:
+        billing === "annual"
+          ? `$${FOUNDING_PRICES.studio.annual}`
+          : `$${FOUNDING_PRICES.studio.monthly}`,
+      per: billing === "annual" ? "/ year" : "/ month",
+      standardPrice:
+        billing === "annual"
+          ? `$${STANDARD_PRICES.studio.annual}`
+          : `$${STANDARD_PRICES.studio.monthly}`,
+      cta: "Start 14-day free trial",
       popular: true,
       features: [
-        "7-day free trial",
-        "Unlimited live sessions",
-        "AI-generated curriculum",
-        "Personalized learning paths",
-        "Spaced repetition system",
-        "Progress analytics & insights",
-        "Inquiry-based learning modules",
+        "Everything in Classroom",
+        "Unlimited classes + students",
+        "Your logo + brand colors on every PDF",
+        "Branded parent progress reports (weekly auto-send)",
+        "Multi-tutor seats ($29/mo each)",
+        "30-minute onboarding call with the founder",
         "Priority support",
       ],
-      action: startPremiumTrial,
+      action: () => checkout("studio"),
     },
     {
       id: "enterprise",
       name: "Enterprise",
-      desc: "For large schools and districts",
+      desc: "For schools, districts, and tutoring chains.",
       price: "Custom",
       per: "",
-      cta: "Contact Sales",
+      standardPrice: null,
+      cta: "Book a call",
       popular: false,
       features: [
-        "Everything in Premium",
-        "Unlimited users",
-        "Custom curriculum integration",
+        "Everything in Studio",
+        "Unlimited tutor + admin seats",
+        "SSO (Google, Okta, ClassLink)",
+        "Admin dashboard + audit log",
+        "White-label deployment",
+        "Custom AI training on your content",
         "Dedicated account manager",
-        "Advanced analytics & reporting",
-        "SSO & security features",
-        "Custom training & onboarding",
-        "Priority 24/7 support",
       ],
       action: () => setContactOpen(true),
     },
@@ -165,8 +209,6 @@ export default function Pricing() {
         color: C.ink,
       }}
     >
-      {/* Back button — hidden during first-time teacher onboarding so the
-          pricing step feels like part of signup, not an interruption. */}
       {!isFirstTimeTeacher && (
         <div className="max-w-[1200px] mx-auto px-6 pt-8">
           <button
@@ -187,33 +229,26 @@ export default function Pricing() {
         </div>
       )}
 
-      {/* Header */}
       <section
         style={{
-          padding: `${isFirstTimeTeacher ? 72 : 48}px 24px 32px`,
+          padding: `${isFirstTimeTeacher ? 72 : 40}px 24px 24px`,
         }}
       >
-        <div
-          className="text-center mx-auto"
-          style={{ maxWidth: 720 }}
-        >
-          {isFirstTimeTeacher && (
-            <motion.span
-              className="inline-block"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-              style={{
-                color: C.brand,
-                fontWeight: 700,
-                fontSize: 12.5,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-              }}
-            >
-              One Last Step
-            </motion.span>
-          )}
+        <div className="text-center mx-auto" style={{ maxWidth: 760 }}>
+          <div
+            className="inline-flex items-center gap-2 rounded-full mb-4"
+            style={{
+              background: "#DCFCE7",
+              color: "#15803D",
+              padding: "6px 12px",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}
+          >
+            <Sparkles size={14} /> Founding member pricing
+          </div>
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -224,45 +259,82 @@ export default function Pricing() {
               fontSize: "clamp(32px, 4.2vw, 52px)",
               lineHeight: 1.05,
               letterSpacing: "-0.025em",
-              marginTop: isFirstTimeTeacher ? 12 : 0,
               marginBottom: 12,
             }}
           >
-            {isFirstTimeTeacher ? (
-              <>
-                Welcome — start your{" "}
-                <em style={{ fontStyle: "normal", color: C.brand }}>
-                  free trial.
-                </em>
-              </>
-            ) : (
-              <>
-                Simple Pricing.{" "}
-                <em style={{ fontStyle: "normal", color: C.brand }}>
-                  Built for Teachers.
-                </em>
-              </>
-            )}
+            Simple pricing.{" "}
+            <em style={{ fontStyle: "normal", color: C.brand }}>
+              Built for the way you teach.
+            </em>
           </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            style={{ color: C.muted, fontSize: 17, lineHeight: 1.55 }}
+          <p
+            style={{
+              color: C.muted,
+              fontSize: 17,
+              lineHeight: 1.55,
+              marginBottom: 20,
+            }}
           >
-            {isFirstTimeTeacher
-              ? "Try the full Premium platform free for 7 days. Cancel anytime."
-              : "Students join free with a class code. Teachers get full access with Premium — start with a 7-day free trial."}
-          </motion.p>
+            Founding members lock in this price for life. Standard pricing
+            kicks in once we hit 100 paid accounts.
+          </p>
+
+          {/* Billing toggle */}
+          <div
+            style={{
+              display: "inline-flex",
+              padding: 4,
+              borderRadius: 999,
+              background: C.brandSoft,
+              border: `1px solid ${C.line}`,
+            }}
+          >
+            {["monthly", "annual"].map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setBilling(mode)}
+                style={{
+                  border: 0,
+                  background: billing === mode ? C.brand : "transparent",
+                  color: billing === mode ? "#fff" : C.ink3,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  padding: "8px 18px",
+                  borderRadius: 999,
+                  cursor: "pointer",
+                  transition: "background 150ms",
+                }}
+              >
+                {mode === "monthly" ? "Monthly" : "Annual"}
+                {mode === "annual" && (
+                  <span
+                    style={{
+                      marginLeft: 6,
+                      fontSize: 11,
+                      color: billing === "annual" ? "#fff" : "#15803D",
+                      background:
+                        billing === "annual"
+                          ? "rgba(255,255,255,0.18)"
+                          : "#DCFCE7",
+                      borderRadius: 999,
+                      padding: "2px 6px",
+                    }}
+                  >
+                    save 28%
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Pricing cards */}
       <section style={{ paddingBottom: 80, paddingLeft: 24, paddingRight: 24 }}>
         <div
-          className="mx-auto grid md:grid-cols-2"
+          className="mx-auto grid md:grid-cols-3"
           style={{
-            maxWidth: 880,
+            maxWidth: 1100,
             gap: 20,
             paddingTop: 12,
             alignItems: "stretch",
@@ -270,13 +342,13 @@ export default function Pricing() {
         >
           {TIERS.map((t, idx) => {
             const popular = t.popular;
-            const isLoading = loading && popular;
+            const isLoading = loading.tier === t.id;
             return (
               <motion.div
                 key={t.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: idx * 0.1 }}
+                transition={{ duration: 0.6, delay: idx * 0.08 }}
                 style={{
                   position: "relative",
                   display: "flex",
@@ -288,8 +360,8 @@ export default function Pricing() {
                   border: popular
                     ? `2px solid ${C.brand}`
                     : `1px solid ${C.line}`,
-                  borderRadius: 28,
-                  padding: 32,
+                  borderRadius: 24,
+                  padding: 28,
                   boxShadow: popular
                     ? "0 24px 60px -24px rgba(37,99,235,0.22), 0 4px 12px rgba(15,23,42,0.06)"
                     : "0 8px 24px rgba(15, 23, 42, 0.06)",
@@ -335,15 +407,34 @@ export default function Pricing() {
 
                 <div
                   style={{
-                    paddingBottom: 16,
+                    paddingBottom: 12,
                     borderBottom: `1px solid ${C.line}`,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                  {t.standardPrice && (
+                    <div
+                      style={{
+                        color: C.muted,
+                        fontSize: 13,
+                        textDecoration: "line-through",
+                        marginBottom: 2,
+                      }}
+                    >
+                      {t.standardPrice}
+                      {t.per}
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 4,
+                    }}
+                  >
                     <span
                       style={{
                         fontWeight: 800,
-                        fontSize: 56,
+                        fontSize: 48,
                         lineHeight: 1,
                         letterSpacing: "-0.025em",
                         color: popular ? C.brand : C.ink,
@@ -363,32 +454,24 @@ export default function Pricing() {
                       </span>
                     )}
                   </div>
-                  {popular && (
+                  {t.standardPrice && (
                     <div
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
-                        marginTop: 10,
+                        marginTop: 8,
                         background: "#DCFCE7",
                         color: "#15803D",
                         fontWeight: 700,
                         fontSize: 11,
-                        letterSpacing: "0.08em",
+                        letterSpacing: "0.06em",
                         textTransform: "uppercase",
-                        padding: "5px 10px",
+                        padding: "4px 9px",
                         borderRadius: 999,
                       }}
                     >
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 999,
-                          background: "#16A34A",
-                        }}
-                      />
-                      Free for 7 days
+                      Founding member
                     </div>
                   )}
                 </div>
@@ -400,7 +483,7 @@ export default function Pricing() {
                     padding: 0,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 12,
+                    gap: 10,
                     flex: 1,
                   }}
                 >
@@ -412,13 +495,13 @@ export default function Pricing() {
                         gridTemplateColumns: "18px 1fr",
                         gap: 10,
                         alignItems: "start",
-                        fontSize: 14,
+                        fontSize: 13.5,
                         color: "#1E293B",
                         lineHeight: 1.4,
                       }}
                     >
                       <Check
-                        size={16}
+                        size={15}
                         strokeWidth={2.4}
                         style={{ color: C.brand, marginTop: 2 }}
                       />
@@ -433,62 +516,49 @@ export default function Pricing() {
                   disabled={isLoading}
                   style={{
                     width: "100%",
-                    height: 48,
+                    height: 46,
                     borderRadius: 12,
                     fontWeight: 700,
                     fontSize: 14,
                     border: 0,
                     cursor: isLoading ? "not-allowed" : "pointer",
                     color: "#fff",
-                    background: popular
-                      ? C.brand
-                      : t.id === "enterprise"
-                      ? C.ink
-                      : "#0F172A",
+                    background:
+                      t.id === "enterprise"
+                        ? C.ink
+                        : popular
+                        ? C.brand
+                        : "#0F172A",
                     boxShadow: popular
                       ? "0 10px 22px -10px rgba(37,99,235,0.55)"
                       : "none",
-                    transition: "background 200ms ease, transform 200ms ease",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 8,
                     opacity: isLoading ? 0.85 : 1,
                   }}
-                  onMouseEnter={(e) => {
-                    if (isLoading) return;
-                    e.currentTarget.style.background = popular
-                      ? C.brandDeep
-                      : "#1E293B";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = popular
-                      ? C.brand
-                      : t.id === "enterprise"
-                      ? C.ink
-                      : "#0F172A";
-                  }}
                 >
                   {isLoading ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      Loading…
+                      Loading...
                     </>
                   ) : (
                     t.cta
                   )}
                 </button>
-                {popular && (
+                {t.id !== "enterprise" && (
                   <p
                     style={{
                       textAlign: "center",
-                      fontSize: 12.5,
+                      fontSize: 12,
                       color: C.muted,
-                      marginTop: 4,
+                      marginTop: -2,
                       marginBottom: 0,
                     }}
                   >
-                    No charge for 7 days. Cancel anytime before day 7.
+                    No charge during trial. Cancel anytime.
                   </p>
                 )}
               </motion.div>
@@ -496,51 +566,93 @@ export default function Pricing() {
           })}
         </div>
 
-        {/* Footer note */}
-        <motion.div
-          className="text-center mx-auto"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          style={{ marginTop: 48, maxWidth: 720 }}
+        {/* FAQ */}
+        <div
+          className="mx-auto"
+          style={{ maxWidth: 760, marginTop: 64, marginBottom: 24 }}
         >
-          <p style={{ color: C.muted, fontSize: 14 }}>
-            Premium includes a 7-day free trial. Cancel anytime before it ends.
-          </p>
-          <p style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>
-            Questions?{" "}
-            <button
-              type="button"
-              onClick={() => setContactOpen(true)}
-              style={{
-                color: C.brand,
-                background: "none",
-                border: 0,
-                padding: 0,
-                cursor: "pointer",
-                textDecoration: "underline",
-                textUnderlineOffset: 2,
-                fontSize: "inherit",
-                fontFamily: "inherit",
-              }}
-            >
-              Contact our team
-            </button>
-          </p>
-        </motion.div>
+          <h2
+            style={{
+              fontWeight: 800,
+              fontSize: 28,
+              color: C.ink,
+              marginBottom: 18,
+              textAlign: "center",
+            }}
+          >
+            Frequently asked
+          </h2>
+          <div style={{ display: "grid", gap: 12 }}>
+            <FaqRow
+              q="What does 'founding member' mean?"
+              a="The first 100 paid accounts lock in $29/mo Classroom or $59/mo Studio for the life of their subscription, even after standard pricing ($49 / $99) goes into effect."
+            />
+            <FaqRow
+              q="Is there a free trial?"
+              a="Yes — 7 days for Classroom, 14 days for Studio. No card required during the trial. Cancel anytime."
+            />
+            <FaqRow
+              q="What's the difference between Classroom and Studio?"
+              a="Classroom is built for individual teachers running 1-3 classes inside a school. Studio is built for tutors and tutoring businesses who need branded PDFs and automated parent progress reports."
+            />
+            <FaqRow
+              q="Can I upgrade or downgrade later?"
+              a="Yes. Use the billing portal from your dashboard to change plans at any time. Annual plans pro-rate."
+            />
+            <FaqRow
+              q="What about students? Do they pay?"
+              a="No. Students join free with a class code. Only teachers and tutors pay."
+            />
+          </div>
+        </div>
       </section>
 
       <ContactSalesModal
         open={contactOpen}
         onClose={() => setContactOpen(false)}
         topic="Enterprise Plan Inquiry"
-        heading="Talk to our sales team"
-        subheading="Tell us about your school or district — we'll get back within a day."
+        heading="Talk to our team"
+        subheading="Tell us about your school or tutoring business — we'll get back within a day."
         defaults={{
           name: user?.full_name || "",
           email: user?.email || "",
         }}
       />
     </div>
+  );
+}
+
+function FaqRow({ q, a }) {
+  return (
+    <details
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid #E2E8F0",
+        borderRadius: 14,
+        padding: 16,
+      }}
+    >
+      <summary
+        style={{
+          cursor: "pointer",
+          fontWeight: 700,
+          fontSize: 15,
+          color: "#0F172A",
+          listStyle: "none",
+        }}
+      >
+        {q}
+      </summary>
+      <p
+        style={{
+          marginTop: 8,
+          color: "#475569",
+          fontSize: 14,
+          lineHeight: 1.6,
+        }}
+      >
+        {a}
+      </p>
+    </details>
   );
 }

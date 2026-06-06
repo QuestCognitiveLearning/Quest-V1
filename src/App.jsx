@@ -32,12 +32,16 @@ const MainPage = mainPageKey ? Pages[mainPageKey] : null;
 // through RequireAuth and gets redirected to /SignIn when unauthenticated.
 const PUBLIC_PAGES = [
   'Landing',
+  'Pricing',
   'PricingInfo',
   'RoleSelection',
   'JoinClass',
   'SignIn',
   'ResetPassword',
   'Try',
+  'Studio',
+  'Classroom',
+  'Enterprise',
 ];
 
 /**
@@ -117,6 +121,10 @@ function AuthenticatedApp() {
         <Route path="/" element={<RootRoute />} />
         <Route path="/quiz-from-video" element={<Navigate to="/Try" replace />} />
         <Route path="/quiz-from-video/*" element={<Navigate to="/Try" replace />} />
+        <Route path="/studio" element={<Navigate to="/Studio" replace />} />
+        <Route path="/classroom" element={<Navigate to="/Classroom" replace />} />
+        <Route path="/enterprise" element={<Navigate to="/Enterprise" replace />} />
+        <Route path="/pricing" element={<Navigate to="/Pricing" replace />} />
         {Object.entries(Pages).map(([path, Page]) => (
           <Route
             key={path}

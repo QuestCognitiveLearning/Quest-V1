@@ -130,12 +130,12 @@ export default function Hero() {
   const isStudent = audience === "student";
   const eyebrow = isStudent
     ? "Inquiry · Instruction · Recalling · Applying"
-    : "AI Curriculum · Editable Everything · Live Insight";
-  const headlinePre = isStudent ? "Learn to" : "Save";
-  const headlineEm = isStudent ? "remember." : "time.";
+    : "AI Curriculum · Live Sessions · Parent Reports";
+  const headlinePre = isStudent ? "Learn to" : "The AI teaching platform built for";
+  const headlineEm = isStudent ? "remember." : "how you actually teach.";
   const lede = isStudent
     ? "Inquiry, instruction, recall, and applying — wired into every lesson. Your Knowledge Map shows what you've mastered and what's due."
-    : "Standards in, full curriculum out — quizzes, free-response, attention checks, and case studies. Edit anything, regenerate anything, then teach.";
+    : "Turn any YouTube video into a quiz, case study, or full lesson in 90 seconds. Run live interactive classes with leaderboards. Give every student their own AI Socratic tutor. Send branded parent reports automatically.";
   const ctaLabel = isStudent ? "Join Your Class" : "Start Free Trial";
 
   // Duplicate pool so the carousel can loop seamlessly
@@ -218,6 +218,15 @@ export default function Hero() {
                 {ctaLabel}
                 <ArrowRight size={16} strokeWidth={2.2} />
               </button>
+              {!isStudent && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/Try")}
+                  className="inline-flex items-center gap-2 h-[50px] px-5 rounded-xl bg-white/80 hover:bg-white border border-[#E2E8F0] hover:border-[#2563EB] text-[#0F172A] hover:text-[#2563EB] font-semibold text-[14.5px] transition-colors"
+                >
+                  Try free YouTube quiz tool
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setDemoOpen(true)}
