@@ -25,6 +25,7 @@ import { Loader2, ChevronLeft, Video, CheckCircle, Clock, Sparkles, Zap, BookOpe
 import VideoOnlyModal from "@/components/teacher/VideoOnlyModal";
 import ContentReviewModal from "@/components/teacher/ContentReviewModal";
 import { invokeLLM, generateImage } from "@/components/utils/openai";
+import DownloadPDFButton from "@/components/shared/pdf/DownloadPDFButton";
 import { LLM_MODELS } from "@/lib/llmModels";
 import { resolveTranscript } from "@/lib/transcript";
 
@@ -691,7 +692,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                             size="sm"
                             disabled={generatingQueue}
                             className={`w-full shadow-lg ${
-                              status === "complete" 
+                              status === "complete"
                                 ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
                                 : status === "video_only"
                                 ? "bg-blue-600 hover:bg-blue-700 text-white"
@@ -710,6 +711,19 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                               </>
                             )}
                           </Button>
+                          {status === "complete" ? (
+                            <div className="mt-2">
+                              <DownloadPDFButton
+                                type="subunit"
+                                contentId={subunit.id}
+                                label={subunit.subunit_name}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                Download packet
+                              </DownloadPDFButton>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}

@@ -21,6 +21,7 @@ import {
   Award
 } from "lucide-react";
 import SubunitProgressModal from "../components/teacher/SubunitProgressModal";
+import DownloadPDFButton from "@/components/shared/pdf/DownloadPDFButton";
 
 export default function TeacherClassDetail() {
   const navigate = useNavigate();
@@ -233,9 +234,21 @@ export default function TeacherClassDetail() {
                   </div>
                 </div>
               </div>
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg px-4 py-2">
-                <p className="text-xs text-gray-600">Join Code</p>
-                <p className="text-xl font-bold text-blue-600 tracking-wider">{classData?.join_code}</p>
+              <div className="flex items-center gap-3">
+                {classId ? (
+                  <DownloadPDFButton
+                    type="classWorkbook"
+                    contentId={classId}
+                    label={classData?.class_name}
+                    size="md"
+                  >
+                    Download workbook
+                  </DownloadPDFButton>
+                ) : null}
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg px-4 py-2">
+                  <p className="text-xs text-gray-600">Join Code</p>
+                  <p className="text-xl font-bold text-blue-600 tracking-wider">{classData?.join_code}</p>
+                </div>
               </div>
             </div>
           </div>
