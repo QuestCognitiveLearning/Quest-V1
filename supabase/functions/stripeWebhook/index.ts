@@ -11,6 +11,7 @@ import { stripe } from '../_shared/stripe.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 import { mapPriceIdToTier, type Tier } from '../_shared/tier.ts';
 import { fireEvent } from '../_shared/fireEvent.ts';
+import { importLeadsForUser } from '../_shared/importLeads.ts';
 
 const WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET')!;
 const WEBHOOK_IP_BUDGET = { maxRequests: 600, windowMs: 60_000 };
@@ -161,6 +162,17 @@ Deno.serve(async (req) => {
       const { data: u } = await admin.from('users').select('email').eq('id', userId).maybeSingle();
       if (u?.email) {
         await fireEvent(u.email.toLowerCase(), 'trial_started', { userId });
+        // Carry over anything they generated as a lead — quizzes + case
+        // studies sent to their email via /try get re-created inside their
+        // new account so they're not starting from scratch.
+        try {
+          const result = await importLeadsForUser(admin, userId, u.email);
+          if (result.imported > 0) {
+            console.log(`[stripeWebhook] imported ${result.imported} lead handout(s) for user ${userId}`);
+          }
+        } catch (err) {
+          console.error('[stripeWebhook] importLeadsForUser failed:', err);
+        }
       }
       break;
     }

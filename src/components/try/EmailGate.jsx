@@ -57,9 +57,14 @@ export default function EmailGate({ open, onClose, result, onAfterDownload }) {
           videoTitle: result?.video?.title || null,
           pdfBase64: base64,
           filename,
+          // Full payload — the captureLead function stores it on the lead row
+          // so when this visitor signs up later, importLeadContent (fired by
+          // stripeWebhook on trial start) can recreate the quiz + case study
+          // inside their new account.
           quizPayload: {
-            quizLength: result?.quiz?.length || 0,
-            hasCaseStudy: !!result?.case_study?.scenario,
+            video: result?.video || null,
+            quiz: result?.quiz || [],
+            case_study: result?.case_study || null,
           },
         },
       });

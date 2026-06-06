@@ -20,6 +20,7 @@ import {
   Library,
   Plus,
   Download,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,9 @@ export default function Generate() {
 
   // YouTube state
   const [url, setUrl] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   // PDF state
   const [pdfFile, setPdfFile] = useState(null);
@@ -174,6 +178,46 @@ export default function Generate() {
       setPdfMeta(null);
     } finally {
       setExtracting(false);
+    }
+  };
+
+  const handleSearchYouTube = async (e) => {
+    e?.preventDefault?.();
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setError("");
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke(
+        "publicTryFunnel",
+        { body: { action: "search", query: searchQuery.trim() } }
+      );
+      if (fnErr) throw fnErr;
+      setSearchResults(data?.items || []);
+      if ((data?.items || []).length === 0) {
+        setError("No long-form videos found for that search. Try different keywords.");
+      }
+    } catch (err) {
+      setError(err?.message || "Could not search YouTube.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const runYoutubeGenerate = async (videoId) => {
+    setStage("generating");
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke(
+        "publicTryFunnel",
+        { body: { action: "generate", videoId, options } }
+      );
+      if (fnErr) throw fnErr;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.quiz?.length) throw new Error("No quiz generated.");
+      setResult(data);
+      setStage("result");
+    } catch (err) {
+      setError(err?.message || "Generation failed.");
+      setStage("input");
     }
   };
 
@@ -440,15 +484,93 @@ export default function Generate() {
         {stage === "input" && (
           <div className="space-y-5">
             {tab === "youtube" ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  Paste a YouTube URL
-                </label>
-                <Input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                />
+              <div className="space-y-4">
+                <form
+                  onSubmit={handleSearchYouTube}
+                  className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"
+                >
+                  <label className="block text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                    <Search className="w-4 h-4" /> Search YouTube
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder='e.g. "photosynthesis explained"'
+                      disabled={searching}
+                    />
+                    <Button
+                      type="submit"
+                      disabled={searching || !searchQuery.trim()}
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      {searching ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Search className="w-4 h-4" />
+                      )}
+                      Search
+                    </Button>
+                  </div>
+
+                  {searchResults.length > 0 && (
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {searchResults.map((r) => (
+                        <button
+                          key={r.videoId}
+                          type="button"
+                          onClick={() => runYoutubeGenerate(r.videoId)}
+                          className="text-left group rounded-xl border border-slate-200 hover:border-[#2563EB] hover:shadow-md transition overflow-hidden bg-white"
+                        >
+                          <div className="relative aspect-video bg-slate-100">
+                            {r.thumbnail && (
+                              <img
+                                src={r.thumbnail}
+                                alt=""
+                                loading="lazy"
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                            {r.duration ? (
+                              <span className="absolute bottom-2 right-2 text-[10px] bg-black/75 text-white px-1.5 py-0.5 rounded">
+                                {Math.floor(r.duration / 60)}:
+                                {String(Math.floor(r.duration % 60)).padStart(2, "0")}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="p-3">
+                            <h4 className="text-sm font-semibold text-slate-900 line-clamp-2">
+                              {r.title}
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {r.channelTitle}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </form>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-xs uppercase tracking-wider text-slate-500">
+                    or paste a URL
+                  </span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">
+                    Paste a YouTube URL
+                  </label>
+                  <Input
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                  />
+                </div>
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">

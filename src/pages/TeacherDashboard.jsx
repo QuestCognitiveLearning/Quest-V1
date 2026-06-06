@@ -39,6 +39,19 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     loadDashboardData();
+    // Carry over any /try handouts the user generated under their email
+    // before signup. Idempotent + best-effort — server returns imported=0
+    // when there's nothing pending so repeat dashboard loads are cheap.
+    (async () => {
+      try {
+        const res = await quest.functions.invoke("claimLeadHandouts");
+        if ((res?.data?.imported || 0) > 0) {
+          loadDashboardData();
+        }
+      } catch (err) {
+        console.warn("claimLeadHandouts failed (non-fatal):", err);
+      }
+    })();
   }, []);
 
   useEffect(() => {
