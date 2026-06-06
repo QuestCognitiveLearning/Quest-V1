@@ -45,19 +45,29 @@ Deno.serve(async (req) => {
     customerId = customer.id;
   }
 
+  // Studio tier gets a 14-day trial; everything else (Classroom + legacy) is
+  // 7 days. Source-of-truth is the price ID env vars — keeps the trial length
+  // consistent with what /Pricing and /Studio advertise.
+  const studioPriceIds = [
+    Deno.env.get('STRIPE_PRICE_STUDIO_MONTHLY'),
+    Deno.env.get('STRIPE_PRICE_STUDIO_ANNUAL'),
+    Deno.env.get('STRIPE_PRICE_STUDIO_SEAT'),
+  ].filter(Boolean) as string[];
+  const trialDays = studioPriceIds.includes(value.priceId) ? 14 : 7;
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     payment_method_types: ['card'],
     line_items: [{ price: value.priceId, quantity: 1 }],
     mode: 'subscription',
     subscription_data: {
-      trial_period_days: 7,
-      metadata: { app_user_id: user.id },
+      trial_period_days: trialDays,
+      metadata: { app_user_id: user.id, trial_days: String(trialDays) },
     },
     success_url: value.successUrl,
     cancel_url: value.cancelUrl,
     allow_promotion_codes: true,
-    metadata: { app_user_id: user.id },
+    metadata: { app_user_id: user.id, trial_days: String(trialDays) },
   });
 
   return json({ url: session.url });

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Download, FileText, RefreshCw, CheckCircle } from 'lucide-react';
 import EmailGate from './EmailGate';
 import DownloadGate from './DownloadGate';
-import { exportDoc } from '@/lib/tryExporters';
+import { downloadTryWord } from '@/lib/pdf/generateWord';
 
 export default function Results({ result, onStartOver }) {
   const { video, quiz, case_study } = result;
@@ -30,8 +30,14 @@ export default function Results({ result, onStartOver }) {
     }
   };
 
-  const onTrialAuthorized = () => {
-    if (pendingFormat === 'doc') exportDoc(result);
+  const onTrialAuthorized = async () => {
+    if (pendingFormat === 'doc') {
+      try {
+        await downloadTryWord({ result, label: result?.video?.title });
+      } catch (err) {
+        console.error('Word generation failed:', err);
+      }
+    }
     setTrialGateOpen(false);
     setPendingFormat(null);
   };

@@ -82,6 +82,23 @@ export default function TeacherClasses() {
         teacher_id: user.id,
         join_code: joinCode
       });
+
+      // Fire first_class_created if this is the user's first class.
+      // The event handler is idempotent — re-firing on every create is fine
+      // because the decision tree only sends T2 once per lead.
+      try {
+        const existing = await quest.entities.Class.filter({ teacher_id: user.id });
+        if ((existing || []).length === 1) {
+          await quest.functions.invoke('fireUserEvent', {
+            event: 'first_class_created',
+            payload: { className: newClass.class_name },
+          });
+        }
+      } catch (err) {
+        // Non-fatal — lifecycle drip is best-effort.
+        console.warn('first_class_created event failed:', err);
+      }
+
       setShowCreateForm(false);
       setNewClass({ class_name: "", curriculum_id: "" });
       loadData();

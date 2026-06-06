@@ -30,6 +30,7 @@ function downloadBlobLocally(blob, filename) {
 
 export default function EmailGate({ open, onClose, result, onAfterDownload }) {
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [touched, setTouched] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
@@ -51,6 +52,7 @@ export default function EmailGate({ open, onClose, result, onAfterDownload }) {
       const { error: fnErr } = await supabase.functions.invoke("captureLead", {
         body: {
           email: email.trim().toLowerCase(),
+          firstName: firstName.trim() || null,
           videoUrl: result?.video?.url || null,
           videoTitle: result?.video?.title || null,
           pdfBase64: base64,
@@ -119,6 +121,16 @@ export default function EmailGate({ open, onClose, result, onAfterDownload }) {
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-3 mt-2">
+            <label className="block">
+              <span className="sr-only">First name (optional)</span>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="First name (optional)"
+                className="w-full h-11 px-3 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-sm"
+              />
+            </label>
             <label className="block">
               <span className="sr-only">Email address</span>
               <div className="relative">

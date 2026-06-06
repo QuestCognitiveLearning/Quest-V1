@@ -10,6 +10,7 @@ import { adminClient } from '../_shared/client.ts';
 import { sendEmail } from '../_shared/email.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 import { validate } from '../_shared/validator.ts';
+import { fireEvent } from '../_shared/fireEvent.ts';
 
 const HOST = Deno.env.get('PUBLIC_APP_URL') || 'https://www.questlearning.co';
 
@@ -82,6 +83,7 @@ Deno.serve(async (req) => {
   const { quizPayload, ...rest } = rawBody as Record<string, unknown>;
   const { ok, value, errors } = validate(rest, {
     email:      { type: 'email', required: true, maxLength: 254 },
+    firstName:  { type: 'string', required: false, maxLength: 80 },
     videoUrl:   { type: 'string', required: false, maxLength: 500 },
     videoTitle: { type: 'string', required: false, maxLength: 300 },
     gradeLevel: { type: 'string', required: false, maxLength: 40 },
@@ -93,34 +95,72 @@ Deno.serve(async (req) => {
 
   const admin = adminClient();
 
-  const { data: lead, error: insertErr } = await admin
+  // Upsert by email so repeat visitors increment generations instead of
+  // collecting a fresh row each time.
+  const { data: existing } = await admin
     .from('leads')
-    .insert({
-      email: value.email,
-      source: 'youtube_funnel',
-      video_url: value.videoUrl || null,
-      video_title: value.videoTitle || null,
-      grade_level: value.gradeLevel || null,
-      subject: value.subject || null,
-      generated_quiz_payload: quizPayload ?? null,
-      email_sequence_status: 'pending',
-      user_agent: req.headers.get('user-agent')?.slice(0, 300) || null,
-    })
-    .select('id')
-    .single();
+    .select('id, generations_used, first_name')
+    .eq('email', value.email)
+    .maybeSingle();
 
-  if (insertErr) {
-    console.error('[captureLead] insert failed:', insertErr);
-    return json({ error: 'Could not save lead' }, 500);
+  let leadId: string;
+  let isFirstGeneration = false;
+  let newGenerationCount = 1;
+
+  if (existing) {
+    leadId = existing.id;
+    newGenerationCount = (existing.generations_used || 0) + 1;
+    isFirstGeneration = (existing.generations_used || 0) === 0;
+    await admin
+      .from('leads')
+      .update({
+        generations_used: newGenerationCount,
+        video_url: value.videoUrl || null,
+        video_title: value.videoTitle || null,
+        grade_level: value.gradeLevel || null,
+        subject: value.subject || null,
+        first_name: existing.first_name || value.firstName || null,
+        generated_quiz_payload: quizPayload ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', leadId);
+  } else {
+    const { data: lead, error: insertErr } = await admin
+      .from('leads')
+      .insert({
+        email: value.email,
+        first_name: value.firstName || null,
+        source: 'youtube_funnel',
+        video_url: value.videoUrl || null,
+        video_title: value.videoTitle || null,
+        grade_level: value.gradeLevel || null,
+        subject: value.subject || null,
+        generated_quiz_payload: quizPayload ?? null,
+        generations_used: 1,
+        sequence_phase: 'phase_1',
+        email_sequence_status: 'pending',
+        user_agent: req.headers.get('user-agent')?.slice(0, 300) || null,
+      })
+      .select('id')
+      .single();
+    if (insertErr || !lead) {
+      console.error('[captureLead] insert failed:', insertErr);
+      return json({ error: 'Could not save lead' }, 500);
+    }
+    leadId = lead.id;
+    isFirstGeneration = true;
   }
 
+  // Still send the Day-0 email with the PDF attached, since A1 doesn't
+  // include the attachment. A1 fires through the event-trigger pipeline as
+  // a follow-up. This preserves the value-delivery moment.
   try {
     await sendEmail({
       to: value.email,
       subject: `Your quiz + 3 ways to use it tomorrow`,
       html: dayZeroHtml({
         videoTitle: value.videoTitle || 'your YouTube video',
-        ctaUrl: `${HOST}/SignIn?mode=signup&source=leadmagnet&lead_id=${lead.id}`,
+        ctaUrl: `${HOST}/SignIn?mode=signup&source=leadmagnet&lead_id=${leadId}`,
       }),
       attachments: [
         {
@@ -137,11 +177,24 @@ Deno.serve(async (req) => {
         email_sequence_status: 'day_0_sent',
         last_email_sent_at: new Date().toISOString(),
       })
-      .eq('id', lead.id);
+      .eq('id', leadId);
   } catch (err) {
-    console.error('[captureLead] send failed:', err);
-    // Lead is captured; the nurture cron will retry Day-0 later.
+    console.error('[captureLead] PDF email send failed:', err);
   }
 
-  return json({ ok: true, leadId: lead.id });
+  // Fire lifecycle event. Decides the rest of the sequence — A1 confirmation,
+  // A2 24h check-in, B/C/D/E1 on repeat generation, E2/E3/E4 schedule, etc.
+  if (isFirstGeneration) {
+    await fireEvent(value.email, 'first_generation_complete', {
+      firstName: value.firstName,
+      videoTitle: value.videoTitle,
+    });
+  } else {
+    await fireEvent(value.email, 'generation_count', {
+      count: newGenerationCount,
+      videoTitle: value.videoTitle,
+    });
+  }
+
+  return json({ ok: true, leadId, generations_used: newGenerationCount });
 });

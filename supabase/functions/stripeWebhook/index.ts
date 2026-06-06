@@ -10,6 +10,7 @@ import { getMe } from '../_shared/auth.ts';
 import { stripe } from '../_shared/stripe.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 import { mapPriceIdToTier, type Tier } from '../_shared/tier.ts';
+import { fireEvent } from '../_shared/fireEvent.ts';
 
 const WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET')!;
 const WEBHOOK_IP_BUDGET = { maxRequests: 600, windowMs: 60_000 };
@@ -153,6 +154,14 @@ Deno.serve(async (req) => {
         last_subscription_update: new Date().toISOString(),
       }).eq('id', userId);
       await syncFromCustomer(userId);
+
+      // Fire trial_started so the lifecycle drip switches from Phase 1
+      // (lead nurture) to Phase 2 (trial sequence). Lookup the email via
+      // the user row we just updated.
+      const { data: u } = await admin.from('users').select('email').eq('id', userId).maybeSingle();
+      if (u?.email) {
+        await fireEvent(u.email.toLowerCase(), 'trial_started', { userId });
+      }
       break;
     }
 
@@ -184,6 +193,20 @@ Deno.serve(async (req) => {
         ...update,
       }).eq('id', userId);
       await syncFromCustomer(userId);
+
+      // If the subscription is now active (not trialing, not cancelled),
+      // treat it as a paid conversion and fire subscription_created so the
+      // lifecycle drip moves to phase_4 and cancels trial/post-trial mail.
+      if (status === 'premium') {
+        const { data: u } = await admin
+          .from('users')
+          .select('email')
+          .eq('id', userId)
+          .maybeSingle();
+        if (u?.email) {
+          await fireEvent(u.email.toLowerCase(), 'subscription_created', { userId });
+        }
+      }
       break;
     }
 
