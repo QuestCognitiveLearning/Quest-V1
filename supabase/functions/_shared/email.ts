@@ -1,17 +1,57 @@
-// Email provider stub. Quest used Gmail OAuth via its connector — that flow
-// is not available on Supabase. To actually send mail, set RESEND_API_KEY (or
-// swap in another provider) and uncomment the real send path below.
-// Until then, calls log to console and return success so downstream logic works.
+// Email provider via Resend. Set RESEND_API_KEY in the Edge Function env to
+// send real mail; otherwise calls log to console and return success.
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
-const FROM_ADDRESS = Deno.env.get('EMAIL_FROM') || 'Quest Learning <noreply@questlearning.local>';
+const FROM_ADDRESS = Deno.env.get('EMAIL_FROM') || 'Quest Learning <noreply@questlearning.co>';
+const REPLY_TO = Deno.env.get('EMAIL_REPLY_TO');
+
+export type EmailAttachment = {
+  filename: string;
+  content: string;
+  contentType?: string;
+};
 
 export async function sendEmail(
-  { to, subject, html }: { to: string; subject: string; html: string },
-): Promise<{ ok: true; stubbed?: boolean }> {
+  {
+    to,
+    subject,
+    html,
+    cc,
+    bcc,
+    replyTo,
+    attachments,
+  }: {
+    to: string | string[];
+    subject: string;
+    html: string;
+    cc?: string | string[];
+    bcc?: string | string[];
+    replyTo?: string;
+    attachments?: EmailAttachment[];
+  },
+): Promise<{ ok: true; stubbed?: boolean; id?: string }> {
   if (!RESEND_API_KEY) {
-    console.log(`[email stub] to=${to} subject="${subject}" (${html.length} chars)`);
+    console.log(
+      `[email stub] to=${Array.isArray(to) ? to.join(',') : to} subject="${subject}" (${html.length} chars, ${attachments?.length || 0} attachments)`,
+    );
     return { ok: true, stubbed: true };
+  }
+
+  const body: Record<string, unknown> = {
+    from: FROM_ADDRESS,
+    to,
+    subject,
+    html,
+  };
+  if (cc) body.cc = cc;
+  if (bcc) body.bcc = bcc;
+  if (replyTo || REPLY_TO) body.reply_to = replyTo || REPLY_TO;
+  if (attachments && attachments.length > 0) {
+    body.attachments = attachments.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      content_type: a.contentType,
+    }));
   }
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -20,10 +60,11 @@ export async function sendEmail(
       Authorization: `Bearer ${RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from: FROM_ADDRESS, to, subject, html }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     throw new Error(`Resend ${res.status}: ${await res.text()}`);
   }
-  return { ok: true };
+  const json = await res.json().catch(() => ({}));
+  return { ok: true, id: (json as { id?: string }).id };
 }

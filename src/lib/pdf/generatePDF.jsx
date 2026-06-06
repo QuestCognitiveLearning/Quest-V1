@@ -211,6 +211,67 @@ export async function generatePDF({ type, contentId, branding, data }) {
   return pdf(doc).toBlob();
 }
 
+// Render a PDF from the in-memory shape returned by the publicTryFunnel
+// Edge Function (no DB lookup). Used by the /Try lead magnet flow.
+export async function generateTryPDF({
+  video,
+  quiz,
+  case_study,
+  gradeLevel,
+  branding,
+}) {
+  const LETTER_TO_NUM = { A: 1, B: 2, C: 3, D: 4 };
+  const questions = (quiz || []).map((q, i) => ({
+    id: i,
+    question_text: q.question,
+    choice_1: q.choice_a,
+    choice_2: q.choice_b,
+    choice_3: q.choice_c,
+    choice_4: q.choice_d,
+    correct_choice:
+      LETTER_TO_NUM[String(q.correct_choice || "").toUpperCase()] || 1,
+    explanation: q.explanation,
+    question_order: i,
+  }));
+  const prompts = case_study?.discussion_questions || [];
+  const topic = video?.title || "YouTube video";
+
+  const doc = case_study?.scenario ? (
+    <SubunitPacket
+      topic={topic}
+      gradeLevel={gradeLevel}
+      questions={questions}
+      scenario={case_study.scenario}
+      prompts={prompts}
+      branding={branding}
+    />
+  ) : (
+    <QuizPacket
+      topic={topic}
+      gradeLevel={gradeLevel}
+      source={video?.channelTitle}
+      questions={questions}
+      branding={branding}
+    />
+  );
+
+  return pdf(doc).toBlob();
+}
+
+export async function blobToBase64(blob) {
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunk))
+    );
+  }
+  return btoa(binary);
+}
+
 export function buildFileName(type, label) {
   const date = new Date().toISOString().slice(0, 10);
   const safe = (label || "Quest")

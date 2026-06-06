@@ -7,24 +7,32 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, FileText, RefreshCw, CheckCircle } from 'lucide-react';
+import EmailGate from './EmailGate';
 import DownloadGate from './DownloadGate';
-import { exportPdf, exportDoc } from '@/lib/tryExporters';
+import { exportDoc } from '@/lib/tryExporters';
 
 export default function Results({ result, onStartOver }) {
   const { video, quiz, case_study } = result;
-  const [gateOpen, setGateOpen] = useState(false);
+  const [emailGateOpen, setEmailGateOpen] = useState(false);
+  const [trialGateOpen, setTrialGateOpen] = useState(false);
   const [pendingFormat, setPendingFormat] = useState(null);
   const [revealedAnswers, setRevealedAnswers] = useState({});
+  const [delivered, setDelivered] = useState(false);
 
   const handleDownload = (format) => {
     setPendingFormat(format);
-    setGateOpen(true);
+    if (format === 'doc') {
+      // Word path keeps the trial gate behavior the existing /Try flow uses.
+      setTrialGateOpen(true);
+    } else {
+      // PDF path is the lead-gen email gate: collect address, send + download.
+      setEmailGateOpen(true);
+    }
   };
 
-  const onAuthorized = () => {
-    if (pendingFormat === 'pdf') exportPdf(result);
+  const onTrialAuthorized = () => {
     if (pendingFormat === 'doc') exportDoc(result);
-    setGateOpen(false);
+    setTrialGateOpen(false);
     setPendingFormat(null);
   };
 
@@ -117,26 +125,52 @@ export default function Results({ result, onStartOver }) {
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-slate-900">Print-ready handout</h3>
           <p className="text-sm text-slate-600 mt-1">
-            Download a clean PDF or Word file with the full quiz, case study, and answer key.
-            <span className="text-indigo-700 font-medium"> Start your free 7-day trial to download.</span>
+            Branded PDF with the full quiz, case study, and answer key.
+            <span className="text-indigo-700 font-medium"> Free &mdash; just tell us where to send it.</span>
           </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => handleDownload('pdf')} className="gap-2">
-            <Download className="w-4 h-4" /> PDF
+            <Download className="w-4 h-4" /> Email me my PDF
           </Button>
           <Button onClick={() => handleDownload('doc')} variant="secondary" className="gap-2">
-            <FileText className="w-4 h-4" /> Word
+            <FileText className="w-4 h-4" /> Word (trial)
           </Button>
         </div>
       </div>
 
+      <EmailGate
+        open={emailGateOpen}
+        onClose={() => { setEmailGateOpen(false); setPendingFormat(null); }}
+        onAfterDownload={() => setDelivered(true)}
+        result={result}
+      />
+
       <DownloadGate
-        open={gateOpen}
-        onClose={() => { setGateOpen(false); setPendingFormat(null); }}
-        onAuthorized={onAuthorized}
+        open={trialGateOpen}
+        onClose={() => { setTrialGateOpen(false); setPendingFormat(null); }}
+        onAuthorized={onTrialAuthorized}
         format={pendingFormat}
       />
+
+      {delivered && (
+        <div className="mt-6 rounded-2xl border border-indigo-200 bg-white p-6 flex items-center justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-semibold text-slate-900">
+              Want to run this live with your students?
+            </h3>
+            <p className="text-sm text-slate-600 mt-1">
+              Set up a free classroom in 90 seconds &mdash; no card required.
+              Get leaderboards, AI tutoring, and live response tracking.
+            </p>
+          </div>
+          <Button
+            onClick={() => (window.location.href = '/SignIn?mode=signup&source=leadmagnet')}
+          >
+            Set up free classroom
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

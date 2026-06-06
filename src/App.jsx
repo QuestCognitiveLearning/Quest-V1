@@ -115,6 +115,8 @@ function AuthenticatedApp() {
     <Suspense fallback={<FullPageSpinner />}>
       <Routes>
         <Route path="/" element={<RootRoute />} />
+        <Route path="/quiz-from-video" element={<Navigate to="/Try" replace />} />
+        <Route path="/quiz-from-video/*" element={<Navigate to="/Try" replace />} />
         {Object.entries(Pages).map(([path, Page]) => (
           <Route
             key={path}
