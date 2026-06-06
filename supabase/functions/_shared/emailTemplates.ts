@@ -245,6 +245,381 @@ export const P1: Template = (ctx) => ({
   ),
 });
 
+// -------------------- A2 — 24h check-in (no gen #2) --------------------
+export const A2: Template = (ctx) => ({
+  subject: 'Did that quiz work for your class?',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Did that quiz work?</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Quick check &mdash; did the quiz I sent yesterday work for you?
+       Anything weird, confusing, or missing?</p>
+    <p>If yes, you've got 4 more free generations whenever you need them:</p>
+    ${cta('Generate another quiz', ctx.ctaUrl.replace('/SignIn?mode=signup&source=leadmagnet&intent=trial', '/try'))}
+    <p>If not, hit reply and tell me what went wrong. Takes you 30 seconds
+       and directly shapes what I fix next.</p>
+    <p style="font-size:13px;color:#475569;">PS &mdash; when you're ready for
+       students to take quizzes online instead of on paper (auto-graded, no
+       marking), that's what the trial unlocks.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- D — after gen #4 --------------------
+export const D: Template = (ctx) => ({
+  subject: 'Heads up — one free PDF left',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">One free PDF left</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>You're on generation #4 &mdash; one more on the free plan.</p>
+    <p><strong>When you want #6, two options:</strong></p>
+    <ul style="padding-left:18px;line-height:1.7;">
+      <li><strong>Wait</strong> &mdash; your free generations don't reset
+        (they're lifetime, not monthly).</li>
+      <li><strong>Start a trial</strong> &mdash; 14 days of unlimited generations
+        + your students can take quizzes online. No card. Cancel any time.</li>
+    </ul>
+    <p>All 4 quizzes you've generated so far automatically transfer to your
+       account when you sign up. Nothing lost.</p>
+    ${cta('Start trial', ctx.ctaUrl)}
+    <p style="font-size:13px;color:#475569;">Either is fine.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- E2 — wall + 24h --------------------
+export const E2: Template = (ctx) => ({
+  subject: 'Still need that 6th quiz?',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Still need that 6th quiz?</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>If you're hesitating, two quick facts:</p>
+    <ol style="padding-left:18px;line-height:1.7;">
+      <li>The trial is genuinely free. No card. I'm not collecting anything at
+        signup beyond what you already gave me.</li>
+      <li>Your 5 generated quizzes carry over to your account automatically.</li>
+    </ol>
+    ${cta('Start trial', ctx.ctaUrl)}
+    <p>If now's not the right time, ignore this. The free 5 stay yours forever.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- E3 — wall + 72h (social proof) --------------------
+export const E3: Template = (ctx) => ({
+  subject: 'How teachers run Quest with their whole class',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Quick story</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Teachers running Quest tell me the same thing &mdash; they used to spend
+       12+ hours every Sunday writing quizzes, case studies, and discussion
+       prompts. Now it takes about 90 minutes, and their students take the
+       quizzes online instead of on paper, so they stopped grading.</p>
+    <p>The trial gives you exactly that setup.</p>
+    ${cta('Start trial', ctx.ctaUrl)}`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- T1 — Day 1 activation (no class yet) --------------------
+export const T1: Template = (ctx) => ({
+  subject: "Don't make me do this for you (I will)",
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Need a hand getting set up?</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Noticed you haven't opened your starter class yet &mdash; probably
+       because life happens.</p>
+    <p><strong>If you want, reply with:</strong></p>
+    <ul style="padding-left:18px;line-height:1.7;">
+      <li>Your class name</li>
+      <li>The subject you teach</li>
+      <li>Your school name (or "homeschool")</li>
+    </ul>
+    <p>I'll set up the class, link your imported quizzes, generate a join
+       code, and send everything back in a single Loom video. Takes me
+       5 minutes.</p>
+    ${cta('Or DIY — open my dashboard', ctx.ctaUrl)}`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- T2 — first class created --------------------
+export const T2: Template = (ctx) => ({
+  subject: 'Class is live — now get one student in',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Class is live</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p><strong>Single most important next step: get one student to join.</strong>
+       Even one. Doesn't matter if it's your own kid, a TA, or a student you
+       trust to test things.</p>
+    <p>Why: the moment you see Quest grade a student's quiz, you understand
+       the value in your bones. Until then it's theoretical.</p>
+    <p>Your join code is in your class settings.</p>
+    ${cta('Open my class', ctx.ctaUrl)}
+    <p><strong>Once you have a student enrolled, two features to turn on:</strong></p>
+    <ol style="padding-left:18px;line-height:1.7;">
+      <li><strong>AI Panda Tutor</strong> &mdash; every enrolled student can talk
+        to an AI Socratic tutor that helps them think through concepts without
+        giving direct answers.</li>
+      <li><strong>Knowledge map</strong> &mdash; auto-builds as students complete
+        work.</li>
+    </ol>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- T3 — first student quiz submission --------------------
+export const T3: Template = (ctx) => ({
+  subject: 'Your first student just finished a Quest quiz',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">A student just finished a quiz</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Just saw a student in your class complete their first quiz on Quest.
+       <strong>That's the moment most teachers go "oh &mdash; this actually
+       works."</strong></p>
+    <p><strong>Two things to check right now:</strong></p>
+    <ol style="padding-left:18px;line-height:1.7;">
+      <li><strong>Per-student analytics</strong> &mdash; already loading in your
+        dashboard. See exactly which questions they got wrong and why.</li>
+      <li><strong>Knowledge map for that student</strong> &mdash; shows what
+        they've mastered vs. what they need to review.</li>
+    </ol>
+    ${cta('Open dashboard', ctx.ctaUrl)}
+    <p>And &mdash; quick gut check &mdash; how was the experience for you and
+       the student? Any friction? Any "wait, why does it do that?" moments?</p>
+    <p>Genuinely asking. Replies shape what I build next.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- T4 — Day 5 (Panda Tutor push) --------------------
+export const T4: Template = (ctx) => ({
+  subject: '9 days left — turn on the Panda Tutor today',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Don't sleep on the Panda Tutor</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>A third of your trial down.</p>
+    <p>One thing 90% of teachers wait too long to try: <strong>the AI Panda
+       Tutor.</strong></p>
+    <p>Every enrolled student gets their own AI tutor that walks them through
+       concepts via Socratic dialogue &mdash; never giving direct answers,
+       always asking the question that gets them to figure it out.</p>
+    <p>It's the thing that differentiates Quest from MagicSchool, SchoolAI,
+       and the other AI quiz tools. They generate content. Quest teaches.</p>
+    ${cta('Turn on Panda Tutor', ctx.ctaUrl)}`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- T5 — Day 10 mid-trial conversion --------------------
+export const T5: Template = (ctx) => ({
+  subject: 'Your trial ends in 3 days',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Your trial ends in 3 days</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p><strong>Snapshot of your trial so far:</strong></p>
+    <ul style="padding-left:18px;line-height:1.7;">
+      <li>Classes created: ${ctx.classCount ?? '—'}</li>
+      <li>Quizzes generated: ${ctx.quizCount ?? '—'}</li>
+      <li>Case studies generated: ${ctx.caseStudyCount ?? '—'}</li>
+      <li>Students enrolled: ${ctx.studentCount ?? '—'}</li>
+      <li>Quizzes auto-graded by Quest: ${ctx.gradingCount ?? '—'}</li>
+    </ul>
+    <p>If Quest has earned a place in your week, upgrade before
+       ${ctx.trialEndsAt ? escape(ctx.trialEndsAt) : 'your trial ends'} so
+       nothing pauses:</p>
+    <p><strong>Classroom &mdash; $29/month</strong> (founding member, locked
+       in for life)<br />
+       Or <strong>$250/year</strong> (save $98)</p>
+    <p>Both include everything you've been using during the trial.</p>
+    ${cta('Upgrade now', ctx.ctaUrl)}`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- T6 — Day 13 (24h before) --------------------
+export const T6: Template = (ctx) => ({
+  subject: "Tomorrow's the day",
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Trial ends tomorrow</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Your trial ends tomorrow${ctx.trialEndsAt ? ` at ${escape(ctx.trialEndsAt)}` : ''}.</p>
+    <p><strong>If you upgrade today:</strong></p>
+    <ul style="padding-left:18px;line-height:1.7;">
+      <li>All your classes, students, and generated content stay live</li>
+      <li>Founding member price locked in ($29/mo &mdash; will go to $49 once
+        we're out of founding cohort)</li>
+      <li>Nothing breaks for your students mid-week</li>
+    </ul>
+    <p><strong>If you don't:</strong></p>
+    <ul style="padding-left:18px;line-height:1.7;">
+      <li>Account pauses (everything preserved for 12 months &mdash; nothing
+        is deleted)</li>
+      <li>Students see "Quest is being upgraded" when they log in</li>
+      <li>You can resume any time</li>
+    </ul>
+    ${cta('Upgrade — $29/mo', ctx.ctaUrl)}`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- P2 — Day +10 post-trial (social proof) --------------------
+export const P2: Template = (ctx) => ({
+  subject: 'Teachers who saved 12 hours/week with Quest',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">12 hours a week, back</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Quick story &mdash; teachers running Quest at scale tell me the same
+       thing: before, 12 hours of Sunday prep. After, 90 minutes &mdash;
+       with auto-grading handling what used to take every weeknight.</p>
+    <p>The setup they use is exactly what was waiting in your account during
+       the trial.</p>
+    ${cta('Restart my trial', ctx.ctaUrl)}
+    <p>Or hit reply and I'll walk you through how it works in 15 minutes.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- P3 — Day +21 discount --------------------
+export const P3: Template = (ctx) => ({
+  subject: '50% off for teachers who tried Quest',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">50% off your first 3 months</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Special offer for teachers who tried Quest but didn't continue:</p>
+    <p><strong>First 3 months at 50% off &mdash; $14.50/month instead of
+       $29.</strong></p>
+    <p>Locked-in founding member pricing ($29/mo) kicks in after.</p>
+    ${cta('Claim 50% off', `${ctx.ctaUrl}&promo=COMEBACK50`)}
+    <p style="font-size:13px;color:#475569;">Expires in 7 days.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- P4 — Day +45 final close --------------------
+export const P4: Template = (ctx) => ({
+  subject: 'Last note — staying in touch is optional',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Last note</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Sivers rule &mdash; I'd rather be honest than annoying.</p>
+    <p>Moving you to the quarterly list (4 emails per year, only big stuff).
+       If you'd rather hear nothing from Quest at all,
+       <a href="${ctx.unsubscribeUrl}">unsubscribe with one click</a>.</p>
+    <p>If you ever decide to give Quest another try, the door is open and your
+       account is still there.</p>
+    ${cta('Resume my account', ctx.ctaUrl)}
+    <p>Thanks for giving it a real shot.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// -------------------- Phase 4 (paid) --------------------
+// W0 — paid welcome (immediate on subscription_created)
+export const W0: Template = (ctx) => ({
+  subject: "Welcome to Quest — here's your 5-step setup",
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Welcome to Quest</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>You're in. Your account is live, your founding member price is locked
+       in for life.</p>
+    <p><strong>Your first 30 minutes (5 quick wins):</strong></p>
+    <ol style="padding-left:18px;line-height:1.8;">
+      <li>Open your dashboard and check that all trial classes carried over</li>
+      <li>Turn on the AI Panda Tutor in your class settings</li>
+      <li>Generate a new quiz from a YouTube video your students already
+        watched (zero ramp-up)</li>
+      <li>Share the join code with your students</li>
+      <li>Watch the analytics fill in as students complete the first quiz</li>
+    </ol>
+    ${cta('Open my dashboard', ctx.ctaUrl)}
+    <p>Anything confusing in the first few days? Hit reply &mdash; I'd
+       rather you ping me than wonder.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// W1 — Week 1 check (scheduled +7d after subscription_created)
+export const W1: Template = (ctx) => ({
+  subject: "How's week 1 going?",
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Week 1 check-in</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>You've been on Quest for a week. Quick founder check-in &mdash; how
+       has it actually fit into your routine?</p>
+    <p>Three things I always want to know from new paid users:</p>
+    <ol style="padding-left:18px;line-height:1.7;">
+      <li>What's the first thing that surprised you (good or bad)?</li>
+      <li>What's one feature you wish existed?</li>
+      <li>Anything broken or confusing?</li>
+    </ol>
+    <p>Hit reply with even one-line answers. I read every reply and your
+       feedback directly shapes the next two weeks of work.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// W2 — Month 1 report (scheduled +30d after subscription_created)
+export const W2: Template = (ctx) => ({
+  subject: 'Your first month with Quest',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Your first month on Quest</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>30 days in. Here's what your dashboard logged:</p>
+    <ul style="padding-left:18px;line-height:1.7;">
+      <li>Classes active: ${ctx.classCount ?? '—'}</li>
+      <li>Quizzes generated: ${ctx.quizCount ?? '—'}</li>
+      <li>Case studies generated: ${ctx.caseStudyCount ?? '—'}</li>
+      <li>Students enrolled: ${ctx.studentCount ?? '—'}</li>
+      <li>Auto-graded submissions: ${ctx.gradingCount ?? '—'}</li>
+    </ul>
+    <p>Reasonable rough math: that's somewhere between 8 and 20 hours of
+       grading + prep that the platform handled instead of you.</p>
+    ${cta('Open my dashboard', ctx.ctaUrl)}
+    <p>If you want a 15-minute call to talk about scaling this to more
+       classes, hit reply.</p>`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
+// W3 — annual renewal heads-up (scheduled +335d after subscription_created
+// when subscription is annual; cron handles last-mile gating)
+export const W3: Template = (ctx) => ({
+  subject: 'Heads up — your annual renews in 30 days',
+  html: wrap(
+    `
+    <h1 style="font-size:22px;margin:0 0 14px;">Your renewal is coming up</h1>
+    <p>${greet(ctx.firstName)}</p>
+    <p>Your annual Quest subscription renews in about 30 days. <strong>Founding
+       member pricing stays locked in for the renewal &mdash; same rate you've
+       been paying.</strong></p>
+    <p>No action required. Just letting you know so it isn't a surprise on
+       your statement.</p>
+    <p>If you want to switch to monthly, change card on file, or cancel,
+       all of that's in your billing portal:</p>
+    ${cta('Manage billing', ctx.ctaUrl)}`,
+    ctx.unsubscribeUrl,
+  ),
+});
+
 export const TEMPLATES: Record<string, Template> = {
-  A1, B, C, E1, E4, T0, T7, P1,
+  A1, A2, B, C, D, E1, E2, E3, E4,
+  T0, T1, T2, T3, T4, T5, T6, T7,
+  P1, P2, P3, P4,
+  W0, W1, W2, W3,
 };

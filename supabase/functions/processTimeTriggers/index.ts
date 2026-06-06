@@ -21,7 +21,11 @@ const INTERNAL_TOKEN = Deno.env.get('QUEST_INTERNAL_TOKEN') || '';
 
 // Sequence IDs that require last-mile gating before sending.
 const GATES: Record<string, (lead: Lead) => string | null> = {
-  T1: (l) => (l.first_class_at ? 'first_class_already' : null),
+  // Trial-sequence emails should not fire after the user has converted to
+  // paid (W0 already welcomed them) or before they've reached the relevant
+  // behavior milestone.
+  T1: (l) => (l.first_class_at ? 'first_class_already' : (l.converted_to_paid ? 'converted' : null)),
+  T4: (l) => (l.converted_to_paid ? 'converted' : null),
   T5: (l) => (l.converted_to_paid ? 'converted' : null),
   T6: (l) => (l.converted_to_paid ? 'converted' : null),
   T7: (l) => (l.converted_to_paid ? 'converted' : null),
@@ -33,6 +37,11 @@ const GATES: Record<string, (lead: Lead) => string | null> = {
   E2: (l) => (l.trial_started_at ? 'trial_started' : null),
   E3: (l) => (l.trial_started_at ? 'trial_started' : null),
   E4: (l) => (l.trial_started_at ? 'trial_started' : null),
+  // Paid-sequence emails should not fire if the user cancelled before the
+  // checkpoint arrived.
+  W1: (l) => (!l.converted_to_paid ? 'not_paid' : null),
+  W2: (l) => (!l.converted_to_paid ? 'not_paid' : null),
+  W3: (l) => (!l.converted_to_paid ? 'not_paid' : null),
 };
 
 Deno.serve(async (req) => {

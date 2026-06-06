@@ -131,7 +131,14 @@ export function decide(event: string, lead: Lead, payload: Record<string, unknow
     }
     case 'subscription_created': {
       return {
+        immediate: ['W0'],
         cancel: ['T1','T4','T5','T6','T7','P1','P2','P3','P4'],
+        schedule: [
+          { id: 'W1', at: new Date(now + 7 * DAY) },
+          { id: 'W2', at: new Date(now + 30 * DAY) },
+          // W3 (annual renewal) is conditionally scheduled by the cron
+          // when it sees a sub with interval='year' approaching renewal.
+        ],
         patch: { sequence_phase: 'phase_4', converted_to_paid: true },
       };
     }
