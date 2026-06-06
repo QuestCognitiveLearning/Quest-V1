@@ -131,11 +131,11 @@ export default function Hero() {
   const eyebrow = isStudent
     ? "Inquiry · Instruction · Recalling · Applying"
     : "AI Curriculum · Live Sessions · Parent Reports";
-  const headlinePre = isStudent ? "Learn to" : "The AI teaching platform built for";
-  const headlineEm = isStudent ? "remember." : "how you actually teach.";
+  const headlinePre = isStudent ? "Learn to" : "Save";
+  const headlineEm = isStudent ? "remember." : "time.";
   const lede = isStudent
     ? "Inquiry, instruction, recall, and applying — wired into every lesson. Your Knowledge Map shows what you've mastered and what's due."
-    : "Turn any YouTube video into a quiz, case study, or full lesson in 90 seconds. Run live interactive classes with leaderboards. Give every student their own AI Socratic tutor. Send branded parent reports automatically.";
+    : "Standards in, full curriculum out — quizzes, free-response, attention checks, and case studies. Edit anything, regenerate anything, then teach.";
   const ctaLabel = isStudent ? "Join Your Class" : "Start Free Trial";
 
   // Duplicate pool so the carousel can loop seamlessly

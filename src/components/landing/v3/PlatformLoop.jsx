@@ -50,13 +50,13 @@ function VAI({ on }) {
 function VStudent({ on }) {
   const stages = ["Inquiry", "Instruction", "Recall", "Apply"];
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-1 w-full">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 w-full">
       {stages.map((s, i) => {
         const isNow = on && i === 1;
         return (
           <div
             key={s}
-            className={`flex flex-col items-center gap-1 py-1.5 rounded-md border ${
+            className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-md border min-w-0 ${
               isNow
                 ? "border-[#F97316] bg-[#FFF7ED]"
                 : on
@@ -65,7 +65,7 @@ function VStudent({ on }) {
             }`}
           >
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`w-2 h-2 rounded-full shrink-0 ${
                 isNow
                   ? "bg-[#F97316] ring-2 ring-[#F97316]/30"
                   : on
@@ -73,7 +73,7 @@ function VStudent({ on }) {
                   : "bg-[#CBD5E1]"
               }`}
             />
-            <span className="text-[8.5px] font-bold tracking-wider uppercase text-[#475569]">
+            <span className="text-[7.5px] lg:text-[8px] font-bold tracking-normal uppercase text-[#475569] leading-tight text-center truncate max-w-full">
               {s}
             </span>
           </div>
