@@ -1,10 +1,10 @@
 -- Studio-tier parent progress reports. One row per generated report.
--- Tutor owns the row; row-level access is by auth.uid() → users.id.
+-- Tutor owns the row; student is identified by the users.id (account_type='student').
 
 create table if not exists public.parent_reports (
   id                      uuid primary key default gen_random_uuid(),
   tutor_id                varchar not null references public.users(id) on delete cascade,
-  student_id              varchar not null references public.students(id) on delete cascade,
+  student_id              varchar not null references public.users(id) on delete cascade,
   class_id                varchar references public.classes(id) on delete set null,
   date_range_start        timestamptz,
   date_range_end          timestamptz,
