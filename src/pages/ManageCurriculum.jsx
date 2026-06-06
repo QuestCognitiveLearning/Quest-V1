@@ -21,7 +21,7 @@ import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ChevronLeft, Video, CheckCircle, Clock, Sparkles, Zap, BookOpen, ClipboardList, RefreshCw } from "lucide-react";
+import { Loader2, ChevronLeft, Video, CheckCircle, Clock, Sparkles, Zap, BookOpen, ClipboardList, RefreshCw, FileText, Paperclip } from "lucide-react";
 import VideoOnlyModal from "@/components/teacher/VideoOnlyModal";
 import ContentReviewModal from "@/components/teacher/ContentReviewModal";
 import { invokeLLM, generateImage } from "@/components/utils/openai";
@@ -45,6 +45,12 @@ export default function ManageCurriculum() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewContent, setReviewContent] = useState(null);
   const [generatingQueue, setGeneratingQueue] = useState(false);
+  // Per-subunit PDF context (extracted client-side via pdfjs-dist). Held in
+  // component state — not persisted to DB. Teacher can attach a PDF before
+  // hitting Generate, and the extracted text is concatenated with the video
+  // transcript when the prompt runs. Re-attach after a refresh.
+  const [pdfContextBySubunit, setPdfContextBySubunit] = useState({});
+  const [extractingForSubunit, setExtractingForSubunit] = useState(null);
   const [queueProgress, setQueueProgress] = useState({ current: 0, total: 0 });
   const [currentGeneratingSubunit, setCurrentGeneratingSubunit] = useState(null);
   const [generatingTests, setGeneratingTests] = useState(false);
@@ -247,7 +253,15 @@ export default function ManageCurriculum() {
       
       // If video already has a transcript stored (text or URL), resolve to text.
       const existingTranscript = await resolveTranscript(video.video_transcript);
-      const videoTranscript = fetchedTranscript || existingTranscript || `Educational video about ${subunit.subunit_name}`;
+      let videoTranscript = fetchedTranscript || existingTranscript || `Educational video about ${subunit.subunit_name}`;
+
+      // Append any PDF context the teacher attached for this subunit.
+      const pdfContextText = pdfContextBySubunit?.[subunit.id];
+      if (pdfContextText && pdfContextText.length > 50) {
+        const pdfBudget = 12000;
+        videoTranscript = `${videoTranscript}\n\n--- ADDITIONAL CONTEXT FROM TEACHER-ATTACHED PDF ---\n${pdfContextText.slice(0, pdfBudget)}`;
+        console.log("[GENERATION] Merged PDF context. Combined source length:", videoTranscript.length);
+      }
       const videoDuration = video.duration_seconds || 600;
       
       console.log("🎯 [GENERATION] Using transcript for content generation");
@@ -723,7 +737,62 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                                 Download packet
                               </DownloadPDFButton>
                             </div>
-                          ) : null}
+                          ) : (
+                            <div className="mt-2">
+                              <label
+                                className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors ${
+                                  pdfContextBySubunit[subunit.id]
+                                    ? 'text-emerald-700'
+                                    : 'text-slate-500 hover:text-[#2563EB]'
+                                }`}
+                              >
+                                {extractingForSubunit === subunit.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : pdfContextBySubunit[subunit.id] ? (
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Paperclip className="w-3.5 h-3.5" />
+                                )}
+                                {pdfContextBySubunit[subunit.id]
+                                  ? 'PDF attached — click to replace'
+                                  : extractingForSubunit === subunit.id
+                                  ? 'Extracting…'
+                                  : 'Attach PDF for extra context (optional)'}
+                                <input
+                                  type="file"
+                                  accept="application/pdf"
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = '';
+                                    if (!file) return;
+                                    if (file.size > 25 * 1024 * 1024) {
+                                      alert('PDF must be 25MB or smaller.');
+                                      return;
+                                    }
+                                    setExtractingForSubunit(subunit.id);
+                                    try {
+                                      const { extractPdfText } = await import('@/lib/extractPdfText');
+                                      const meta = await extractPdfText(file);
+                                      if (meta.wordCount < 20) {
+                                        alert('Could not extract enough text from this PDF (it may be scanned). Try a digital PDF.');
+                                      } else {
+                                        setPdfContextBySubunit((prev) => ({
+                                          ...prev,
+                                          [subunit.id]: meta.text,
+                                        }));
+                                      }
+                                    } catch (err) {
+                                      console.error('PDF extraction failed:', err);
+                                      alert('Could not read this PDF.');
+                                    } finally {
+                                      setExtractingForSubunit(null);
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

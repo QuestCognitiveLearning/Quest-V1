@@ -91,11 +91,19 @@ const GRADE_LABEL: Record<string, string> = {
 };
 
 async function generateQuizAndCaseStudy(
-  args: { title: string; transcript: string; options?: GenerationOptions },
+  args: { title: string; transcript: string; pdfText?: string; options?: GenerationOptions },
 ) {
-  const trimmed = args.transcript.length > 18_000
-    ? args.transcript.slice(0, 18_000)
-    : args.transcript;
+  // When a PDF is supplied alongside or instead of a transcript, combine
+  // both as source material. PDFs typically have richer prose than YT
+  // captions, so weight them slightly more in the prompt framing.
+  const pdfBudget = 14_000;
+  const transcriptBudget = 18_000 - pdfBudget;
+  const pdfSlice = (args.pdfText || '').slice(0, pdfBudget);
+  const transcriptSlice = (args.transcript || '').slice(0, args.pdfText ? transcriptBudget : 18_000);
+  const trimmed = transcriptSlice;
+  const pdfSection = pdfSlice
+    ? `\n\nSUPPLEMENTAL PDF EXCERPT (use this as primary source if the video transcript is sparse):\n${pdfSlice}`
+    : '';
 
   const count = Math.min(20, Math.max(3, args.options?.count ?? 10));
   const difficulty = args.options?.difficulty ?? 'medium';
@@ -123,7 +131,8 @@ VIDEO TITLE: ${args.title}
 ${audienceLine}
 
 VIDEO TRANSCRIPT (may be truncated):
-${trimmed}
+${trimmed || '(No video transcript supplied. Use the PDF excerpt below as your sole source.)'}
+${pdfSection}
 
 YOUR TASK:
 Produce ${includeCaseStudy ? 'TWO things' : 'ONE thing'}, both grounded only in the transcript above:
@@ -267,8 +276,15 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'generate') {
-      const videoId = String(body.videoId ?? '');
-      if (!VIDEO_ID_RE.test(videoId)) return json({ error: 'Invalid videoId' }, 400, req);
+      // PDF text can supplement OR replace a video. videoId is now optional
+      // when pdfText + topic are present.
+      const videoId = body.videoId ? String(body.videoId) : '';
+      const pdfText = body.pdfText ? String(body.pdfText).slice(0, 200_000) : '';
+      const topic = body.topic ? String(body.topic).slice(0, 200) : '';
+      if (videoId && !VIDEO_ID_RE.test(videoId)) return json({ error: 'Invalid videoId' }, 400, req);
+      if (!videoId && !pdfText) {
+        return json({ error: 'Provide a videoId or pdfText' }, 400, req);
+      }
 
       // Defensive: caller's customize panel ships these as a nested object.
       const rawOpts = (body as Record<string, unknown>).options as Record<string, unknown> | undefined;
@@ -285,24 +301,32 @@ Deno.serve(async (req) => {
         includeCaseStudy: rawOpts?.includeCaseStudy === false ? false : true,
       };
 
-      // Fetch metadata + transcript in parallel.
-      const [meta, transcript] = await Promise.all([
-        videoDetails(videoId),
-        fetchTranscript(videoId),
-      ]);
+      let meta: { title: string; channelTitle?: string; thumbnail?: string } = {
+        title: topic || 'Uploaded handout',
+      };
+      let transcriptText = '';
 
-      if (!transcript.transcript) {
-        return json({ error: 'No transcript available for this video. Try another one with English captions.' }, 422, req);
+      if (videoId) {
+        const [m, transcript] = await Promise.all([
+          videoDetails(videoId),
+          fetchTranscript(videoId),
+        ]);
+        meta = m;
+        transcriptText = transcript.transcript || '';
+        if (!transcriptText && !pdfText) {
+          return json({ error: 'No transcript available for this video. Try another video with English captions or upload a PDF.' }, 422, req);
+        }
       }
 
       const { quiz, case_study } = await generateQuizAndCaseStudy({
         title: meta.title,
-        transcript: transcript.transcript,
+        transcript: transcriptText,
+        pdfText,
         options,
       });
 
       if (quiz.length === 0) {
-        return json({ error: 'Could not generate quiz questions from this video. Try a video with clearer educational content.' }, 422, req);
+        return json({ error: 'Could not generate questions from this source. Try a different video or PDF.' }, 422, req);
       }
 
       return json({ video: meta, quiz, case_study }, 200, req);
