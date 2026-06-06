@@ -119,13 +119,15 @@ function AuthenticatedApp() {
     <Suspense fallback={<FullPageSpinner />}>
       <Routes>
         <Route path="/" element={<RootRoute />} />
-        <Route path="/Try" element={<Navigate to="/try" replace />} />
+        {/* React Router v6 path matching is case-insensitive by default, so
+            /try matches the page registry's /try (already lowercase), /Pricing
+            matches /Pricing, /studio matches /Studio, etc. — no explicit
+            lowercase-alias redirects needed. The previous Navigate redirects
+            actually CAUSED infinite loops because the lowercase redirect URL
+            re-matched the case-insensitive uppercase Pages route, which then
+            re-matched the lowercase redirect, etc. */}
         <Route path="/quiz-from-video" element={<Navigate to="/try" replace />} />
         <Route path="/quiz-from-video/*" element={<Navigate to="/try" replace />} />
-        <Route path="/studio" element={<Navigate to="/Studio" replace />} />
-        <Route path="/classroom" element={<Navigate to="/Classroom" replace />} />
-        <Route path="/enterprise" element={<Navigate to="/Enterprise" replace />} />
-        <Route path="/pricing" element={<Navigate to="/Pricing" replace />} />
         {Object.entries(Pages).map(([path, Page]) => (
           <Route
             key={path}
