@@ -5,8 +5,6 @@ import { quest } from "@/api/questClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import TeacherLayout from "../components/teacher/TeacherLayout";
-import UpgradeModal from "@/components/shared/UpgradeModal";
-import { canCreateClass, getUserTier, getLimits } from "@/lib/tier";
 import { 
   Users, 
   Plus, 
@@ -31,25 +29,12 @@ export default function TeacherClasses() {
   const [curricula, setCurricula] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showUpgrade, setShowUpgrade] = useState(false);
   const [newClass, setNewClass] = useState({
     class_name: "",
     curriculum_id: ""
   });
 
-  const tierCap = teacher ? getLimits(teacher).maxClasses : Infinity;
-  const overCap = teacher && !canCreateClass(teacher, classes.length);
-  const upgradeReason = `You're on the ${getUserTier(teacher) === "free" ? "Free" : "Classroom"} plan, which allows up to ${
-    tierCap === Infinity ? "unlimited" : tierCap
-  } active ${tierCap === 1 ? "class" : "classes"}. Upgrade to Studio for unlimited classes, branded packets, and automated parent reports.`;
-
-  const tryOpenCreate = () => {
-    if (overCap) {
-      setShowUpgrade(true);
-      return;
-    }
-    setShowCreateForm(true);
-  };
+  const tryOpenCreate = () => setShowCreateForm(true);
 
   useEffect(() => {
     loadData();
@@ -335,12 +320,6 @@ export default function TeacherClasses() {
           </div>
         )}
       </div>
-      <UpgradeModal
-        open={showUpgrade}
-        onClose={() => setShowUpgrade(false)}
-        recommendedTier="studio"
-        reason={upgradeReason}
-      />
     </TeacherLayout>
   );
 }
