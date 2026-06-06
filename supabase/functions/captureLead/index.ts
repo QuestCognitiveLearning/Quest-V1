@@ -45,8 +45,15 @@ function dayZeroHtml(p: {
          style="display: inline-block; background: #2563EB; color: #FFFFFF;
                 text-decoration: none; padding: 12px 18px; border-radius: 10px;
                 font-weight: 700; font-size: 14px;">
-        Set up my free classroom
+        Try Quest free to unlock more features
       </a>
+    </p>
+    <p style="font-size: 14px; line-height: 1.55; color: #1A1A1A; margin-top: 28px;">
+      <strong>Got feedback?</strong> Just hit reply &mdash; I read every email
+      personally and use it to improve the tool.
+    </p>
+    <p style="font-size: 13px; color: #64748B; margin-top: 8px;">
+      &mdash; Adam, Quest Learning
     </p>
     <p style="font-size: 12px; color: #94A3B8; margin-top: 28px;">
       You're receiving this because you generated a free handout at questlearning.co.
