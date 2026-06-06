@@ -161,7 +161,11 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto bg-white" style={{fontFamily: '"Inter", sans-serif'}}>
-        {React.cloneElement(children, { selectedClassId })}
+        {React.Children.map(children, (child) =>
+          React.isValidElement(child)
+            ? React.cloneElement(child, { selectedClassId })
+            : child
+        )}
       </div>
     </div>
   );
