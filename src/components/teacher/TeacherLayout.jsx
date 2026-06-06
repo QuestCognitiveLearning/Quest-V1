@@ -112,6 +112,10 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
 
 
         <nav className="flex-1 overflow-y-auto py-2 px-2">
+          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("generate", "Generate") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "generate" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
+            <Sparkles className="w-4 h-4" />
+            <span>Generate</span>
+          </button>
           <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("dashboard", "TeacherDashboard") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "dashboard" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
             <BarChart3 className="w-4 h-4" />
             <span>Dashboard</span>
@@ -123,10 +127,6 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
           <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("classes", "TeacherClasses") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "classes" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
             <Users className="w-4 h-4" />
             <span>Classes</span>
-          </button>
-          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("generate", "Generate") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "generate" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-            <Sparkles className="w-4 h-4" />
-            <span>Generate</span>
           </button>
           <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("analytics", "TeacherAnalytics") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "analytics" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
             <TrendingUp className="w-4 h-4" />

@@ -12,4 +12,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  build: {
+    // Source maps make production stack traces actually readable. Slight
+    // bandwidth cost; massively faster debugging.
+    sourcemap: true,
+  },
 });
