@@ -59,10 +59,23 @@ export const TIER_LIMITS = {
 // Reads the effective tier from a user record. Prefers the new `tier` column;
 // falls back to the legacy `subscription_tier` mapping for users whose row
 // has not yet been touched by Phase 3's webhook update.
+//
+// Tutor-fallback: a user tagged as a tutor (new_role='tutor') with a paid
+// subscription (subscription_tier='premium', including 'trial' status) is
+// treated as Studio tier even if the new `tier` column hasn't been written
+// yet. Without this, the syncStripeSubscription path — which historically
+// only set the legacy `subscription_tier` — leaves Studio buyers locked
+// out of Branding / Parent Reports / Booking pages until a separate sync
+// happens to write `tier='studio'`. The pages themselves still enforce
+// the real DB tier server-side via Edge Function checks, so this only
+// affects client-side UI gating.
 export function getUserTier(user) {
   if (!user) return "free";
   if (user.tier && TIER_LIMITS[user.tier]) return user.tier;
-  if (user.subscription_tier === "premium") return "classroom";
+  if (user.subscription_tier === "premium") {
+    if (user.new_role === "tutor") return "studio";
+    return "classroom";
+  }
   return "free";
 }
 
