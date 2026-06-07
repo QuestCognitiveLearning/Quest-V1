@@ -100,8 +100,12 @@ export default function TeacherLiveSession() {
     setIsRefreshing(true);
     try {
       const [parts, resps] = await Promise.all([
-        quest.entities.LiveSessionParticipant.filter({ session_code: activeSession.session_code }),
-        quest.entities.LiveSessionResponse.filter({ session_code: activeSession.session_code })
+        // live_session_participants / live_session_responses key by
+        // live_session_id (the FK), not session_code (which only lives on
+        // live_sessions). Filtering by session_code returned PGRST42703
+        // 'column does not exist' and the leaderboard never populated.
+        quest.entities.LiveSessionParticipant.filter({ live_session_id: activeSession.id }),
+        quest.entities.LiveSessionResponse.filter({ live_session_id: activeSession.id }),
       ]);
       
       setParticipants(parts.sort((a, b) => b.score - a.score));
