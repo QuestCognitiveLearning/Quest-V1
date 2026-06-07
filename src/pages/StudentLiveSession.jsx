@@ -413,15 +413,37 @@ export default function StudentLiveSession() {
     setPhase("quiz");
   };
 
+  // Tutor-friendly mode: when the session has 5 or fewer participants we
+  // assume a 1-on-1 or small-group tutoring context and skip the 1.5s
+  // auto-advance — the student (or tutor sitting next to them) taps "Discuss
+  // & continue" when they're ready, giving room to talk through the answer.
+  const liveMode =
+    allParticipants.length <= 1
+      ? "one_on_one"
+      : allParticipants.length <= 5
+      ? "small_group"
+      : "classroom";
+  const manualAdvance = liveMode !== "classroom";
+
+  const advanceToNext = () => {
+    setShowFeedback(false);
+    setSelectedAnswer(null);
+    if (currentQuestion < session.questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      handleQuizComplete();
+    }
+  };
+
   const handleAnswerSubmit = async () => {
     if (selectedAnswer === null) return;
-    
+
     const question = session.questions[currentQuestion];
     const isCorrect = selectedAnswer === question.correct_choice - 1;
-    
+
     setResults([...results, { correct: isCorrect }]);
     setShowFeedback(true);
-    
+
     // Save response to LiveSessionResponse for teacher analytics
     await quest.entities.LiveSessionResponse.create({
       session_code: session.session_code,
@@ -430,25 +452,18 @@ export default function StudentLiveSession() {
       selected_choice: selectedAnswer + 1,
       is_correct: isCorrect
     });
-    
+
     if (isCorrect) {
       const newScore = participant.score + 10;
-      await quest.entities.LiveSessionParticipant.update(participant.id, { 
-        score: newScore 
+      await quest.entities.LiveSessionParticipant.update(participant.id, {
+        score: newScore
       });
       setParticipant({ ...participant, score: newScore });
     }
-    
-    setTimeout(() => {
-      setShowFeedback(false);
-      setSelectedAnswer(null);
-      
-      if (currentQuestion < session.questions.length - 1) {
-        setCurrentQuestion(currentQuestion + 1);
-      } else {
-        handleQuizComplete();
-      }
-    }, 1500);
+
+    if (!manualAdvance) {
+      setTimeout(advanceToNext, 1500);
+    }
   };
 
   const handleQuizComplete = async () => {
@@ -885,6 +900,16 @@ export default function StudentLiveSession() {
                   className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full"
                 >
                   Submit Answer (+10 pts if correct)
+                </Button>
+              )}
+              {showFeedback && manualAdvance && (
+                <Button
+                  onClick={advanceToNext}
+                  className="w-full bg-[#1A1A1A] hover:bg-[#1A1A1A]/90 text-white py-5 font-semibold rounded-full"
+                >
+                  {currentQuestion < session.questions.length - 1
+                    ? "Discuss & continue"
+                    : "Finish"}
                 </Button>
               )}
             </CardContent>
