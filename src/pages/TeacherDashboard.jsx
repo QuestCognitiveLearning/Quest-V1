@@ -144,46 +144,45 @@ export default function TeacherDashboard() {
         setAssignments(teacherAssignments);
       }
 
-      // Resource stats — counted up best-effort so the hero cards always
-      // render even if a single entity fetch fails.
-      try {
-        const subunitIds = new Set();
-        for (const cur of relevantCurricula) {
-          const u = await quest.entities.Unit.filter({ curriculum_id: cur.id });
-          for (const unit of u || []) {
-            const s = await quest.entities.Subunit.filter({ unit_id: unit.id });
-            (s || []).forEach((row) => subunitIds.add(row.id));
-          }
-        }
-        const idsArr = Array.from(subunitIds);
-        // Bulk-fetch all quizzes / case studies for the teacher's subunits.
-        const allQuizzes = await quest.entities.Quiz.list();
-        const allCaseStudies = await quest.entities.CaseStudy.list();
-        const allInquiries = await quest.entities.InquirySession.list();
-        const teacherQuizzes = allQuizzes.filter((q) => idsArr.includes(q.subunit_id));
-        const teacherCaseStudies = allCaseStudies.filter((c) => idsArr.includes(c.subunit_id));
-        const teacherInquiries = allInquiries.filter((i) => idsArr.includes(i.subunit_id));
+      // Resource stats — every entity fetched independently so a single
+      // failure doesn't zero out the whole row. Uses .list() which is
+      // RLS-scoped to the teacher (their own rows + nothing else).
+      const counts = {
+        generatedHandouts: 0,
+        quizzes: 0,
+        caseStudies: 0,
+        inquirySessions: 0,
+        subunits: 0,
+      };
 
-        let generatedHandoutsCount = 0;
+      const safeCount = async (name, fetcher) => {
         try {
-          const handouts = await quest.entities.GeneratedHandout?.filter?.(
-            { teacher_id: currentUser.id }
-          );
-          generatedHandoutsCount = (handouts || []).length;
-        } catch {
-          // Entity may not be registered yet on older deploys.
+          const rows = await fetcher();
+          return Array.isArray(rows) ? rows.length : 0;
+        } catch (err) {
+          console.warn(`[dashboard] ${name} count failed:`, err);
+          return 0;
         }
+      };
 
-        setResourceStats({
-          generatedHandouts: generatedHandoutsCount,
-          quizzes: teacherQuizzes.length,
-          caseStudies: teacherCaseStudies.length,
-          inquirySessions: teacherInquiries.length,
-          subunits: idsArr.length,
-        });
-      } catch (err) {
-        console.warn("Resource stats partial load:", err);
-      }
+      // Library handouts (no curriculum link) — explicit teacher_id filter
+      // because the underlying table is jsonb-heavy and we want only this
+      // teacher's rows.
+      counts.generatedHandouts = await safeCount(
+        "generated handouts",
+        () => quest.entities.GeneratedHandout.filter({ teacher_id: currentUser.id })
+      );
+
+      // Quizzes / case studies / inquiry sessions — list() returns whatever
+      // RLS lets the teacher see, which for these tables is everything they
+      // created. Don't try to scope by subunit — too lossy + a slow walk.
+      counts.quizzes = await safeCount("quizzes", () => quest.entities.Quiz.list());
+      counts.caseStudies = await safeCount("case studies", () => quest.entities.CaseStudy.list());
+      counts.inquirySessions = await safeCount("inquiry sessions", () => quest.entities.InquirySession.list());
+      counts.subunits = await safeCount("subunits", () => quest.entities.Subunit.list());
+
+      console.log("[dashboard] resource stats:", counts);
+      setResourceStats(counts);
 
       setLoading(false);
     } catch (err) {
