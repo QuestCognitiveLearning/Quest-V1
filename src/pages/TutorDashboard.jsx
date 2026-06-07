@@ -56,10 +56,37 @@ export default function TutorDashboard() {
       try {
         const me = await quest.auth.me();
         setUser(me);
-        // Non-tutors who land here get sent back to the teacher dashboard.
-        if (getUserRole(me) !== "tutor") {
+        // Access gate: Studio/Enterprise tier OR explicit tutor role can view
+        // this page. Buying Studio doesn't automatically promote the role
+        // (the existing schema treats role and tier as orthogonal), so we
+        // ALSO opportunistically tag new_role='tutor' the first time a
+        // Studio user with no role set lands here — that way the inverse
+        // redirect from TeacherDashboard kicks in on every subsequent visit.
+        const tierNow = getUserTier(me);
+        const roleNow = getUserRole(me);
+        const isStudioTier = tierNow === "studio" || tierNow === "enterprise";
+        const isTutorRole = roleNow === "tutor";
+        // Webhook lag: Stripe checkout completion fires the webhook
+        // asynchronously, so a user just back from /Pricing can land here
+        // before users.tier is updated. The URL signals 'I just paid' via
+        // ?checkout=success or ?welcome=1, so when either is present we
+        // skip the gate — the worst case is a free user who manually
+        // crafts the URL and gets a dashboard they can't really act on.
+        const fromCheckout =
+          url.searchParams.get("checkout") === "success" ||
+          url.searchParams.get("welcome") === "1";
+        if (!isStudioTier && !isTutorRole && !fromCheckout) {
           navigate(createPageUrl("TeacherDashboard"), { replace: true });
           return;
+        }
+        if ((isStudioTier || fromCheckout) && !isTutorRole) {
+          try {
+            await quest.entities.User.update(me.id, { new_role: "tutor" });
+          } catch (err) {
+            // Non-fatal — they still see the dashboard this visit; the next
+            // visit will retry the promotion.
+            console.warn("Could not tag user as tutor:", err);
+          }
         }
         const [classData, enrollmentData, reportRes, brandRes] = await Promise.all([
           quest.entities.Class.filter({ teacher_id: me.id }),
