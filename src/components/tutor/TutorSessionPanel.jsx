@@ -30,6 +30,9 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [tick, setTick] = useState(0);
+  const [prep, setPrep] = useState(null);
+  const [prepLoading, setPrepLoading] = useState(false);
+  const [prepError, setPrepError] = useState(null);
   const saveTimer = useRef(null);
 
   useEffect(() => {
@@ -251,6 +254,29 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
         klass.scheduled_duration_minutes || 60
       } min`
     : "Not scheduled";
+  const studentId = (enrollments || [])[0]?.student_id;
+  const studentName = (enrollments || [])[0]?.student_full_name;
+
+  const loadPrep = async () => {
+    if (!studentId) return;
+    setPrepLoading(true);
+    setPrepError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("generateSessionPrep", {
+        body: {
+          student_id: studentId,
+          class_id: classId,
+          target_minutes: klass.scheduled_duration_minutes || 60,
+        },
+      });
+      if (error) throw error;
+      setPrep(data);
+    } catch (err) {
+      setPrepError(err?.message || "Could not generate a plan.");
+    } finally {
+      setPrepLoading(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 mb-6">
@@ -268,11 +294,19 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
         </Button>
       </div>
 
+      <SessionPrepPanel
+        prep={prep}
+        loading={prepLoading}
+        error={prepError}
+        onLoad={loadPrep}
+        studentName={studentName}
+      />
+
       <div className="mt-4 grid grid-cols-2 gap-3">
         <PrepCard
-          title="Pre-session prep"
-          body="Quest can suggest a plan based on this student's recent work. Generate one before you begin."
-          ctaLabel="Generate content"
+          title="Generate content"
+          body="Drop a video or PDF and Quest writes the quiz, case study, and attention checks."
+          ctaLabel="Open Generate"
           href="/Generate"
         />
         <PrepCard
@@ -286,6 +320,91 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
           }
         />
       </div>
+    </div>
+  );
+}
+
+function SessionPrepPanel({ prep, loading, error, onLoad, studentName }) {
+  if (!prep && !loading && !error) {
+    return (
+      <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">
+            Want a suggested plan?
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Quest picks 1-2 review topics and 1-2 new ones from{" "}
+            {studentName || "this student"}&rsquo;s recent work.
+          </p>
+        </div>
+        <Button variant="outline" onClick={onLoad}>
+          Suggest a plan
+        </Button>
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+        <div className="h-3 w-1/3 bg-slate-100 rounded animate-pulse" />
+        <div className="h-3 w-3/4 bg-slate-100 rounded animate-pulse" />
+        <div className="h-3 w-5/6 bg-slate-100 rounded animate-pulse" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        {error}{" "}
+        <button onClick={onLoad} className="underline ml-1">
+          Try again
+        </button>
+      </div>
+    );
+  }
+  const plan = Array.isArray(prep?.suggested_plan) ? prep.suggested_plan : [];
+  return (
+    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-semibold text-slate-900">
+          Suggested plan ({prep?.total_estimated_minutes || 0} min)
+        </p>
+        <button
+          onClick={onLoad}
+          className="text-xs text-slate-500 hover:text-slate-700 underline"
+        >
+          Regenerate
+        </button>
+      </div>
+      {prep?.context_summary && (
+        <p className="text-xs text-slate-500 mb-3">{prep.context_summary}</p>
+      )}
+      <ul className="space-y-2">
+        {plan.map((item, i) => (
+          <li
+            key={i}
+            className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50"
+          >
+            <span
+              className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${
+                item.type === "review"
+                  ? "bg-amber-100 text-amber-800"
+                  : "bg-emerald-100 text-emerald-800"
+              }`}
+            >
+              {item.type}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-900">{item.topic}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{item.reason}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {item.suggested_minutes} min · {item.suggested_question_count} questions ·{" "}
+                {item.difficulty}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
