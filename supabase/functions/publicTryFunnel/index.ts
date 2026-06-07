@@ -204,6 +204,14 @@ Output strictly the JSON shape requested.`;
     discussion_questions: discussion,
   };
 
+  // Inquiry + attention check generation moved client-side to use the
+  // curriculum's exact prompts (invokeLLM + generateAttentionChecks Edge
+  // Function). publicTryFunnel just returns quiz + case_study so it returns
+  // fast and the client fires the heavier inquiry/image/attention paths in
+  // parallel.
+  return { quiz, case_study };
+
+  // (Dead code below retained while the legacy inline path is decommissioned.)
   // Inquiry session (Socratic hook) — mirrors the prompt used inside
   // ManageCurriculum so the output shape is identical and can be saved
   // to InquirySession entity later if the teacher wants.
@@ -433,10 +441,11 @@ Deno.serve(async (req) => {
         includeAttentionChecks: rawOpts?.includeAttentionChecks === true,
       };
 
-      let meta: { title: string; channelTitle?: string; thumbnail?: string } = {
+      let meta: { title: string; channelTitle?: string; thumbnail?: string; duration?: number; videoId?: string } = {
         title: topic || 'Uploaded handout',
       };
       let transcriptText = '';
+      let timestampedSegments: Array<{ timestamp: number; text: string }> = [];
 
       if (videoId) {
         const [m, transcript] = await Promise.all([
@@ -445,12 +454,13 @@ Deno.serve(async (req) => {
         ]);
         meta = m;
         transcriptText = transcript.transcript || '';
+        timestampedSegments = Array.isArray(transcript.segments) ? transcript.segments : [];
         if (!transcriptText && !pdfText) {
           return json({ error: 'No transcript available for this video. Try another video with English captions or upload a PDF.' }, 422, req);
         }
       }
 
-      const { quiz, case_study, inquiry_session, attention_checks } = await generateQuizAndCaseStudy({
+      const { quiz, case_study } = await generateQuizAndCaseStudy({
         title: meta.title,
         transcript: transcriptText,
         pdfText,
@@ -461,7 +471,17 @@ Deno.serve(async (req) => {
         return json({ error: 'Could not generate questions from this source. Try a different video or PDF.' }, 422, req);
       }
 
-      return json({ video: meta, quiz, case_study, inquiry_session, attention_checks }, 200, req);
+      // Hand back the raw transcript + segments so the client can fire
+      // inquiry / image / attention check generation using the existing
+      // curriculum code paths (invokeLLM, generateImage, generateAttentionChecks).
+      return json({
+        video: meta,
+        quiz,
+        case_study,
+        transcript: transcriptText,
+        timestamped_segments: timestampedSegments,
+        video_duration: meta.duration || 0,
+      }, 200, req);
     }
 
     return json({ error: 'Unknown action' }, 400, req);

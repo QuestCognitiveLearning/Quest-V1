@@ -186,27 +186,123 @@ export default function Generate() {
     }
   };
 
-  const maybeGenerateHookImage = async (data) => {
-    // Inquiry needs a real image from the hook_image_prompt. publicTryFunnel
-    // only returns the prompt (it's unauthenticated; image gen requires a
-    // JWT). Fire generateImage here, attach the URL to the result.
-    if (!data?.inquiry_session?.hook_image_prompt) return data;
-    try {
-      const { data: imgData } = await quest.functions.invoke("generateImage", {
-        prompt: data.inquiry_session.hook_image_prompt,
-        size: "1792x1024",
-      });
-      const imageUrl = imgData?.url || imgData?.image_url || null;
-      if (imageUrl) {
-        return {
-          ...data,
-          inquiry_session: { ...data.inquiry_session, hook_image_url: imageUrl },
-        };
-      }
-    } catch (err) {
-      console.warn("Hook image generation failed (non-fatal):", err);
+  // After publicTryFunnel returns quiz + case_study + segments, fire the
+  // heavier inquiry / image / attention checks generation using the EXACT
+  // code paths the curriculum builder uses. Each runs independently so a
+  // failure on one (e.g. image gen rate-limited) doesn't block the others.
+  // Result is set progressively so the user sees content land as it comes.
+  const enrichWithCurriculumGeneration = async (baseData, setProgressive) => {
+    const topic = baseData?.video?.title || pdfTopic || "this topic";
+    const wantInquiry = options.includeInquiry === true;
+    const wantAttention =
+      options.includeAttentionChecks === true &&
+      Array.isArray(baseData?.timestamped_segments) &&
+      baseData.timestamped_segments.length > 0;
+
+    const tasks = [];
+
+    if (wantInquiry) {
+      const { invokeLLM, generateImage } = await import("@/components/utils/openai");
+      const { LLM_MODELS } = await import("@/lib/llmModels");
+
+      tasks.push(
+        (async () => {
+          try {
+            // EXACT inquiry prompt from ManageCurriculum, with topic
+            // substituted in. Same response schema + model.
+            const inquiry = await invokeLLM({
+              model: LLM_MODELS.INQUIRY_CONTENT,
+              prompt: `You are the world's best automated inquiry-based learning designer.
+
+LANGUAGE: All generated text (hook question, anchor question, bridge question, transfer scenario, all options, all feedback) must be in clear, natural English. Translate non-English source material — never output non-English text.
+
+        Topic: "${topic}"
+        Learning Standard: "Not specified"
+
+        Create a curiosity hook for this topic. IMPORTANT: The student has NOT learned this concept yet - they are encountering it for the first time. The hook question should relate directly to the topic but be answerable through intuition, prior knowledge, or everyday experience.
+
+        The hook_image_prompt should show the ACTUAL REAL-WORLD application or example of "${topic}" (not an analogy). Show what this concept looks like in real life.
+
+        Return strict JSON:
+        {
+        "hook_image_prompt": "[Describe the real-world application of ${topic}]. Style: cartoon-realistic with simplified forms and accurate physics, minimal and sleek, muted neutral and soft pastel color palette with low saturation (not vibrant), clean thin outlines, modern educational science illustration, pure white background only, single clear centered scenario in ONE UNIFIED SCENE, keep it simple and easy to understand what is happening, no people, no hands, no text, no labels, no arrows, no symbols, no numbers, no multiple panels or stages, calm polished classroom aesthetic, 1792×1024.",
+        "hook_question": "Question (8-18 words) directly about ${topic} that students can answer through intuition or everyday experience, even without formal knowledge of the topic",
+        "relevant_past_memories": [],
+        "socratic_system_prompt": "You are Panda, a Socratic tutor. The student has NOT learned ${topic} yet. Guide them to think about the topic using their intuition and prior knowledge. Ask questions, never explain. Max 3 exchanges. Make sure to stay on topic with the subject of the session. End with: 'Brilliant thinking! Now watch the video.'",
+        "tutor_first_message": "Warm response to student's guess, with follow-up question that helps them explore the topic further"
+        }`,
+              response_json_schema: {
+                type: "object",
+                properties: {
+                  hook_image_prompt: { type: "string" },
+                  hook_question: { type: "string" },
+                  socratic_system_prompt: { type: "string" },
+                  tutor_first_message: { type: "string" },
+                },
+              },
+            });
+            setProgressive((prev) => ({
+              ...prev,
+              inquiry_session: {
+                hook_image_prompt: inquiry?.hook_image_prompt || "",
+                hook_question: inquiry?.hook_question || "",
+                socratic_system_prompt: inquiry?.socratic_system_prompt || "",
+                tutor_first_message: inquiry?.tutor_first_message || "",
+              },
+            }));
+
+            // After we have hook_image_prompt, generate the image.
+            if (inquiry?.hook_image_prompt) {
+              try {
+                const img = await generateImage({
+                  prompt: inquiry.hook_image_prompt,
+                  quality: "medium",
+                });
+                const imageUrl = img?.url || img?.image_url || null;
+                if (imageUrl) {
+                  setProgressive((prev) => ({
+                    ...prev,
+                    inquiry_session: {
+                      ...prev.inquiry_session,
+                      hook_image_url: imageUrl,
+                    },
+                  }));
+                }
+              } catch (err) {
+                console.warn("Hook image failed (non-fatal):", err);
+              }
+            }
+          } catch (err) {
+            console.warn("Inquiry generation failed (non-fatal):", err);
+          }
+        })()
+      );
     }
-    return data;
+
+    if (wantAttention) {
+      tasks.push(
+        (async () => {
+          try {
+            const { data: acResp } = await quest.functions.invoke(
+              "generateAttentionChecks",
+              {
+                videoDuration: baseData.video_duration || 600,
+                timestampedSegments: baseData.timestamped_segments,
+              }
+            );
+            const ac = acResp?.attention_checks || [];
+            setProgressive((prev) => ({ ...prev, attention_checks: ac }));
+          } catch (err) {
+            console.warn("Attention checks failed (non-fatal):", err);
+          }
+        })()
+      );
+    }
+
+    // Fire and forget — UI updates progressively via setProgressive.
+    Promise.allSettled(tasks).then(() => {
+      console.log("[Generate] curriculum-grade enrichment complete");
+    });
   };
 
   const runYoutubeGenerate = async (videoId) => {
@@ -219,9 +315,10 @@ export default function Generate() {
       if (fnErr) throw fnErr;
       if (data?.error) throw new Error(data.error);
       if (!data?.quiz?.length) throw new Error("No quiz generated.");
-      const withImage = await maybeGenerateHookImage(data);
-      setResult(withImage);
+      // Show quiz + case study immediately, then enrich progressively.
+      setResult(data);
       setStage("result");
+      enrichWithCurriculumGeneration(data, setResult);
     } catch (err) {
       setError(err?.message || "Generation failed.");
       setStage("input");
@@ -245,9 +342,9 @@ export default function Generate() {
         if (fnErr) throw fnErr;
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
-        const withImage = await maybeGenerateHookImage(data);
-        setResult(withImage);
+        setResult(data);
         setStage("result");
+        enrichWithCurriculumGeneration(data, setResult);
       } catch (err) {
         setError(err?.message || "Generation failed.");
         setStage("input");
@@ -275,9 +372,9 @@ export default function Generate() {
         if (fnErr) throw fnErr;
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
-        const withImage = await maybeGenerateHookImage(data);
-        setResult(withImage);
+        setResult(data);
         setStage("result");
+        enrichWithCurriculumGeneration(data, setResult);
       } catch (err) {
         setError(err?.message || "Generation failed.");
         setStage("input");
