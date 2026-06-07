@@ -32,7 +32,7 @@ export default function Layout({ children, currentPageName }) {
   const checkAuthAndRedirect = async () => {
     // Public marketing pages - no auth required
     const publicPages = ["Landing", "PricingInfo", "RoleSelection", "JoinClass"];
-    const noRedirectPages = ["StudentLiveSession", "SocraticInquiry"];
+    const noRedirectPages = ["LiveSessionPlay", "SocraticInquiry"];
 
     // If on public marketing page, skip all auth checks
     if (publicPages.includes(currentPageName)) {
@@ -84,13 +84,40 @@ export default function Layout({ children, currentPageName }) {
 
       // Teacher-specific routing
       if (user.account_type === "teacher") {
-        const allTeacherPages = ["Pricing", "TeacherLiveSession", "CreateLiveSession", "ManageLiveSession", "TeacherDashboard", "TeacherClasses", "TeacherClassDetail", "TeacherCurricula", "CreateCurriculum", "ManageCurriculum", "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics", "TeacherStudentDetail", "TranscriptTester", "TeacherSettings", "Generate", "BrandingSettings"];
-        
+        // Tutor-only surfaces. Always allowed for any user with
+        // account_type='teacher' regardless of subscription status — the
+        // pages themselves enforce tier gates (Studio/Enterprise) via
+        // isFeatureEnabled. Without this, a tutor visiting /TutorDashboard
+        // would race the App.jsx router-level Studio gate: Layout would
+        // bounce to /TeacherDashboard, the router would bounce back to
+        // /TutorDashboard, infinite loop, page never renders.
+        const tutorPages = [
+          "TutorDashboard",
+          "TutorSignup",
+          "ParentReports",
+          "BookingSettings",
+        ];
+        const allTeacherPages = [
+          "Pricing", "TeacherLiveSession", "LiveSessionBuilder", "LiveSessionHost",
+          "TeacherDashboard", "TeacherClasses", "TeacherClassDetail",
+          "TeacherCurricula", "CreateCurriculum", "ManageCurriculum",
+          "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics",
+          "TeacherStudentDetail", "TranscriptTester", "TeacherSettings",
+          "Generate", "BrandingSettings",
+          ...tutorPages,
+        ];
+
         // Free teachers have live sessions, settings, AND Pricing so they
         // can always come back to upgrade. New teachers (subscription_status
-        // null) hit this branch too and need Pricing visible.
-        const freeTeacherPages = ["StudentLiveSession", "TeacherLiveSession", "SocraticInquiry", "TeacherSettings", "Pricing"];
-        
+        // null) hit this branch too and need Pricing visible. Tutor pages
+        // are also allowed because a brand-new tutor (subscription_status
+        // 'free' until they buy Studio) still needs to see their dashboard.
+        const freeTeacherPages = [
+          "TeacherLiveSession", "LiveSessionBuilder", "LiveSessionHost",
+          "SocraticInquiry", "TeacherSettings", "Pricing",
+          ...tutorPages,
+        ];
+
         // Determine allowed pages based on subscription
         const allowedPages = user.subscription_status === 'free' ? freeTeacherPages : allTeacherPages;
 
@@ -99,19 +126,23 @@ export default function Layout({ children, currentPageName }) {
           console.log("⚠️ [AUTH] Teacher on invalid page, redirecting");
           console.log("📋 [AUTH] Subscription Status:", user.subscription_status);
           console.log("📋 [AUTH] Allowed pages:", allowedPages);
-          // Redirect free teachers to live sessions, paid teachers to dashboard
-          const redirectPage = user.subscription_status === 'free' ? "TeacherLiveSession" : "TeacherDashboard";
+          // Redirect free teachers to live sessions, paid teachers to dashboard;
+          // tutors always land on their own dashboard.
+          const isTutor = user.new_role === "tutor";
+          const redirectPage = isTutor
+            ? "TutorDashboard"
+            : (user.subscription_status === 'free' ? "TeacherLiveSession" : "TeacherDashboard");
           navigate(createPageUrl(redirectPage), { replace: true });
           return;
         }
-        
+
         // Log subscription status for teachers
         console.log("✅ [AUTH] Teacher on valid page, subscription:", user.subscription_status);
       }
 
       // Student-specific routing
       if (user.account_type === "student") {
-        const studentPages = ["StudentLiveSession", "KnowledgeMap", "JoinClass", "Classes", "LearningHub", "Progress", "NewSession", "PracticeSession", "Curriculum", "SocraticInquiry"];
+        const studentPages = ["LiveSessionPlay", "KnowledgeMap", "JoinClass", "Classes", "LearningHub", "Progress", "NewSession", "PracticeSession", "Curriculum", "SocraticInquiry"];
 
         // If trying to access non-student page, redirect appropriately
         if (!studentPages.includes(currentPageName) && !noRedirectPages.includes(currentPageName)) {
@@ -146,7 +177,7 @@ export default function Layout({ children, currentPageName }) {
   }
 
   // Don't show layout - pages handle their own layouts
-  const noLayoutPages = ["Landing", "Pricing", "PricingInfo", "RoleSelection", "KnowledgeMap", "StudentLiveSession", "SocraticInquiry", "JoinClass"];
+  const noLayoutPages = ["Landing", "Pricing", "PricingInfo", "RoleSelection", "KnowledgeMap", "LiveSessionPlay", "SocraticInquiry", "JoinClass"];
   
   if (noLayoutPages.includes(currentPageName)) {
     return children;
