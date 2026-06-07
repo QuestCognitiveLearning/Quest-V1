@@ -42,6 +42,9 @@ export default function TeacherDashboard() {
     inquirySessions: 0,
     subunits: 0,
   });
+  // Lesson bundle assignments — generated learning sessions pushed to a
+  // class via Generate's "Assign learning session" button.
+  const [bundleAssignments, setBundleAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
@@ -144,6 +147,33 @@ export default function TeacherDashboard() {
         const allAssignments = await quest.entities.Assignment.list();
         const teacherAssignments = allAssignments.filter(a => classIds.includes(a.class_id));
         setAssignments(teacherAssignments);
+
+        // Lesson bundle assignments — pulled with their parent bundle for
+        // the title. Filtered to this teacher's classes. Uses .in() since
+        // the SDK's filter converts arrays to Postgres IN().
+        try {
+          const assignments = await quest.entities.LearningSessionAssignment.filter(
+            { class_id: classIds }
+          );
+          const bundleIds = [...new Set((assignments || []).map(a => a.bundle_id))];
+          if (bundleIds.length > 0) {
+            const bundles = await quest.entities.LearningSession.filter(
+              { id: bundleIds }
+            );
+            const bundleMap = new Map((bundles || []).map(b => [b.id, b]));
+            setBundleAssignments(
+              (assignments || []).map(a => ({
+                ...a,
+                bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
+              }))
+            );
+          } else {
+            setBundleAssignments([]);
+          }
+        } catch (err) {
+          console.warn("Could not load bundle assignments:", err);
+          setBundleAssignments([]);
+        }
       }
 
       // Resource stats — every entity fetched independently so a single
@@ -170,9 +200,17 @@ export default function TeacherDashboard() {
       // Library handouts (no curriculum link) — explicit teacher_id filter
       // because the underlying table is jsonb-heavy and we want only this
       // teacher's rows.
+      // generated_handouts uses created_at, NOT the platform-default
+      // created_date — pass explicit orderBy so PGRST doesn't 400 with
+      // 'column created_date does not exist'.
       counts.generatedHandouts = await safeCount(
         "generated handouts",
-        () => quest.entities.GeneratedHandout.filter({ teacher_id: currentUser.id })
+        () =>
+          quest.entities.GeneratedHandout.filter(
+            { teacher_id: currentUser.id },
+            "-created_at",
+            null
+          )
       );
 
       // Quizzes / case studies / inquiry sessions — list() returns whatever
@@ -193,18 +231,27 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Hours-saved algorithm. Reasonable averages from teacher interviews:
-  //   - Quiz with 10 MCQs ≈ 60 min to build manually
-  //   - Case study with model answers ≈ 45 min
-  //   - Inquiry session w/ Panda Tutor prompts ≈ 30 min
-  //   - Standalone /Try-style handout ≈ 60 min
-  // Returns whole-number hours, floored at 0.
+  // Hours-saved algorithm — calibrated against teacher interviews on how long
+  // each piece actually takes to build from scratch:
+  //   Quiz (10 MCQs + answer key + explanations) ≈ 1.5 hrs
+  //   Case study (scenario + 4 prompts + model answers) ≈ 1.0 hr
+  //   Inquiry session (hook + Socratic prompts + image direction) ≈ 0.75 hr
+  //   Subunit (writing standards + scaffolding) ≈ 0.5 hr per subunit
+  //   Curriculum (top-level structure + sequencing) ≈ 3 hrs per curriculum
+  //   Standalone library handout (~1 video → full bundle) ≈ 1 hr
+  //
+  // A typical full curriculum with 5 units × 4 subunits comes out to roughly:
+  //   3 (curriculum) + 20 × 0.5 (subunits) + 20 × (1.5 + 1.0 + 0.75)
+  //   = 3 + 10 + 65 = 78 hours
+  // Which is in line with the 60–80 hour Sunday-prep estimates teachers give.
   const hoursSaved = Math.max(
     0,
     Math.round(
-      resourceStats.quizzes * 1.0 +
-      resourceStats.caseStudies * 0.75 +
-      resourceStats.inquirySessions * 0.5 +
+      resourceStats.quizzes * 1.5 +
+      resourceStats.caseStudies * 1.0 +
+      resourceStats.inquirySessions * 0.75 +
+      resourceStats.subunits * 0.5 +
+      curricula.length * 3.0 +
       resourceStats.generatedHandouts * 1.0
     )
   );
@@ -542,13 +589,60 @@ export default function TeacherDashboard() {
                   </Button>
                 </div>
 
+                {/* Assigned learning sessions (lesson_bundles) */}
+                {bundleAssignments.length > 0 && (
+                  <div className="border-t pt-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-violet-600" />
+                      Assigned Learning Sessions
+                    </h3>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {bundleAssignments.map((a) => (
+                        <div
+                          key={a.id}
+                          className="flex items-center justify-between p-3 bg-violet-50 border border-violet-100 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Sparkles className="w-4 h-4 text-violet-600 shrink-0" />
+                            <div>
+                              <p className="text-sm font-medium text-black">{a.bundle_title}</p>
+                              <p className="text-xs text-gray-500">
+                                {getClassName(a.class_id)}
+                                {a.due_at && (
+                                  <> • Due {format(new Date(a.due_at), 'MMM d, yyyy')}</>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              if (!confirm("Unassign this learning session?")) return;
+                              try {
+                                await quest.entities.LearningSessionAssignment.delete(a.id);
+                                setBundleAssignments((prev) => prev.filter((x) => x.id !== a.id));
+                              } catch (err) {
+                                console.error("Unassign failed:", err);
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Existing Assignments */}
                 {assignments.length > 0 && (
                   <div className="border-t pt-4">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Current Assignments</h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {assignments.map((assignment) => (
-                        <div 
+                        <div
                           key={assignment.id}
                           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                         >
@@ -559,8 +653,8 @@ export default function TeacherDashboard() {
                               <p className="text-xs text-gray-500">{getClassName(assignment.class_id)} • Due {format(new Date(assignment.due_date + 'T00:00:00'), 'MMM d, yyyy')}</p>
                             </div>
                           </div>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteAssignment(assignment.id)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50"

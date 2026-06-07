@@ -33,6 +33,7 @@ export const PAGES = {
   "CreateLiveSession":    lazy(() => import('./pages/CreateLiveSession')),
   "Curriculum":           lazy(() => import('./pages/Curriculum')),
   "Demo":                 lazy(() => import('./pages/Demo')),
+  "Join":                 lazy(() => import('./pages/Join')),
   "JoinClass":            lazy(() => import('./pages/JoinClass')),
   "KnowledgeMap":         lazy(() => import('./pages/KnowledgeMap')),
   "Landing":              lazy(() => import('./pages/Landing')),

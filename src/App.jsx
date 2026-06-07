@@ -48,6 +48,8 @@ const PUBLIC_PAGES = [
   'Classroom',
   'Enterprise',
   'TutorSignup',
+  'Join',
+  'StudentLiveSession',
 ];
 
 /**
