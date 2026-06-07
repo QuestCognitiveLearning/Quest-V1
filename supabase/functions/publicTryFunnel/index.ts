@@ -209,6 +209,7 @@ Output strictly the JSON shape requested.`;
   // to InquirySession entity later if the teacher wants.
   let inquiry_session: {
     hook_question: string;
+    hook_image_prompt: string;
     socratic_system_prompt: string;
     tutor_first_message: string;
   } | null = null;
@@ -222,8 +223,11 @@ Topic: "${args.title}"
 
 Create a curiosity hook for this topic. IMPORTANT: The student has NOT learned this concept yet — they are encountering it for the first time. The hook question should relate directly to the topic but be answerable through intuition, prior knowledge, or everyday experience.
 
+The hook_image_prompt should describe a real-world application or example of the topic (not an analogy). Show what this concept looks like in real life.
+
 Return strict JSON:
 {
+  "hook_image_prompt": "[Describe the real-world application of the topic]. Style: cartoon-realistic with simplified forms and accurate physics, minimal and sleek, muted neutral and soft pastel color palette with low saturation (not vibrant), clean thin outlines, modern educational illustration, pure white background only, single clear centered scenario in ONE UNIFIED SCENE, keep it simple and easy to understand, no people, no hands, no text, no labels, no arrows, no symbols, no numbers, no multiple panels or stages, calm polished classroom aesthetic, 1792x1024.",
   "hook_question": "Question (8-18 words) directly about the topic that students can answer through intuition or everyday experience, even without formal knowledge.",
   "socratic_system_prompt": "You are Panda, a Socratic tutor. The student has NOT learned this topic yet. Guide them to think about it using their intuition and prior knowledge. Ask questions, never explain. Max 3 exchanges. Stay on topic. End with: 'Brilliant thinking! Now watch the video.'",
   "tutor_first_message": "Warm response to student's guess, with follow-up question that helps them explore the topic further."
@@ -234,6 +238,7 @@ Return strict JSON:
         response_json_schema: {
           type: 'object',
           properties: {
+            hook_image_prompt: { type: 'string' },
             hook_question: { type: 'string' },
             socratic_system_prompt: { type: 'string' },
             tutor_first_message: { type: 'string' },
@@ -243,6 +248,7 @@ Return strict JSON:
       const ic = inqResult.content as Record<string, unknown> | null;
       if (ic && typeof ic.hook_question === 'string') {
         inquiry_session = {
+          hook_image_prompt: String(ic.hook_image_prompt || ''),
           hook_question: String(ic.hook_question || ''),
           socratic_system_prompt: String(ic.socratic_system_prompt || ''),
           tutor_first_message: String(ic.tutor_first_message || ''),
@@ -269,11 +275,15 @@ Return strict JSON:
     try {
       const acPrompt = `You design "attention checks" — short multiple-choice questions embedded inside a video to keep students focused. Pick 3 strategic timestamps spaced roughly evenly through the video where a key concept is introduced or a transition happens. At each timestamp, write a 1-question MCQ about what was JUST covered.
 
+CRITICAL LANGUAGE RULE: Every word of your output — questions, all four choices, and explanations — MUST be in clear, natural English. If the video transcript is in another language, translate the concepts into English before writing the questions. NEVER copy non-English phrases. NEVER output non-English text. The choices should each be plausible distractors with one clearly correct answer.
+
+${audienceLine}
+
 VIDEO TITLE: ${args.title}
 VIDEO TRANSCRIPT (may be truncated):
 ${trimmed}
 
-Return strict JSON only. timestamps are seconds. choice_correct is the single letter A/B/C/D.`;
+Return strict JSON only. timestamps are integers (seconds from 0). correct_choice is the single letter A/B/C/D.`;
       const acResult = await invokeLLMWithUsage({
         prompt: acPrompt,
         model: QUIZ_MODEL,

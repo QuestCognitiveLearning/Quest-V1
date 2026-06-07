@@ -186,6 +186,29 @@ export default function Generate() {
     }
   };
 
+  const maybeGenerateHookImage = async (data) => {
+    // Inquiry needs a real image from the hook_image_prompt. publicTryFunnel
+    // only returns the prompt (it's unauthenticated; image gen requires a
+    // JWT). Fire generateImage here, attach the URL to the result.
+    if (!data?.inquiry_session?.hook_image_prompt) return data;
+    try {
+      const { data: imgData } = await quest.functions.invoke("generateImage", {
+        prompt: data.inquiry_session.hook_image_prompt,
+        size: "1792x1024",
+      });
+      const imageUrl = imgData?.url || imgData?.image_url || null;
+      if (imageUrl) {
+        return {
+          ...data,
+          inquiry_session: { ...data.inquiry_session, hook_image_url: imageUrl },
+        };
+      }
+    } catch (err) {
+      console.warn("Hook image generation failed (non-fatal):", err);
+    }
+    return data;
+  };
+
   const runYoutubeGenerate = async (videoId) => {
     setStage("generating");
     try {
@@ -196,7 +219,8 @@ export default function Generate() {
       if (fnErr) throw fnErr;
       if (data?.error) throw new Error(data.error);
       if (!data?.quiz?.length) throw new Error("No quiz generated.");
-      setResult(data);
+      const withImage = await maybeGenerateHookImage(data);
+      setResult(withImage);
       setStage("result");
     } catch (err) {
       setError(err?.message || "Generation failed.");
@@ -221,7 +245,8 @@ export default function Generate() {
         if (fnErr) throw fnErr;
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
-        setResult(data);
+        const withImage = await maybeGenerateHookImage(data);
+        setResult(withImage);
         setStage("result");
       } catch (err) {
         setError(err?.message || "Generation failed.");
@@ -250,7 +275,8 @@ export default function Generate() {
         if (fnErr) throw fnErr;
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
-        setResult(data);
+        const withImage = await maybeGenerateHookImage(data);
+        setResult(withImage);
         setStage("result");
       } catch (err) {
         setError(err?.message || "Generation failed.");
@@ -890,8 +916,14 @@ export default function Generate() {
 }
 
 function ResultPreview({ result }) {
-  const { video, quiz, case_study } = result;
+  const { video, quiz, case_study, inquiry_session, attention_checks } = result;
   const [revealed, setRevealed] = useState({});
+
+  const fmtTime = (s) => {
+    const m = Math.floor((s || 0) / 60);
+    const ss = String(Math.floor((s || 0) % 60)).padStart(2, "0");
+    return `${m}:${ss}`;
+  };
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
       <div className="p-6 border-b border-slate-100">
@@ -907,6 +939,74 @@ function ResultPreview({ result }) {
           </p>
         )}
       </div>
+
+      {inquiry_session?.hook_question && (
+        <details open className="p-6 border-b border-slate-100">
+          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
+            Inquiry hook
+          </summary>
+          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
+            {inquiry_session.hook_image_url ? (
+              <img
+                src={inquiry_session.hook_image_url}
+                alt="Inquiry hook"
+                className="w-full rounded-xl border border-slate-200"
+              />
+            ) : (
+              <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 flex items-center justify-center text-xs text-slate-500 text-center px-4">
+                {inquiry_session.hook_image_prompt
+                  ? "Image generating…"
+                  : "No hook image"}
+              </div>
+            )}
+            <div>
+              <h3 className="text-base font-bold text-slate-900 mb-2">
+                {inquiry_session.hook_question}
+              </h3>
+              <p className="text-sm text-slate-600 italic leading-relaxed">
+                Panda's opening:&nbsp;
+                <span className="not-italic">
+                  {inquiry_session.tutor_first_message}
+                </span>
+              </p>
+            </div>
+          </div>
+        </details>
+      )}
+
+      {Array.isArray(attention_checks) && attention_checks.length > 0 && (
+        <details className="p-6 border-b border-slate-100">
+          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
+            Attention checks · {attention_checks.length}
+          </summary>
+          <ol className="mt-4 space-y-3">
+            {attention_checks.map((ac, i) => (
+              <li
+                key={i}
+                className="border border-slate-200 rounded-xl p-4 bg-amber-50/30"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700">
+                    At {fmtTime(ac.timestamp)}
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Correct: {ac.correct_choice}
+                  </span>
+                </div>
+                <p className="font-medium text-slate-900 mb-2">{ac.question}</p>
+                <ul className="space-y-1 text-sm text-slate-700">
+                  {["a", "b", "c", "d"].map((l) => (
+                    <li key={l} className="flex gap-2">
+                      <span className="font-semibold w-5">{l.toUpperCase()}.</span>
+                      <span>{ac[`choice_${l}`]}</span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
 
       {case_study?.scenario && (
         <details className="p-6 border-b border-slate-100">
