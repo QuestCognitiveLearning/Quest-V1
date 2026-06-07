@@ -200,7 +200,7 @@ function TutorNav({ activeNav, studioOn, onNav, strings }) {
       <NavItem icon={Calendar} label={strings.nav_classes} active={activeNav === "classes"} onClick={() => onNav("classes", "TeacherClasses")} />
       <NavItem icon={UserSquare} label="Students" active={activeNav === "students"} onClick={() => onNav("students", "TutorStudents")} />
       <NavItem icon={Sparkles} label="Generate" active={activeNav === "generate"} onClick={() => onNav("generate", "Generate")} />
-      <NavItem icon={LibraryIcon} label="Library" active={activeNav === "library"} onClick={() => onNav("library", "Generate#library")} />
+      <NavItem icon={LibraryIcon} label="Library" active={activeNav === "library"} onClick={() => onNav("library", "Library")} />
       {studioOn && (
         <>
           <NavItem icon={FileText} label="Parent Reports" active={activeNav === "parentReports"} onClick={() => onNav("parentReports", "ParentReports")} />

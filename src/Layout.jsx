@@ -98,6 +98,7 @@ export default function Layout({ children, currentPageName }) {
           "TutorBookings",
           "ParentReports",
           "BookingSettings",
+          "Library",
         ];
         const allTeacherPages = [
           "Pricing", "LiveSessionBuilder", "LiveSessionHost",
