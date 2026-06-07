@@ -67,15 +67,24 @@ export default function TeacherLiveSession() {
       const user = await quest.auth.me();
       setTeacher(user);
       
-      // Check if teacher has an active session
-      const sessions = await quest.entities.LiveSession.filter({ 
+      // Check if teacher has an active session. The custom-sdk's filter
+      // turns array values into Postgres .in() — Mongo-style {$in:[…]}
+      // is silently treated as eq() and matches nothing. Pass an array
+      // directly so a session-just-launched (status='waiting') is found.
+      const sessions = await quest.entities.LiveSession.filter({
         teacher_id: user.id,
-        status: { $in: ["waiting", "active"] }
+        status: ["waiting", "active"],
       });
-      
+
       if (sessions.length > 0) {
-        setActiveSession(sessions[0]);
-        setSessionStarted(sessions[0].status === "active");
+        // Prefer the most recently created session if there are multiples.
+        const latest = sessions.sort(
+          (a, b) =>
+            new Date(b.created_date || 0).getTime() -
+            new Date(a.created_date || 0).getTime()
+        )[0];
+        setActiveSession(latest);
+        setSessionStarted(latest.status === "active");
         await loadSessionData();
       }
     } catch (err) {
@@ -555,8 +564,26 @@ Return JSON:
               </Button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-8">
-              {/* Leaderboard */}
+            {(() => {
+              // Live-mode layout adapts to session size so tutors with one or
+              // a few learners don't feel like they're staring at a classroom
+              // leaderboard.
+              //   1 participant  → one_on_one — analytics fills the row, no leaderboard
+              //   2-5 participants → small_group — compact "mini" leaderboard
+              //   6+ participants → classroom — full leaderboard alongside analytics
+              const liveMode =
+                participants.length <= 1
+                  ? "one_on_one"
+                  : participants.length <= 5
+                  ? "small_group"
+                  : "classroom";
+              const showLeaderboard = liveMode !== "one_on_one";
+              const compact = liveMode === "small_group";
+              return (
+            <div className={showLeaderboard ? "grid md:grid-cols-2 gap-6 mb-8" : "mb-8"}>
+              {/* Leaderboard — hidden in one_on_one mode so the single learner
+                  isn't ranked against themselves. */}
+              {showLeaderboard && (
               <Card className="border-2 border-indigo-200">
                 <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
                   <CardTitle className="flex items-center gap-2">
@@ -573,8 +600,8 @@ Return JSON:
                   ) : (
                     <div className="divide-y">
                       {participants.map((p, index) => (
-                        <div key={p.id} className={`p-4 flex items-center gap-4 ${index < 3 ? 'bg-gradient-to-r from-yellow-50 to-orange-50' : ''}`}>
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                        <div key={p.id} className={`${compact ? "p-2.5" : "p-4"} flex items-center gap-4 ${index < 3 && !compact ? 'bg-gradient-to-r from-yellow-50 to-orange-50' : ''}`}>
+                          <div className={`${compact ? "w-7 h-7 text-xs" : "w-10 h-10"} rounded-full flex items-center justify-center font-bold ${
                             index === 0 ? 'bg-yellow-400 text-yellow-900' :
                             index === 1 ? 'bg-gray-300 text-gray-700' :
                             index === 2 ? 'bg-orange-400 text-orange-900' :
@@ -583,9 +610,10 @@ Return JSON:
                             {index + 1}
                           </div>
                           <div className="flex-1">
-                            <p className="font-semibold text-gray-900">{p.display_name}</p>
-                            <Badge 
-                              variant="outline" 
+                            <p className={`font-semibold text-gray-900 ${compact ? "text-sm" : ""}`}>{p.display_name}</p>
+                            {!compact && (
+                            <Badge
+                              variant="outline"
                               className={`text-xs ${
                                 p.current_phase === "completed" ? "bg-green-100 text-green-700 border-green-300" :
                                 p.current_phase === "quiz" ? "bg-purple-100 text-purple-700 border-purple-300" :
@@ -600,8 +628,9 @@ Return JSON:
                                p.current_phase === "inquiry" ? "Inquiry" :
                                "Waiting"}
                             </Badge>
+                            )}
                           </div>
-                          <div className="text-2xl font-bold text-blue-600">
+                          <div className={`${compact ? "text-lg" : "text-2xl"} font-bold text-blue-600`}>
                             {p.score}
                           </div>
                         </div>
@@ -610,6 +639,7 @@ Return JSON:
                   )}
                 </CardContent>
               </Card>
+              )}
 
               {/* Question Analytics */}
               <Card className="border-2 border-blue-200">
@@ -662,6 +692,8 @@ Return JSON:
                 </CardContent>
               </Card>
             </div>
+              );
+            })()}
 
 
           </div>
