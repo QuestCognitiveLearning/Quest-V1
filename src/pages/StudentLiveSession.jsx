@@ -266,11 +266,13 @@ export default function StudentLiveSession() {
       const sessionData = sessions[0];
       setSession(sessionData);
 
-      // Find existing participant
-      const participants = await quest.entities.LiveSessionParticipant.filter({ 
-        session_code: code.toUpperCase() 
+      // Find existing participant — live_session_participants keys by
+      // live_session_id (FK), NOT session_code (which only exists on the
+      // parent live_sessions row). The old filter returned PGRST 42703.
+      const participants = await quest.entities.LiveSessionParticipant.filter({
+        live_session_id: sessionData.id,
       });
-      
+
       let myParticipant = participants.find(p => p.student_id === currentUser?.id);
       
       if (myParticipant) {
@@ -294,7 +296,8 @@ export default function StudentLiveSession() {
       const [sessionData, participantData, allParts] = await Promise.all([
         quest.entities.LiveSession.filter({ session_code: session.session_code }),
         quest.entities.LiveSessionParticipant.filter({ id: participant.id }),
-        quest.entities.LiveSessionParticipant.filter({ session_code: session.session_code })
+        // Leaderboard query keyed on FK, not session_code.
+        quest.entities.LiveSessionParticipant.filter({ live_session_id: session.id })
       ]);
       
       if (sessionData.length === 0) {
@@ -310,7 +313,7 @@ export default function StudentLiveSession() {
         setParticipant(participantData[0]);
       }
       
-      setAllParticipants(allParts.sort((a, b) => b.score - a.score));
+      setAllParticipants(allParts.sort((a, b) => (b.total_points || 0) - (a.total_points || 0)));
       
       if (updatedSession.status === "active" && phase === "waiting") {
         setPhase("inquiry");
@@ -328,27 +331,49 @@ export default function StudentLiveSession() {
 
     setJoining(true);
     try {
-      const sessions = await quest.entities.LiveSession.filter({ 
-        session_code: sessionCode.toUpperCase().trim() 
-      });
-      
-      if (sessions.length === 0) {
-        setSessionCode("");
+      // Route join through joinLiveSession Edge Function so:
+      //   1. Anonymous students (no JWT) can still join — the edge function
+      //      uses the service role to bypass RLS.
+      //   2. The schema correctly persists live_session_id (FK) + display_name
+      //      + is_anonymous, none of which the legacy direct-insert sent.
+      const { data: joinResp, error: joinErr } = await import(
+        "@/components/lib/supabase-client"
+      ).then((m) =>
+        m.supabase.functions.invoke("joinLiveSession", {
+          body: {
+            code: sessionCode.toUpperCase().trim(),
+            displayName: displayName,
+          },
+        })
+      );
+      if (joinErr || joinResp?.error) {
+        showError("Join Failed", joinResp?.error || joinErr?.message || "Could not join.");
         setJoining(false);
         return;
       }
 
+      // Pull the full session row so the rest of the UI can drive off it.
+      const sessions = await quest.entities.LiveSession.filter({
+        session_code: sessionCode.toUpperCase().trim(),
+      });
+      if (sessions.length === 0) {
+        showError("Join Failed", "Session not found.");
+        setJoining(false);
+        return;
+      }
       const sessionData = sessions[0];
       setSession(sessionData);
 
-      const newParticipant = await quest.entities.LiveSessionParticipant.create({
-        session_code: sessionData.session_code,
+      const newParticipant = {
+        id: joinResp.participantId,
+        live_session_id: sessionData.id,
         student_id: user?.id || null,
         display_name: displayName,
-        score: 0,
+        is_anonymous: !user,
+        total_points: 0,
         current_phase: "waiting",
-        current_question: 0
-      });
+        current_question: 0,
+      };
 
       setParticipant(newParticipant);
       
@@ -370,13 +395,17 @@ export default function StudentLiveSession() {
 
     try {
       const isCorrect = selectedCheckAnswer === currentCheck.correct_choice;
-      const points = isCorrect ? 5 : 2;
-      const newScore = participant.score + points;
-      
-      await quest.entities.LiveSessionParticipant.update(participant.id, { 
-        score: newScore 
+      // Attention check scoring: 50 points correct, 0 incorrect (matches the
+      // scoreCaseStudyAnswer rubric scale where MCQ correct = 100, case
+      // study 4/4 = 100, attention check = half that as a 'are you paying
+      // attention' nudge rather than a comprehension grade).
+      const points = isCorrect ? 50 : 0;
+      const newScore = (participant.total_points || 0) + points;
+
+      await quest.entities.LiveSessionParticipant.update(participant.id, {
+        total_points: newScore,
       });
-      setParticipant({ ...participant, score: newScore });
+      setParticipant({ ...participant, total_points: newScore });
       
       // Wait 2 seconds to show feedback, then resume video
       setTimeout(() => {
@@ -444,21 +473,27 @@ export default function StudentLiveSession() {
     setResults([...results, { correct: isCorrect }]);
     setShowFeedback(true);
 
-    // Save response to LiveSessionResponse for teacher analytics
+    // Save response to LiveSessionResponse for teacher analytics.
+    // live_session_responses keys by live_session_id (FK), not session_code.
+    const points = isCorrect ? 100 : 0;
     await quest.entities.LiveSessionResponse.create({
-      session_code: session.session_code,
-      participant_id: participant.id,
-      question_id: question.id,
-      selected_choice: selectedAnswer + 1,
-      is_correct: isCorrect
+      live_session_id: session.id,
+      student_id: participant.student_id || null,
+      question_index: currentQuestion,
+      question_type: "mcq",
+      response: String(selectedAnswer + 1),
+      is_correct: isCorrect,
+      points_earned: points,
+      max_points: 100,
+      submitted_at: new Date().toISOString(),
     });
 
     if (isCorrect) {
-      const newScore = participant.score + 10;
+      const newScore = (participant.total_points || 0) + points;
       await quest.entities.LiveSessionParticipant.update(participant.id, {
-        score: newScore
+        total_points: newScore,
       });
-      setParticipant({ ...participant, score: newScore });
+      setParticipant({ ...participant, total_points: newScore });
     }
 
     if (!manualAdvance) {
