@@ -421,7 +421,14 @@ export default function Generate() {
         <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
           <button
             type="button"
-            onClick={() => setMode("live")}
+            onClick={() => {
+              setMode("live");
+              setOptions((o) => ({
+                ...o,
+                includeInquiry: true,
+                includeAttentionChecks: true,
+              }));
+            }}
             className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
               mode === "live"
                 ? "bg-emerald-50 border-2 border-emerald-500"
@@ -438,7 +445,17 @@ export default function Generate() {
           </button>
           <button
             type="button"
-            onClick={() => setMode("handout")}
+            onClick={() => {
+              setMode("handout");
+              // Force the live-only toggles off when switching to handout —
+              // there's no Socratic dialogue on paper, no mid-video MCQ on a
+              // printed sheet.
+              setOptions((o) => ({
+                ...o,
+                includeInquiry: false,
+                includeAttentionChecks: false,
+              }));
+            }}
             className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
               mode === "handout"
                 ? "bg-blue-50 border-2 border-[#2563EB]"
@@ -651,7 +668,11 @@ export default function Generate() {
               </div>
             )}
 
-            <CustomizePanel options={options} onChange={setOptions} />
+            <CustomizePanel
+              options={options}
+              onChange={setOptions}
+              mode={mode}
+            />
 
             {error && (
               <p className="text-sm text-red-600" role="alert">
