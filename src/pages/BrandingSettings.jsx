@@ -36,6 +36,9 @@ export default function BrandingSettings() {
     contact_phone: "",
     website: "",
     accent_color: "#2563EB",
+    bio: "",
+    custom_report_intro: "",
+    booking_slug: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -119,6 +122,9 @@ export default function BrandingSettings() {
             contact_phone: branding.contact_phone || null,
             website: branding.website || null,
             accent_color: branding.accent_color || "#2563EB",
+            bio: branding.bio || null,
+            custom_report_intro: branding.custom_report_intro || null,
+            booking_slug: branding.booking_slug?.trim().toLowerCase() || null,
           },
           { onConflict: "user_id" }
         );
@@ -236,6 +242,62 @@ export default function BrandingSettings() {
             onChange={(v) => setBranding((b) => ({ ...b, website: v }))}
             placeholder="https://yourwebsite.com"
           />
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+              Short bio
+            </label>
+            <textarea
+              value={branding.bio || ""}
+              onChange={(e) =>
+                setBranding((b) => ({ ...b, bio: e.target.value }))
+              }
+              placeholder="Two or three sentences parents will see on your booking page."
+              rows={3}
+              className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+              Parent report intro
+            </label>
+            <textarea
+              value={branding.custom_report_intro || ""}
+              onChange={(e) =>
+                setBranding((b) => ({ ...b, custom_report_intro: e.target.value }))
+              }
+              placeholder="Replaces the default opening paragraph in every parent report email. Optional."
+              rows={3}
+              className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+              Booking link slug
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">questlearning.co/Book/</span>
+              <Input
+                type="text"
+                value={branding.booking_slug || ""}
+                onChange={(e) =>
+                  setBranding((b) => ({
+                    ...b,
+                    booking_slug: e.target.value
+                      .replace(/[^a-z0-9-]/gi, "")
+                      .toLowerCase(),
+                  }))
+                }
+                placeholder="your-name"
+                className="flex-1"
+              />
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Lowercase letters, numbers, and dashes. Must be unique.
+            </p>
+          </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-900 mb-2">
