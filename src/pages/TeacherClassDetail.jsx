@@ -22,12 +22,15 @@ import {
 } from "lucide-react";
 import SubunitProgressModal from "../components/teacher/SubunitProgressModal";
 import DownloadPDFButton from "@/components/shared/pdf/DownloadPDFButton";
+import TutorSessionPanel from "@/components/tutor/TutorSessionPanel";
+import { getUserRole } from "@/lib/tier";
 
 export default function TeacherClassDetail() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
   const classId = urlParams.get("id");
 
+  const [me, setMe] = useState(null);
   const [classData, setClassData] = useState(null);
   const [curriculum, setCurriculum] = useState(null);
   const [units, setUnits] = useState([]);
@@ -42,6 +45,7 @@ export default function TeacherClassDetail() {
 
   useEffect(() => {
     loadClassData();
+    quest.auth.me().then(setMe).catch(() => setMe(null));
   }, []);
 
   // Subscribe to real-time updates for StudentProgress
@@ -255,6 +259,13 @@ export default function TeacherClassDetail() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 py-8">
+          {getUserRole(me) === "tutor" && classId && (
+            <TutorSessionPanel
+              classId={classId}
+              enrollments={enrollments}
+              onChanged={loadClassData}
+            />
+          )}
           <Tabs defaultValue="mindmap" className="w-full">
             {/* 4 tabs distributed evenly across the full width. Was `grid-cols-6`
                 which left two empty columns on the right. */}
