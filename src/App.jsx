@@ -23,6 +23,30 @@ import {
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { getUserRole, getUserTier } from '@/lib/tier';
+
+// Pages a tutor/Studio user must never see — they have their own dashboard
+// at /TutorDashboard. Hitting any of these bounces to the Studio surface
+// BEFORE the page component mounts, so there's no flash of teacher chrome.
+const TEACHER_ONLY_PAGES = new Set([
+  'TeacherDashboard',
+  'TeacherCurricula',
+  'TeacherAnalytics',
+  'TeacherProgress',
+  'TeacherLeaderboard',
+  'TeacherSettings',
+  'CreateCurriculum',
+  'ManageCurriculum',
+  'Curriculum',
+  'Classes',
+]);
+
+function isStudioUser(user) {
+  if (!user) return false;
+  if (getUserRole(user) === 'tutor') return true;
+  const tier = getUserTier(user);
+  return tier === 'studio' || tier === 'enterprise';
+}
 
 // /Book/:slug needs a dynamic path param, which the auto-route generation in
 // pages.config can't express. It's also public — no auth required to view a
@@ -49,7 +73,7 @@ const PUBLIC_PAGES = [
   'Enterprise',
   'TutorSignup',
   'Join',
-  'StudentLiveSession',
+  'LiveSessionPlay',
 ];
 
 /**
@@ -85,12 +109,23 @@ function LayoutWrapper({ children, currentPageName }) {
  * children or redirect to /SignIn?next=... when the user isn't signed in.
  */
 function RequireAuth({ pageName, children }) {
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, user } = useAuth();
   const location = useLocation();
   if (isLoadingAuth) return <FullPageSpinner />;
   if (!isAuthenticated && !PUBLIC_PAGES.includes(pageName)) {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/SignIn?next=${next}`} replace />;
+  }
+  // Hard tutor gate: tutors and Studio/Enterprise tier users have no business
+  // on the teacher-only pages. Bounce to /TutorDashboard before the page
+  // component is even mounted — eliminates the flash of teacher chrome.
+  if (TEACHER_ONLY_PAGES.has(pageName) && isStudioUser(user)) {
+    return (
+      <Navigate
+        to={`/TutorDashboard${location.search || ''}`}
+        replace
+      />
+    );
   }
   return children;
 }

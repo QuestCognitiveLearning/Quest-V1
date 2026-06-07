@@ -112,7 +112,7 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
             />
             <div className="-ml-[23px]">
               <h1 className="text-sm font-bold tracking-tight">Quest Learning</h1>
-              <p className="text-xs text-white/70">Teacher Portal</p>
+              <p className="text-xs text-white/70">{isTutor ? "Studio" : "Teacher Portal"}</p>
             </div>
           </div>
         </div>
@@ -128,18 +128,22 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
             <BarChart3 className="w-4 h-4" />
             <span>Dashboard</span>
           </button>
-          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("curricula", "TeacherCurricula") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "curricula" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-            <BookOpen className="w-4 h-4" />
-            <span>Curriculum</span>
-          </button>
+          {!isTutor && (
+            <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("curricula", "TeacherCurricula") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "curricula" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
+              <BookOpen className="w-4 h-4" />
+              <span>Curriculum</span>
+            </button>
+          )}
           <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("classes", "TeacherClasses") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "classes" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
             <Users className="w-4 h-4" />
             <span>{strings.nav_classes}</span>
           </button>
-          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("analytics", "TeacherAnalytics") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "analytics" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-            <TrendingUp className="w-4 h-4" />
-            <span>Analysis</span>
-          </button>
+          {!isTutor && (
+            <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("analytics", "TeacherAnalytics") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "analytics" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
+              <TrendingUp className="w-4 h-4" />
+              <span>Analysis</span>
+            </button>
+          )}
 
           {studioOn && (
             <>

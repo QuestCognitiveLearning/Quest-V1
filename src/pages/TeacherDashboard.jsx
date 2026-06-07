@@ -79,15 +79,9 @@ export default function TeacherDashboard() {
   const loadDashboardData = async () => {
     try {
       const currentUser = await quest.auth.me();
-      // Tutors (new_role='tutor') have their own dashboard at /TutorDashboard
-      // — redirect there so a tutor following any teacher-dashboard link
-      // (including the Stripe success_url for legacy checkouts) lands on the
-      // Studio surface. The session search string is preserved so the
-      // ?checkout=success&welcome=1 banner trigger still fires.
-      if (getUserRole(currentUser) === "tutor") {
-        navigate(`/TutorDashboard${window.location.search || "?welcome=1"}`, { replace: true });
-        return;
-      }
+      // Router-level RequireAuth now blocks tutors and Studio-tier users from
+      // ever mounting this page, so by the time we get here, currentUser is
+      // guaranteed to be a teacher. No page-level redirect needed.
       setTeacher(currentUser);
 
       // Demo gate — fire ONCE per teacher, ever. Three layered guards:
