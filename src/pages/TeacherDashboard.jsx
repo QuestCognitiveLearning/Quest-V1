@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import DemoOverlay from "../components/teacher/DemoOverlay";
+import { stringsFor } from "@/lib/i18n/role-strings";
 import { format } from "date-fns";
 import {
   BookOpen,
@@ -28,6 +29,7 @@ import {
 export default function TeacherDashboard() {
   const navigate = useNavigate();
   const [teacher, setTeacher] = useState(null);
+  const strings = stringsFor(teacher);
   const [classes, setClasses] = useState([]);
   const [curricula, setCurricula] = useState([]);
   const [units, setUnits] = useState([]);
@@ -440,14 +442,14 @@ export default function TeacherDashboard() {
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Users className="w-8 h-8 text-blue-600" />
                 </div>
-                <p className="text-gray-600 mb-4">No classes created yet</p>
-                <Button 
+                <p className="text-gray-600 mb-4">No {strings.nav_classes.toLowerCase()} created yet</p>
+                <Button
                   data-tour="create-class-btn"
                   onClick={() => navigate(createPageUrl("TeacherClasses"))}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Create Your First Class
+                  {strings.create_class_cta}
                 </Button>
               </div>
             ) : (
