@@ -71,6 +71,7 @@ export default function Generate() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("youtube"); // youtube | pdf
+  const [mode, setMode] = useState("live"); // live | handout
   const [stage, setStage] = useState("input"); // input | generating | result
   const [error, setError] = useState("");
   const [options, setOptions] = useState({ ...DEFAULT_OPTIONS });
@@ -414,6 +415,44 @@ export default function Generate() {
             Turn a YouTube video or a PDF into a print-ready quiz, case study,
             and live session in 90 seconds.
           </p>
+        </div>
+
+        {/* Mode toggle — pick the outcome up front. */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
+          <button
+            type="button"
+            onClick={() => setMode("live")}
+            className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+              mode === "live"
+                ? "bg-emerald-50 border-2 border-emerald-500"
+                : "border-2 border-transparent hover:bg-slate-50"
+            }`}
+          >
+            <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "live" ? "text-emerald-600" : "text-slate-400"}`} />
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Live session</div>
+              <div className="text-[11.5px] text-slate-500 mt-0.5">
+                Generate then run it as a game. Students join with a code, earn points.
+              </div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("handout")}
+            className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+              mode === "handout"
+                ? "bg-blue-50 border-2 border-[#2563EB]"
+                : "border-2 border-transparent hover:bg-slate-50"
+            }`}
+          >
+            <FileText className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "handout" ? "text-[#2563EB]" : "text-slate-400"}`} />
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Handout</div>
+              <div className="text-[11.5px] text-slate-500 mt-0.5">
+                Print-ready PDF + editable Word. Save to library or assign later.
+              </div>
+            </div>
+          </button>
         </div>
 
         {/* Tabs */}

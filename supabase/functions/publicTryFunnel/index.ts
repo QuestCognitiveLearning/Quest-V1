@@ -81,6 +81,8 @@ type GenerationOptions = {
   difficulty?: 'easy' | 'medium' | 'hard';
   gradeLevel?: 'Elementary' | 'Middle' | 'High' | 'Undergraduate';
   includeCaseStudy?: boolean;
+  includeInquiry?: boolean;
+  includeAttentionChecks?: boolean;
 };
 
 const GRADE_LABEL: Record<string, string> = {
@@ -202,7 +204,125 @@ Output strictly the JSON shape requested.`;
     discussion_questions: discussion,
   };
 
-  return { quiz, case_study };
+  // Inquiry session (Socratic hook) — mirrors the prompt used inside
+  // ManageCurriculum so the output shape is identical and can be saved
+  // to InquirySession entity later if the teacher wants.
+  let inquiry_session: {
+    hook_question: string;
+    socratic_system_prompt: string;
+    tutor_first_message: string;
+  } | null = null;
+  if (args.options?.includeInquiry) {
+    try {
+      const inqPrompt = `You are the world's best automated inquiry-based learning designer.
+
+LANGUAGE: All generated text must be in clear, natural English. Translate non-English source material; never output non-English text.
+
+Topic: "${args.title}"
+
+Create a curiosity hook for this topic. IMPORTANT: The student has NOT learned this concept yet — they are encountering it for the first time. The hook question should relate directly to the topic but be answerable through intuition, prior knowledge, or everyday experience.
+
+Return strict JSON:
+{
+  "hook_question": "Question (8-18 words) directly about the topic that students can answer through intuition or everyday experience, even without formal knowledge.",
+  "socratic_system_prompt": "You are Panda, a Socratic tutor. The student has NOT learned this topic yet. Guide them to think about it using their intuition and prior knowledge. Ask questions, never explain. Max 3 exchanges. Stay on topic. End with: 'Brilliant thinking! Now watch the video.'",
+  "tutor_first_message": "Warm response to student's guess, with follow-up question that helps them explore the topic further."
+}`;
+      const inqResult = await invokeLLMWithUsage({
+        prompt: inqPrompt,
+        model: QUIZ_MODEL,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            hook_question: { type: 'string' },
+            socratic_system_prompt: { type: 'string' },
+            tutor_first_message: { type: 'string' },
+          },
+        },
+      });
+      const ic = inqResult.content as Record<string, unknown> | null;
+      if (ic && typeof ic.hook_question === 'string') {
+        inquiry_session = {
+          hook_question: String(ic.hook_question || ''),
+          socratic_system_prompt: String(ic.socratic_system_prompt || ''),
+          tutor_first_message: String(ic.tutor_first_message || ''),
+        };
+      }
+    } catch (err) {
+      console.error('[publicTryFunnel] inquiry generation failed:', err);
+    }
+  }
+
+  // Attention checks (mid-video MCQ at specific timestamps). Only meaningful
+  // when there's a video transcript — PDF-only sources skip.
+  let attention_checks: Array<{
+    timestamp: number;
+    question: string;
+    choice_a: string;
+    choice_b: string;
+    choice_c: string;
+    choice_d: string;
+    correct_choice: string;
+    explanation: string;
+  }> = [];
+  if (args.options?.includeAttentionChecks && args.transcript && args.transcript.length > 200) {
+    try {
+      const acPrompt = `You design "attention checks" — short multiple-choice questions embedded inside a video to keep students focused. Pick 3 strategic timestamps spaced roughly evenly through the video where a key concept is introduced or a transition happens. At each timestamp, write a 1-question MCQ about what was JUST covered.
+
+VIDEO TITLE: ${args.title}
+VIDEO TRANSCRIPT (may be truncated):
+${trimmed}
+
+Return strict JSON only. timestamps are seconds. choice_correct is the single letter A/B/C/D.`;
+      const acResult = await invokeLLMWithUsage({
+        prompt: acPrompt,
+        model: QUIZ_MODEL,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            attention_checks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  timestamp: { type: 'integer' },
+                  question: { type: 'string' },
+                  choice_a: { type: 'string' },
+                  choice_b: { type: 'string' },
+                  choice_c: { type: 'string' },
+                  choice_d: { type: 'string' },
+                  correct_choice: { type: 'string' },
+                  explanation: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      });
+      const ac = acResult.content as Record<string, unknown> | null;
+      const list = Array.isArray(ac?.attention_checks) ? ac!.attention_checks : [];
+      attention_checks = list
+        .map((c: Record<string, unknown>) => {
+          const correct = String(c.correct_choice ?? '').toUpperCase();
+          if (!['A', 'B', 'C', 'D'].includes(correct)) return null;
+          return {
+            timestamp: Math.max(0, Number(c.timestamp) || 0),
+            question: String(c.question ?? ''),
+            choice_a: String(c.choice_a ?? ''),
+            choice_b: String(c.choice_b ?? ''),
+            choice_c: String(c.choice_c ?? ''),
+            choice_d: String(c.choice_d ?? ''),
+            correct_choice: correct,
+            explanation: String(c.explanation ?? ''),
+          };
+        })
+        .filter((c) => c !== null);
+    } catch (err) {
+      console.error('[publicTryFunnel] attention check generation failed:', err);
+    }
+  }
+
+  return { quiz, case_study, inquiry_session, attention_checks };
 }
 
 Deno.serve(async (req) => {
@@ -299,6 +419,8 @@ Deno.serve(async (req) => {
           ? (rawOpts!.gradeLevel as GenerationOptions['gradeLevel'])
           : undefined,
         includeCaseStudy: rawOpts?.includeCaseStudy === false ? false : true,
+        includeInquiry: rawOpts?.includeInquiry === true,
+        includeAttentionChecks: rawOpts?.includeAttentionChecks === true,
       };
 
       let meta: { title: string; channelTitle?: string; thumbnail?: string } = {
@@ -318,7 +440,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { quiz, case_study } = await generateQuizAndCaseStudy({
+      const { quiz, case_study, inquiry_session, attention_checks } = await generateQuizAndCaseStudy({
         title: meta.title,
         transcript: transcriptText,
         pdfText,
@@ -329,7 +451,7 @@ Deno.serve(async (req) => {
         return json({ error: 'Could not generate questions from this source. Try a different video or PDF.' }, 422, req);
       }
 
-      return json({ video: meta, quiz, case_study }, 200, req);
+      return json({ video: meta, quiz, case_study, inquiry_session, attention_checks }, 200, req);
     }
 
     return json({ error: 'Unknown action' }, 400, req);
