@@ -29,6 +29,7 @@ import { clientIp, rateLimitByIp, rateLimitByUser, tooManyRequestsResponse } fro
 
 const MODEL = 'gpt-4.1-mini';
 const WINDOW_DAYS = 7;
+const INTERNAL_TOKEN = Deno.env.get('QUEST_INTERNAL_TOKEN') || '';
 
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
@@ -40,11 +41,32 @@ Deno.serve(async (req) => {
   const ipLimit = rateLimitByIp(clientIp(req), { maxRequests: 60, windowMs: 60_000 });
   if (!ipLimit.allowed) return tooManyRequestsResponse(ipLimit);
 
-  const user = await getMe(req);
-  if (!user) return json({ error: 'Unauthorized' }, 401, req);
+  // Two auth modes:
+  //   - User JWT (the normal end-session flow from the tutor's browser).
+  //   - X-Quest-Internal-Token (the weekly-digest cron job).
+  const internalToken = req.headers.get('x-quest-internal-token');
+  const isInternal = !!(INTERNAL_TOKEN && internalToken === INTERNAL_TOKEN);
 
-  const userLimit = rateLimitByUser(user.id, { maxRequests: 12, windowMs: 60_000 });
-  if (!userLimit.allowed) return tooManyRequestsResponse(userLimit);
+  let user;
+  if (isInternal) {
+    // For internal calls the caller must specify which tutor the report is for.
+    const peek = await req.clone().json().catch(() => ({}));
+    const tutorId = peek?.tutor_id || null;
+    if (!tutorId) return json({ error: 'tutor_id required for internal calls' }, 400, req);
+    const adminPeek = adminClient();
+    const { data: t } = await adminPeek
+      .from('users')
+      .select('*')
+      .eq('id', tutorId)
+      .maybeSingle();
+    if (!t) return json({ error: 'Tutor not found' }, 404, req);
+    user = t;
+  } else {
+    user = await getMe(req);
+    if (!user) return json({ error: 'Unauthorized' }, 401, req);
+    const userLimit = rateLimitByUser(user.id, { maxRequests: 12, windowMs: 60_000 });
+    if (!userLimit.allowed) return tooManyRequestsResponse(userLimit);
+  }
 
   // Studio tier gate: branding/parent-reports capability is on `tier`. The
   // legacy `subscription_tier` is allowed too while migration finishes.

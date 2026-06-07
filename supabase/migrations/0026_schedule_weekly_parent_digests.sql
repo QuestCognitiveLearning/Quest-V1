@@ -1,0 +1,28 @@
+-- Cron schedule helper for the weekly parent-digest job. Same shape as
+-- 0014's quest_schedule_drip helper: pg_cron + pg_net are already enabled,
+-- so this migration only ships the (commented) scheduling command. Run it
+-- once via psql with the same QUEST_INTERNAL_TOKEN the Edge Function reads
+-- from its env.
+--
+-- Example (run via psql as a one-off):
+--   select cron.schedule(
+--     'quest-parent-digest-weekly',
+--     '0 16 * * 0',  -- 16:00 UTC every Sunday  (~ noon ET)
+--     $cmd$
+--     select net.http_post(
+--       url := 'https://lgymrkodypbqghyjocxg.supabase.co/functions/v1/weeklyParentDigests',
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'X-Quest-Internal-Token', '<YOUR_TOKEN>'
+--       ),
+--       body := '{}'::jsonb
+--     );
+--     $cmd$
+--   );
+--
+-- To remove:
+--   select cron.unschedule('quest-parent-digest-weekly');
+
+-- No-op marker so the migration registers; the schedule is created
+-- out-of-band so the internal token doesn't leak into git.
+select 1;
