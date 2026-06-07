@@ -6,7 +6,7 @@
  */
 
 import './App.css';
-import { Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
@@ -23,6 +23,11 @@ import {
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+
+// /Book/:slug needs a dynamic path param, which the auto-route generation in
+// pages.config can't express. It's also public — no auth required to view a
+// tutor's booking page — so it lives outside the Pages map.
+const Book = lazy(() => import('./pages/Book'));
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -129,6 +134,7 @@ function AuthenticatedApp() {
             re-matched the lowercase redirect, etc. */}
         <Route path="/quiz-from-video" element={<Navigate to="/try" replace />} />
         <Route path="/quiz-from-video/*" element={<Navigate to="/try" replace />} />
+        <Route path="/Book/:slug" element={<Book />} />
         {Object.entries(Pages).map(([path, Page]) => (
           <Route
             key={path}
