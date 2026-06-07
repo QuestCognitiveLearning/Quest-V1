@@ -23,6 +23,9 @@ import {
   Search,
   Send,
   Users,
+  Trash2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,14 +97,20 @@ export default function Generate() {
 
   // Result state
   const [result, setResult] = useState(null);
+  // Which enrichment passes are still running after the base result lands.
+  // Drives "in progress" skeleton sections so the user knows what's coming.
+  const [enriching, setEnriching] = useState({ inquiry: false, attentionChecks: false });
 
   // Library state — teacher's saved handouts
   const [library, setLibrary] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Join-code modal shown after "Run as live session" succeeds
-  const [joinModal, setJoinModal] = useState(null); // { sessionId, code, title }
+  // Multi-select state for bulk deletion. selectMode flips on the Select UI
+  // (checkboxes + bulk-action bar). selectedIds is a Set of handout IDs.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Assign-to-class modal state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -222,6 +231,13 @@ export default function Generate() {
 
     const tasks = [];
 
+    // Flip the "in progress" flags up-front so the result panel renders
+    // skeleton sections immediately, before the LLM round-trips finish.
+    setEnriching({
+      inquiry: !!wantInquiry,
+      attentionChecks: !!wantAttention,
+    });
+
     if (wantInquiry) {
       const { invokeLLM, generateImage } = await import("@/components/utils/openai");
       const { LLM_MODELS } = await import("@/lib/llmModels");
@@ -295,6 +311,8 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
             }
           } catch (err) {
             console.warn("Inquiry generation failed (non-fatal):", err);
+          } finally {
+            setEnriching((prev) => ({ ...prev, inquiry: false }));
           }
         })()
       );
@@ -315,15 +333,19 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
             setProgressive((prev) => ({ ...prev, attention_checks: ac }));
           } catch (err) {
             console.warn("Attention checks failed (non-fatal):", err);
+          } finally {
+            setEnriching((prev) => ({ ...prev, attentionChecks: false }));
           }
         })()
       );
     }
 
-    // Fire and forget — UI updates progressively via setProgressive.
-    Promise.allSettled(tasks).then(() => {
-      console.log("[Generate] curriculum-grade enrichment complete");
-    });
+    // Block until every enrichment pass settles. We used to fire-and-forget
+    // so the user saw the partial handout immediately, but that meant the
+    // result page rendered before the inquiry hook + attention checks had
+    // arrived. Holding the stage on "generating" until everything is ready
+    // is a cleaner reveal.
+    await Promise.allSettled(tasks);
   };
 
   const runYoutubeGenerate = async (videoId) => {
@@ -336,10 +358,12 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       if (fnErr) throw fnErr;
       if (data?.error) throw new Error(data.error);
       if (!data?.quiz?.length) throw new Error("No quiz generated.");
-      // Show quiz + case study immediately, then enrich progressively.
       setResult(data);
+      // Wait for inquiry hook + attention checks (when included) before
+      // revealing the handout. Keeps the result page from flashing a
+      // partial state.
+      await enrichWithCurriculumGeneration(data, setResult);
       setStage("result");
-      enrichWithCurriculumGeneration(data, setResult);
     } catch (err) {
       setError(err?.message || "Generation failed.");
       setStage("input");
@@ -364,8 +388,8 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
         setResult(data);
+        await enrichWithCurriculumGeneration(data, setResult);
         setStage("result");
-        enrichWithCurriculumGeneration(data, setResult);
       } catch (err) {
         setError(err?.message || "Generation failed.");
         setStage("input");
@@ -394,8 +418,8 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
         setResult(data);
+        await enrichWithCurriculumGeneration(data, setResult);
         setStage("result");
-        enrichWithCurriculumGeneration(data, setResult);
       } catch (err) {
         setError(err?.message || "Generation failed.");
         setStage("input");
@@ -445,91 +469,26 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
     }
   };
 
-  // 6-char alphanumeric join code, avoiding 0/O/1/I for readability on a
-  // projected screen.
-  const mintJoinCode = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
-
-  const startLiveSessionFromPayload = async (payload, opts = {}) => {
-    if (!payload) return null;
-    const me = user || (await quest.auth.me());
-    const code = mintJoinCode();
-    const topic = payload?.video?.title || opts.title || "Quest live session";
-
-    // publicTryFunnel returns { videoId, title, channelTitle, thumbnail, ... }
-    // — no `url` field. Reconstruct it so ManageLiveSession doesn't ask the
-    // teacher to re-pick a video they already chose on /Generate.
-    const videoId = payload?.video?.videoId;
-    const videoUrl = videoId
-      ? `https://www.youtube.com/watch?v=${videoId}`
-      : (payload?.video?.url || "");
-
-    const session = await quest.entities.LiveSession.create({
-      teacher_id: me.id,
-      class_id: null,
-      title: topic,
-      session_name: topic,
-      subunit_name: topic,
-      session_code: code,
-      join_code: code,
-      video_url: videoUrl,
-      video_duration: payload?.video?.duration || 0,
-      // 'waiting' is the status TeacherLiveSession looks for ({status in
-      // waiting/active}). 'ready' would never be picked up so Launch would
-      // navigate to an empty page.
-      status: "waiting",
-      current_phase: "lobby",
-      questions: payload?.quiz || [],
-      case_study: payload?.case_study || null,
-      attention_checks: payload?.attention_checks || [],
-      inquiry_session: payload?.inquiry_session || null,
-      question_count: payload?.quiz?.length || 0,
-      question_difficulty: options?.difficulty || "medium",
-      created_by_id: me.id,
-      created_by: me.email,
-    });
-    return { sessionId: session.id, code, title: topic };
-  };
-
   const handleRunLive = async () => {
     if (!result) return;
     setSaving(true);
     try {
-      // Auto-save to library on first live session so the teacher always
-      // has the content even if they navigate away mid-game.
-      let savedPayload = result;
-      try {
-        await saveToLibrary(result);
-        if (user?.id) loadLibrary(user.id);
-      } catch (err) {
-        console.warn("Library save failed (non-fatal):", err);
-      }
-      const created = await startLiveSessionFromPayload(savedPayload);
-      if (created) setJoinModal(created);
+      // Auto-save so the live session builder can seed from a real handout id.
+      const saved = await saveToLibrary(result);
+      if (user?.id) loadLibrary(user.id);
+      const handoutId = saved?.id;
+      if (!handoutId) throw new Error("No handout id returned");
+      navigate(createPageUrl("LiveSessionBuilder") + `?fromHandout=${handoutId}`);
     } catch (err) {
-      console.error("Live session create failed:", err);
-      toast.error("Could not start live session.");
+      console.error("Open builder failed:", err);
+      toast.error("Could not open the live session builder.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRunLiveFromLibrary = async (row) => {
-    try {
-      const created = await startLiveSessionFromPayload(row.payload, {
-        title: row.title,
-      });
-      if (created) setJoinModal(created);
-    } catch (err) {
-      console.error("Live session create failed:", err);
-      toast.error("Could not start live session.");
-    }
+  const handleRunLiveFromLibrary = (row) => {
+    navigate(createPageUrl("LiveSessionBuilder") + `?fromHandout=${row.id}`);
   };
 
   const handleDeleteFromLibrary = async (rowId) => {
@@ -539,6 +498,54 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       if (user?.id) loadLibrary(user.id);
     } catch (err) {
       toast.error("Could not delete.");
+    }
+  };
+
+  // ---- Bulk selection ----------------------------------------------------
+  const toggleSelectMode = () => {
+    setSelectMode((on) => {
+      if (on) setSelectedIds(new Set());
+      return !on;
+    });
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(library.map((r) => r.id)));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const n = selectedIds.size;
+    if (!window.confirm(`Delete ${n} handout${n === 1 ? "" : "s"}? This can't be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      // Fire deletes in parallel; tolerate per-row failures so a single
+      // bad row doesn't abort the rest.
+      const results = await Promise.allSettled(
+        Array.from(selectedIds).map((id) => quest.entities.GeneratedHandout.delete(id))
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) toast.error(`${failed} delete${failed === 1 ? "" : "s"} failed.`);
+      else toast.success(`Deleted ${n} handout${n === 1 ? "" : "s"}.`);
+      setSelectedIds(new Set());
+      setSelectMode(false);
+      if (user?.id) loadLibrary(user.id);
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+      toast.error("Bulk delete failed.");
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -966,15 +973,41 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         )}
 
         {stage === "generating" && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-10 shadow-sm text-center">
-            <Loader2 className="w-10 h-10 text-[#2563EB] mx-auto mb-4 animate-spin" />
-            <h2 className="text-xl font-bold text-slate-900">
-              Generating your handout
-            </h2>
-            <p className="text-sm text-slate-600 mt-2">
-              Watching the source… extracting key concepts… writing questions…
-              designing case study… (~60 seconds)
-            </p>
+          <div className="bg-white border border-slate-200 rounded-2xl p-10 shadow-sm">
+            <div className="text-center mb-6">
+              <Loader2 className="w-10 h-10 text-[#2563EB] mx-auto mb-4 animate-spin" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Generating your handout
+              </h2>
+              <p className="text-sm text-slate-600 mt-2">
+                This usually takes 30–90 seconds. We'll reveal everything at once when it's ready.
+              </p>
+            </div>
+            <ul className="max-w-md mx-auto space-y-2 text-sm">
+              <GenStep
+                done={!!result?.quiz?.length}
+                running={!result?.quiz?.length}
+                label="Quiz + case study"
+              />
+              {options.includeInquiry && (
+                <GenStep
+                  done={!!result?.inquiry_session?.hook_question && !enriching.inquiry}
+                  running={enriching.inquiry || !result}
+                  label="Inquiry hook + Socratic prompt"
+                />
+              )}
+              {options.includeAttentionChecks && (
+                <GenStep
+                  done={
+                    Array.isArray(result?.attention_checks) &&
+                    result.attention_checks.length > 0 &&
+                    !enriching.attentionChecks
+                  }
+                  running={enriching.attentionChecks || !result}
+                  label="Attention checks"
+                />
+              )}
+            </ul>
           </div>
         )}
 
@@ -990,7 +1023,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                 Save to library
               </Button>
               <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                <PlayCircle className="w-4 h-4" /> Run as live session
+                <PlayCircle className="w-4 h-4" /> Use in live session
               </Button>
               <Button
                 onClick={() => openAssignModal(result, result?.video?.title)}
@@ -1010,14 +1043,14 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
               </Button>
             </div>
 
-            <ResultPreview result={result} />
+            <ResultPreview result={result} enriching={enriching} />
           </div>
         )}
 
         {/* Library section — always visible (when not actively generating) */}
         {stage !== "generating" && (
           <section className="mt-12">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                   <Library className="w-5 h-5 text-[#2563EB]" />
@@ -1027,9 +1060,29 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                   Generated handouts you can run live anytime &mdash; no class required.
                 </p>
               </div>
-              {library.length > 0 && (
-                <span className="text-xs text-slate-500">{library.length} item{library.length === 1 ? "" : "s"}</span>
-              )}
+              <div className="flex items-center gap-3">
+                {library.length > 0 && (
+                  <span className="text-xs text-slate-500">
+                    {library.length} item{library.length === 1 ? "" : "s"}
+                  </span>
+                )}
+                {library.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleSelectMode}
+                    className="h-8 px-3 text-xs gap-1.5"
+                  >
+                    {selectMode ? (
+                      <>Cancel</>
+                    ) : (
+                      <>
+                        <CheckSquare className="w-3.5 h-3.5" /> Select
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {libraryLoading ? (
@@ -1045,112 +1098,122 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 gap-3">
-                {library.map((row) => (
-                  <div
-                    key={row.id}
-                    className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col gap-2 hover:border-[#2563EB] transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-slate-900 line-clamp-2">
-                        {row.title}
-                      </h3>
-                      <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 shrink-0">
-                        {row.source_type}
-                      </span>
+                {library.map((row) => {
+                  const isSelected = selectedIds.has(row.id);
+                  return (
+                    <div
+                      key={row.id}
+                      onClick={selectMode ? () => toggleSelected(row.id) : undefined}
+                      className={`bg-white border rounded-xl p-4 flex flex-col gap-2 transition-colors ${
+                        selectMode
+                          ? `cursor-pointer ${
+                              isSelected
+                                ? "border-[#2563EB] ring-2 ring-[#2563EB]/30 bg-blue-50/40"
+                                : "border-slate-200 hover:border-slate-300"
+                            }`
+                          : "border-slate-200 hover:border-[#2563EB]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          {selectMode && (
+                            isSelected ? (
+                              <CheckSquare className="w-5 h-5 text-[#2563EB] mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <Square className="w-5 h-5 text-slate-300 mt-0.5 flex-shrink-0" />
+                            )
+                          )}
+                          <h3 className="text-sm font-semibold text-slate-900 line-clamp-2">
+                            {row.title}
+                          </h3>
+                        </div>
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 shrink-0">
+                          {row.source_type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {(row.payload?.quiz?.length || 0)} questions{row.payload?.case_study?.scenario ? " · 1 case study" : ""}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Saved {new Date(row.created_at).toLocaleDateString()}
+                      </p>
+                      {!selectMode && (
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleRunLiveFromLibrary(row)}
+                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" /> Use in live session
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openAssignModal(row.payload, row.title)}
+                            className="h-8 px-3 text-xs gap-1.5"
+                          >
+                            <Send className="w-3.5 h-3.5" /> Assign
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setResult(row.payload) || setStage("result")}
+                            className="h-8 px-3 text-xs"
+                          >
+                            Open
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFromLibrary(row.id)}
+                            className="ml-auto text-xs text-slate-400 hover:text-red-600"
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-500">
-                      {(row.payload?.quiz?.length || 0)} questions{row.payload?.case_study?.scenario ? " · 1 case study" : ""}
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      Saved {new Date(row.created_at).toLocaleDateString()}
-                    </p>
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleRunLiveFromLibrary(row)}
-                        className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
-                      >
-                        <PlayCircle className="w-3.5 h-3.5" /> Run live
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openAssignModal(row.payload, row.title)}
-                        className="h-8 px-3 text-xs gap-1.5"
-                      >
-                        <Send className="w-3.5 h-3.5" /> Assign
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setResult(row.payload) || setStage("result")}
-                        className="h-8 px-3 text-xs"
-                      >
-                        Open
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteFromLibrary(row.id)}
-                        className="ml-auto text-xs text-slate-400 hover:text-red-600"
-                        title="Delete"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
         )}
       </div>
 
-      {/* Join code modal */}
-      {joinModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-7">
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3">
-                <PlayCircle className="w-3.5 h-3.5" /> Live session ready
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-1">{joinModal.title}</h3>
-              <p className="text-sm text-slate-500 mb-5">
-                Students join at <strong>questlearning.co/join</strong> with this code:
-              </p>
-              <div className="bg-slate-900 text-white rounded-xl py-6 px-4 mb-5">
-                <p className="text-[44px] font-extrabold tracking-[0.2em] font-mono">
-                  {joinModal.code}
-                </p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Button
-                  onClick={() => {
-                    navigator.clipboard?.writeText(joinModal.code);
-                    toast.success("Code copied");
-                  }}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  Copy code
-                </Button>
-                <Button
-                  onClick={() =>
-                    navigate(createPageUrl("ManageLiveSession") + `?sessionId=${joinModal.sessionId}`)
-                  }
-                  className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
-                >
-                  Open teacher view <ArrowRight className="w-4 h-4" />
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setJoinModal(null)}
-                  className="text-xs text-slate-400 hover:text-slate-700 mt-2"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* Sticky bulk-action bar — only while select mode is on */}
+      {selectMode && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 max-w-[95vw]">
+          <span className="text-sm font-semibold">
+            {selectedIds.size} selected
+          </span>
+          <button
+            type="button"
+            onClick={selectedIds.size === library.length ? clearSelection : selectAllVisible}
+            className="text-xs text-slate-300 hover:text-white underline"
+          >
+            {selectedIds.size === library.length ? "Clear" : "Select all"}
+          </button>
+          <Button
+            size="sm"
+            onClick={handleBulkDelete}
+            disabled={selectedIds.size === 0 || bulkDeleting}
+            className="bg-red-600 hover:bg-red-700 text-white h-8 px-3 text-xs gap-1.5 disabled:opacity-50"
+          >
+            {bulkDeleting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="w-3.5 h-3.5" />
+            )}
+            Delete selected
+          </Button>
+          <button
+            type="button"
+            onClick={toggleSelectMode}
+            className="text-xs text-slate-300 hover:text-white"
+          >
+            Done
+          </button>
         </div>
       )}
 
@@ -1257,8 +1320,30 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
   );
 }
 
-function ResultPreview({ result }) {
+// Step row inside the "Generating…" panel. Three visual states:
+//   running = spinner, done = green check, idle = grey dot.
+function GenStep({ done, running, label }) {
+  return (
+    <li className="flex items-center gap-3">
+      {done ? (
+        <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+      ) : running ? (
+        <Loader2 className="w-5 h-5 text-[#2563EB] animate-spin flex-shrink-0" />
+      ) : (
+        <div className="w-5 h-5 rounded-full border-2 border-slate-200 flex-shrink-0" />
+      )}
+      <span className={done ? "text-slate-900 font-medium" : "text-slate-600"}>
+        {label}
+      </span>
+    </li>
+  );
+}
+
+function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: false } }) {
   const { video, quiz, case_study, inquiry_session, attention_checks } = result;
+  const showInquiryPending = enriching.inquiry && !inquiry_session?.hook_question;
+  const showAttentionPending =
+    enriching.attentionChecks && !(Array.isArray(attention_checks) && attention_checks.length > 0);
   const [revealed, setRevealed] = useState({});
 
   const fmtTime = (s) => {
@@ -1281,6 +1366,26 @@ function ResultPreview({ result }) {
           </p>
         )}
       </div>
+
+      {showInquiryPending && (
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+            <h3 className="text-lg font-semibold text-slate-900">Inquiry hook</h3>
+            <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+              Generating…
+            </span>
+          </div>
+          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
+            <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 animate-pulse" />
+            <div className="space-y-2">
+              <div className="h-5 bg-slate-200 rounded animate-pulse w-3/4" />
+              <div className="h-3 bg-slate-100 rounded animate-pulse w-full" />
+              <div className="h-3 bg-slate-100 rounded animate-pulse w-5/6" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {inquiry_session?.hook_question && (
         <details open className="p-6 border-b border-slate-100">
@@ -1314,6 +1419,22 @@ function ResultPreview({ result }) {
             </div>
           </div>
         </details>
+      )}
+
+      {showAttentionPending && (
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+            <h3 className="text-lg font-semibold text-slate-900">Attention checks</h3>
+            <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+              Generating…
+            </span>
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="h-16 bg-amber-50/40 border border-slate-200 rounded-xl animate-pulse" />
+            <div className="h-16 bg-amber-50/40 border border-slate-200 rounded-xl animate-pulse" />
+          </div>
+        </div>
       )}
 
       {Array.isArray(attention_checks) && attention_checks.length > 0 && (

@@ -370,16 +370,7 @@ DO NOT ask another question.`
     }
 
     if (isLiveSession && sessionCode) {
-      try {
-        const participants = await quest.entities.LiveSessionParticipant.filter({ session_code: sessionCode });
-        const myParticipant = participants.find(p => p.student_id === user?.id);
-        if (myParticipant) {
-          await quest.entities.LiveSessionParticipant.update(myParticipant.id, { current_phase: "video" });
-        }
-      } catch (err) {
-        console.error("Failed to update phase:", err);
-      }
-      window.location.href = createPageUrl("StudentLiveSession") + `?rejoined=true&code=${sessionCode}`;
+      window.location.href = createPageUrl("LiveSessionPlay") + `?code=${sessionCode}`;
     } else {
       navigate(createPageUrl("NewSession") + `?topic=${subunitId}&skipInquiry=true`);
     }

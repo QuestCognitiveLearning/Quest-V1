@@ -57,7 +57,6 @@ export const ROUTE = Object.freeze({
   ROLE_SELECTION: 'RoleSelection',
   PRICING: 'Pricing',
   TEACHER_DASHBOARD: 'TeacherDashboard',
-  TEACHER_LIVE_SESSION: 'TeacherLiveSession',
   TEACHER_SETTINGS: 'TeacherSettings',
   LEARNING_HUB: 'LearningHub',
   KNOWLEDGE_MAP: 'KnowledgeMap',

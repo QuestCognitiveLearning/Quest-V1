@@ -49,7 +49,7 @@ export default function Join() {
       if (fnErr || data?.error) {
         throw new Error(data?.error || fnErr?.message || "Could not join.");
       }
-      // Stash join details so StudentLiveSession can re-hydrate them
+      // Stash join details so LiveSessionPlay can re-hydrate them
       // on the next page (no auth needed for anonymous joiners).
       sessionStorage.setItem(
         "quest_anon_join",
@@ -61,7 +61,7 @@ export default function Join() {
           anonymous: !user,
         })
       );
-      navigate(`/StudentLiveSession?code=${cleanCode}`);
+      navigate(`/LiveSessionPlay?code=${cleanCode}`);
     } catch (err) {
       setError(err?.message || "Could not join. Check the code and try again.");
     } finally {
