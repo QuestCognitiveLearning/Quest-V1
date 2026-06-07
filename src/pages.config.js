@@ -54,6 +54,7 @@ export const PAGES = {
   "RoleSelection":        lazy(() => import('./pages/RoleSelection')),
   "SignIn":               lazy(() => import('./pages/SignIn')),
   "SocraticInquiry":      lazy(() => import('./pages/SocraticInquiry')),
+  "StudentLiveSessions":  lazy(() => import('./pages/StudentLiveSessions')),
   "TeacherAnalytics":     lazy(() => import('./pages/TeacherAnalytics')),
   "TeacherClassDetail":   lazy(() => import('./pages/TeacherClassDetail')),
   "TeacherClasses":       lazy(() => import('./pages/TeacherClasses')),
