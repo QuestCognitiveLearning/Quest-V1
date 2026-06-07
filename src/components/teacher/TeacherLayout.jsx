@@ -200,11 +200,11 @@ function TutorNav({ activeNav, studioOn, onNav, strings }) {
       <NavItem icon={Calendar} label={strings.nav_classes} active={activeNav === "classes"} onClick={() => onNav("classes", "TeacherClasses")} />
       <NavItem icon={UserSquare} label="Students" active={activeNav === "students"} onClick={() => onNav("students", "TutorStudents")} />
       <NavItem icon={Sparkles} label="Generate" active={activeNav === "generate"} onClick={() => onNav("generate", "Generate")} />
-      <NavItem icon={LibraryIcon} label="Library" active={activeNav === "library"} onClick={() => onNav("library", "Generate")} />
+      <NavItem icon={LibraryIcon} label="Library" active={activeNav === "library"} onClick={() => onNav("library", "Generate#library")} />
       {studioOn && (
         <>
           <NavItem icon={FileText} label="Parent Reports" active={activeNav === "parentReports"} onClick={() => onNav("parentReports", "ParentReports")} />
-          <NavItem icon={Calendar} label="Booking" active={activeNav === "booking"} onClick={() => onNav("booking", "BookingSettings")} />
+          <NavItem icon={Calendar} label="Bookings" active={activeNav === "booking"} onClick={() => onNav("booking", "TutorBookings")} />
         </>
       )}
       <NavItem icon={TrendingUp} label="Insights" active={activeNav === "insights"} onClick={() => onNav("insights", "TeacherAnalytics")} />
@@ -256,7 +256,7 @@ function TeacherNav({ activeNav, studioOn, onNav, strings, user, dashboardRoute 
           </div>
           <NavItem icon={Palette} label="Branding" active={activeNav === "branding"} onClick={() => onNav("branding", "BrandingSettings")} />
           <NavItem icon={FileText} label="Parent Reports" active={activeNav === "parentReports"} onClick={() => onNav("parentReports", "ParentReports")} />
-          <NavItem icon={Calendar} label="Booking" active={activeNav === "booking"} onClick={() => onNav("booking", "BookingSettings")} />
+          <NavItem icon={Calendar} label="Bookings" active={activeNav === "booking"} onClick={() => onNav("booking", "TutorBookings")} />
         </>
       )}
       <button onClick={() => onNav("settings", "TeacherSettings")} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 mt-3 ${activeNav === "settings" ? "bg-white/20" : "hover:bg-white/10"}`}>

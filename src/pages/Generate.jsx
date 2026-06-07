@@ -5,7 +5,7 @@
  * session pre-populated with the new quiz.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Youtube,
@@ -75,6 +75,7 @@ function extractVideoId(url) {
 
 export default function Generate() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("youtube"); // youtube | pdf
   const [mode, setMode] = useState("live"); // live | handout
@@ -159,6 +160,26 @@ export default function Generate() {
       }
     })();
   }, []);
+
+  // Scroll to the library section when the URL hash is #library — lets the
+  // sidebar "Library" link deep-link into Generate without a separate route.
+  // Re-runs when the hash changes so clicking Library while already on
+  // Generate re-scrolls.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (location.hash !== "#library") return;
+    let tries = 0;
+    const interval = setInterval(() => {
+      const el = document.getElementById("library");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        clearInterval(interval);
+      } else if (++tries > 40) {
+        clearInterval(interval);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [location.hash]);
 
   const handlePdfPick = async (file) => {
     if (!file) return;
@@ -1049,7 +1070,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 
         {/* Library section — always visible (when not actively generating) */}
         {stage !== "generating" && (
-          <section className="mt-12">
+          <section id="library" className="mt-12 scroll-mt-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
