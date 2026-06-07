@@ -28,13 +28,14 @@ import { getUserRole, getUserTier } from '@/lib/tier';
 // Pages a tutor/Studio user must never see — they have their own dashboard
 // at /TutorDashboard. Hitting any of these bounces to the Studio surface
 // BEFORE the page component mounts, so there's no flash of teacher chrome.
+//
+// Note: TeacherAnalytics, TeacherProgress, and TeacherLeaderboard are NOT
+// blocked — they're surfaced to tutors under the "Insights" label since
+// the analytics are useful for tracking per-student progress regardless of
+// whether the user runs a classroom or a 1-on-1 practice.
 const TEACHER_ONLY_PAGES = new Set([
   'TeacherDashboard',
   'TeacherCurricula',
-  'TeacherAnalytics',
-  'TeacherProgress',
-  'TeacherLeaderboard',
-  'TeacherSettings',
   'CreateCurriculum',
   'ManageCurriculum',
   'Curriculum',

@@ -20,7 +20,10 @@ import {
   FileText,
   Sparkles,
   Palette,
-  Calendar
+  Calendar,
+  Library as LibraryIcon,
+  UserSquare,
+  Settings as SettingsIcon
 } from "lucide-react";
 import { isFeatureEnabled } from "@/lib/tier";
 import { stringsFor } from "@/lib/i18n/role-strings";
@@ -120,58 +123,23 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
 
 
         <nav className="flex-1 overflow-y-auto py-2 px-2">
-          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("generate", "Generate") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "generate" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-            <Sparkles className="w-4 h-4" />
-            <span>Generate</span>
-          </button>
-          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("dashboard", dashboardRoute) : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "dashboard" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-            <BarChart3 className="w-4 h-4" />
-            <span>Dashboard</span>
-          </button>
-          {!isTutor && (
-            <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("curricula", "TeacherCurricula") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "curricula" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-              <BookOpen className="w-4 h-4" />
-              <span>Curriculum</span>
-            </button>
+          {isTutor ? (
+            <TutorNav
+              activeNav={activeNav}
+              studioOn={studioOn}
+              onNav={handleNavigation}
+              strings={strings}
+            />
+          ) : (
+            <TeacherNav
+              activeNav={activeNav}
+              studioOn={studioOn}
+              onNav={handleNavigation}
+              strings={strings}
+              user={user}
+              dashboardRoute={dashboardRoute}
+            />
           )}
-          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("classes", "TeacherClasses") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "classes" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-            <Users className="w-4 h-4" />
-            <span>{strings.nav_classes}</span>
-          </button>
-          {!isTutor && (
-            <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("analytics", "TeacherAnalytics") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "analytics" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
-              <TrendingUp className="w-4 h-4" />
-              <span>Analysis</span>
-            </button>
-          )}
-
-          {studioOn && (
-            <>
-              <div className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-wider text-white/40">
-                Studio
-              </div>
-              <button onClick={() => handleNavigation("branding", "BrandingSettings")} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "branding" ? "bg-white/20" : "hover:bg-white/10"}`}>
-                <Palette className="w-4 h-4" />
-                <span>Branding</span>
-              </button>
-              <button onClick={() => handleNavigation("parentReports", "ParentReports")} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "parentReports" ? "bg-white/20" : "hover:bg-white/10"}`}>
-                <FileText className="w-4 h-4" />
-                <span>Parent Reports</span>
-              </button>
-              <button onClick={() => handleNavigation("booking", "BookingSettings")} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "booking" ? "bg-white/20" : "hover:bg-white/10"}`}>
-                <Calendar className="w-4 h-4" />
-                <span>Booking</span>
-              </button>
-            </>
-          )}
-
-          <button onClick={() => handleNavigation("settings", "TeacherSettings")} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 mt-3 ${activeNav === "settings" ? "bg-white/20" : "hover:bg-white/10"}`}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span>Settings</span>
-          </button>
         </nav>
 
           <div className="p-4 border-t border-white/10">
@@ -200,5 +168,101 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
         )}
       </div>
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Nav variants. Splitting these keeps the teacher experience untouched while
+// the tutor sidebar follows its own layout.
+// ────────────────────────────────────────────────────────────────────────────
+
+function NavItem({ icon: Icon, label, active, onClick, indent }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full ${
+        indent ? "pl-8 pr-4" : "px-4"
+      } py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
+        active ? "bg-white/20" : "hover:bg-white/10"
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function TutorNav({ activeNav, studioOn, onNav, strings }) {
+  return (
+    <>
+      <NavItem icon={BarChart3} label="Dashboard" active={activeNav === "dashboard"} onClick={() => onNav("dashboard", "TutorDashboard")} />
+      <NavItem icon={Calendar} label={strings.nav_classes} active={activeNav === "classes"} onClick={() => onNav("classes", "TeacherClasses")} />
+      <NavItem icon={UserSquare} label="Students" active={activeNav === "students"} onClick={() => onNav("students", "TutorStudents")} />
+      <NavItem icon={Sparkles} label="Generate" active={activeNav === "generate"} onClick={() => onNav("generate", "Generate")} />
+      <NavItem icon={LibraryIcon} label="Library" active={activeNav === "library"} onClick={() => onNav("library", "Generate")} />
+      {studioOn && (
+        <>
+          <NavItem icon={FileText} label="Parent Reports" active={activeNav === "parentReports"} onClick={() => onNav("parentReports", "ParentReports")} />
+          <NavItem icon={Calendar} label="Booking" active={activeNav === "booking"} onClick={() => onNav("booking", "BookingSettings")} />
+        </>
+      )}
+      <NavItem icon={TrendingUp} label="Insights" active={activeNav === "insights"} onClick={() => onNav("insights", "TeacherAnalytics")} />
+
+      <div className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-wider text-white/40">
+        Settings
+      </div>
+      <NavItem icon={SettingsIcon} label="Account" active={activeNav === "settings"} onClick={() => onNav("settings", "TeacherSettings")} />
+      {studioOn && (
+        <NavItem icon={Palette} label="Branding" active={activeNav === "branding"} onClick={() => onNav("branding", "BrandingSettings")} indent />
+      )}
+    </>
+  );
+}
+
+function TeacherNav({ activeNav, studioOn, onNav, strings, user, dashboardRoute }) {
+  const paid = user?.subscription_tier === "premium" || user?.subscription_status === "trial";
+  const guarded = (route) => (paid ? route : null);
+  const itemClass = (active) =>
+    `w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
+      active ? "bg-white/20" : paid ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"
+    }`;
+  return (
+    <>
+      <button onClick={() => paid && onNav("generate", "Generate")} className={itemClass(activeNav === "generate")}>
+        <Sparkles className="w-4 h-4" />
+        <span>Generate</span>
+      </button>
+      <button onClick={() => paid && onNav("dashboard", dashboardRoute)} className={itemClass(activeNav === "dashboard")}>
+        <BarChart3 className="w-4 h-4" />
+        <span>Dashboard</span>
+      </button>
+      <button onClick={() => paid && onNav("curricula", "TeacherCurricula")} className={itemClass(activeNav === "curricula")}>
+        <BookOpen className="w-4 h-4" />
+        <span>Curriculum</span>
+      </button>
+      <button onClick={() => paid && onNav("classes", "TeacherClasses")} className={itemClass(activeNav === "classes")}>
+        <Users className="w-4 h-4" />
+        <span>{strings.nav_classes}</span>
+      </button>
+      <button onClick={() => paid && onNav("analytics", "TeacherAnalytics")} className={itemClass(activeNav === "analytics")}>
+        <TrendingUp className="w-4 h-4" />
+        <span>Analysis</span>
+      </button>
+      {studioOn && (
+        <>
+          <div className="px-4 pt-3 pb-1 text-[10px] uppercase tracking-wider text-white/40">
+            Studio
+          </div>
+          <NavItem icon={Palette} label="Branding" active={activeNav === "branding"} onClick={() => onNav("branding", "BrandingSettings")} />
+          <NavItem icon={FileText} label="Parent Reports" active={activeNav === "parentReports"} onClick={() => onNav("parentReports", "ParentReports")} />
+          <NavItem icon={Calendar} label="Booking" active={activeNav === "booking"} onClick={() => onNav("booking", "BookingSettings")} />
+        </>
+      )}
+      <button onClick={() => onNav("settings", "TeacherSettings")} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 mt-3 ${activeNav === "settings" ? "bg-white/20" : "hover:bg-white/10"}`}>
+        <SettingsIcon className="w-4 h-4" />
+        <span>Settings</span>
+      </button>
+    </>
   );
 }

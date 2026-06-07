@@ -94,11 +94,12 @@ export default function Layout({ children, currentPageName }) {
         const tutorPages = [
           "TutorDashboard",
           "TutorSignup",
+          "TutorStudents",
           "ParentReports",
           "BookingSettings",
         ];
         const allTeacherPages = [
-          "Pricing", "TeacherLiveSession", "LiveSessionBuilder", "LiveSessionHost",
+          "Pricing", "LiveSessionBuilder", "LiveSessionHost",
           "TeacherDashboard", "TeacherClasses", "TeacherClassDetail",
           "TeacherCurricula", "CreateCurriculum", "ManageCurriculum",
           "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics",
@@ -107,13 +108,12 @@ export default function Layout({ children, currentPageName }) {
           ...tutorPages,
         ];
 
-        // Free teachers have live sessions, settings, AND Pricing so they
-        // can always come back to upgrade. New teachers (subscription_status
-        // null) hit this branch too and need Pricing visible. Tutor pages
-        // are also allowed because a brand-new tutor (subscription_status
-        // 'free' until they buy Studio) still needs to see their dashboard.
+        // Free teachers can still build / host live sessions and access
+        // Generate (the new hub) + Settings + Pricing. Tutor pages are
+        // allowed for new tutors whose subscription_status is 'free' until
+        // they buy Studio.
         const freeTeacherPages = [
-          "TeacherLiveSession", "LiveSessionBuilder", "LiveSessionHost",
+          "Generate", "LiveSessionBuilder", "LiveSessionHost",
           "SocraticInquiry", "TeacherSettings", "Pricing",
           ...tutorPages,
         ];
@@ -126,12 +126,12 @@ export default function Layout({ children, currentPageName }) {
           console.log("⚠️ [AUTH] Teacher on invalid page, redirecting");
           console.log("📋 [AUTH] Subscription Status:", user.subscription_status);
           console.log("📋 [AUTH] Allowed pages:", allowedPages);
-          // Redirect free teachers to live sessions, paid teachers to dashboard;
-          // tutors always land on their own dashboard.
+          // Redirect free teachers to /Generate (now the hub), paid teachers
+          // to dashboard; tutors always land on their own dashboard.
           const isTutor = user.new_role === "tutor";
           const redirectPage = isTutor
             ? "TutorDashboard"
-            : (user.subscription_status === 'free' ? "TeacherLiveSession" : "TeacherDashboard");
+            : (user.subscription_status === 'free' ? "Generate" : "TeacherDashboard");
           navigate(createPageUrl(redirectPage), { replace: true });
           return;
         }
