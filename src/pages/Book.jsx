@@ -141,6 +141,17 @@ export default function Book() {
         .select()
         .single();
       if (ierr) throw ierr;
+      // Fire-and-don't-await — the visitor sees confirmation immediately even
+      // if the emails / class-creation take a beat. The function is
+      // idempotent so a retry is safe.
+      try {
+        supabase.functions.invoke("confirmBooking", {
+          body: { booking_id: data?.id },
+        });
+      } catch {
+        // Visitor still saw the booking confirmation page; tutor can pick it
+        // up later from the bookings table.
+      }
       setConfirmed({
         bookedFor,
         bookingId: data?.id,
