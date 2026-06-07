@@ -34,7 +34,8 @@ import {
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
-import CustomizePanel, { DEFAULT_OPTIONS } from "@/components/try/CustomizePanel";
+import CustomizePanel, { DEFAULT_OPTIONS, defaultOptionsForRole } from "@/components/try/CustomizePanel";
+import { getUserRole } from "@/lib/tier";
 import { generateTryPDF } from "@/lib/pdf/generatePDF";
 import { downloadTryWord } from "@/lib/pdf/generateWord";
 import { createPageUrl } from "@/utils";
@@ -122,6 +123,16 @@ export default function Generate() {
       try {
         const me = await quest.auth.me();
         setUser(me);
+        // Switch the customize panel to tutor-tuned defaults (5 MCQs, case
+        // study off, Middle grade) when the user is a tutor. Only applies on
+        // first load — if the user has already started tweaking, leave their
+        // choices alone.
+        setOptions((prev) => {
+          const stillDefault =
+            prev.count === DEFAULT_OPTIONS.count &&
+            prev.includeCaseStudy === DEFAULT_OPTIONS.includeCaseStudy;
+          return stillDefault ? { ...defaultOptionsForRole(getUserRole(me)) } : prev;
+        });
         loadLibrary(me.id);
       } catch (err) {
         console.error("Failed to load teacher context:", err);

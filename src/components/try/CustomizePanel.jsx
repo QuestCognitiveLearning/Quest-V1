@@ -179,3 +179,21 @@ export const DEFAULT_OPTIONS = {
   includeInquiry: true,
   includeAttentionChecks: true,
 };
+
+// Tutors run 30-min 1-on-1 sessions, so fewer MCQs and case study off by
+// default keeps a generated bundle from overflowing the time slot. Teachers
+// keep the classroom-friendly defaults above.
+export const TUTOR_DEFAULT_OPTIONS = {
+  count: 5,
+  difficulty: "medium",
+  gradeLevel: "Middle",
+  includeCaseStudy: false,
+  includeInquiry: true,
+  includeAttentionChecks: true,
+};
+
+// Pick the appropriate default set for a user. Importing tier.js here would
+// create a cycle, so the caller passes the role string directly.
+export function defaultOptionsForRole(role) {
+  return role === "tutor" ? TUTOR_DEFAULT_OPTIONS : DEFAULT_OPTIONS;
+}
