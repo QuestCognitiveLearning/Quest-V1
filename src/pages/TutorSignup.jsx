@@ -561,7 +561,7 @@ export default function TutorSignup() {
                 <Button
                   type="button"
                   className="w-full h-11"
-                  onClick={() => navigate("/LearningHub")}
+                  onClick={() => navigate("/TutorDashboard?welcome=1")}
                 >
                   Take me to my dashboard
                 </Button>

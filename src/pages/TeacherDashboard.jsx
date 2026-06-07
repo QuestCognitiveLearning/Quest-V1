@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import DemoOverlay from "../components/teacher/DemoOverlay";
 import { stringsFor } from "@/lib/i18n/role-strings";
+import { getUserRole } from "@/lib/tier";
 import { format } from "date-fns";
 import {
   BookOpen,
@@ -78,6 +79,15 @@ export default function TeacherDashboard() {
   const loadDashboardData = async () => {
     try {
       const currentUser = await quest.auth.me();
+      // Tutors (new_role='tutor') have their own dashboard at /TutorDashboard
+      // — redirect there so a tutor following any teacher-dashboard link
+      // (including the Stripe success_url for legacy checkouts) lands on the
+      // Studio surface. The session search string is preserved so the
+      // ?checkout=success&welcome=1 banner trigger still fires.
+      if (getUserRole(currentUser) === "tutor") {
+        navigate(`/TutorDashboard${window.location.search || "?welcome=1"}`, { replace: true });
+        return;
+      }
       setTeacher(currentUser);
 
       // Demo gate — fire ONCE per teacher, ever. Three layered guards:

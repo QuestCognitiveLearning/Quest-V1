@@ -33,6 +33,8 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
   const [upgradeKey, setUpgradeKey] = useState("");
   const strings = stringsFor(user);
   const studioOn = isFeatureEnabled(user, "brandingEnabled");
+  const isTutor = user?.new_role === "tutor";
+  const dashboardRoute = isTutor ? "TutorDashboard" : "TeacherDashboard";
 
   useEffect(() => {
     if (user) {
@@ -122,7 +124,7 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
             <Sparkles className="w-4 h-4" />
             <span>Generate</span>
           </button>
-          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("dashboard", "TeacherDashboard") : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "dashboard" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
+          <button onClick={() => (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? handleNavigation("dashboard", dashboardRoute) : null} className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${activeNav === "dashboard" ? "bg-white/20" : (user?.subscription_tier === "premium" || user?.subscription_status === "trial") ? "hover:bg-white/10" : "opacity-40 cursor-not-allowed"}`}>
             <BarChart3 className="w-4 h-4" />
             <span>Dashboard</span>
           </button>

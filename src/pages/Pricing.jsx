@@ -110,11 +110,16 @@ export default function Pricing() {
     }
     setLoading({ tier });
     try {
+      // Studio buyers land on the tutor-specific dashboard with a welcome
+      // banner; Classroom (and legacy premium) buyers continue to the
+      // existing TeacherDashboard. The tier determines the destination so a
+      // Studio account never starts on the classroom-curriculum view.
+      const destination = tier === "studio" ? "TutorDashboard" : "TeacherDashboard";
       const response = await quest.functions.invoke("createCheckout", {
         priceId,
         successUrl: `${window.location.origin}${createPageUrl(
-          "TeacherDashboard"
-        )}?checkout=success`,
+          destination
+        )}?checkout=success&welcome=1`,
         cancelUrl: window.location.href,
       });
       if (response.data?.url) window.location.href = response.data.url;
