@@ -639,6 +639,16 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 
         {stage === "input" && (
           <div className="space-y-5">
+            {/* CustomizePanel sits ABOVE the video picker so the teacher
+                picks what to include BEFORE choosing a source — clicking a
+                search result then fires generation with the current toggle
+                state. */}
+            <CustomizePanel
+              options={options}
+              onChange={setOptions}
+              mode={mode}
+            />
+
             {tab === "youtube" ? (
               <div className="space-y-4">
                 <form
@@ -807,12 +817,6 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                 )}
               </div>
             )}
-
-            <CustomizePanel
-              options={options}
-              onChange={setOptions}
-              mode={mode}
-            />
 
             {error && (
               <p className="text-sm text-red-600" role="alert">

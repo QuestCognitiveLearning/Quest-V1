@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Play, StopCircle, Clock, FileText, X } from "lucide-react";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
+import { generatePDF } from "@/lib/pdf/generatePDF";
 
 function fmtClock(sec) {
   const m = Math.floor(sec / 60);
@@ -123,22 +124,16 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
 
       if (sendReport) {
         try {
-          const { error: fnErr } = await supabase.functions.invoke(
-            "generate-parent-report",
-            {
-              body: {
-                class_id: classId,
-                trigger_type: "session_end",
-                personal_note: personalNote || null,
-              },
-            },
-          );
-          if (fnErr) throw fnErr;
-          toast.success("Report queued — parent will receive it shortly.");
+          await orchestrateParentReport({
+            classId,
+            triggerType: "session_end",
+            personalNote: personalNote || null,
+          });
+          toast.success("Report sent to the parent.");
         } catch (fnErr) {
-          // Edge function may not be deployed yet (Phase 3)
-          console.warn("Parent report function not available:", fnErr);
-          toast.message("Session ended. Parent report will send once the report engine is deployed.");
+          // Edge functions may not be deployed yet (Phase 3 rollout in progress)
+          console.warn("Parent report flow failed:", fnErr);
+          toast.error(fnErr?.message || "Could not send the report. Session is still ended.");
         }
       } else {
         toast.success("Session ended.");
@@ -293,6 +288,54 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
       </div>
     </div>
   );
+}
+
+// Three-step orchestration: server summarizes -> client renders + uploads PDF -> server emails.
+async function orchestrateParentReport({ classId, triggerType, personalNote }) {
+  const { data, error } = await supabase.functions.invoke("generateParentReport", {
+    body: { class_id: classId, trigger_type: triggerType, personal_note: personalNote },
+  });
+  if (error) throw error;
+  if (!data?.report_id) throw new Error("Report generation returned no id.");
+
+  const branding = data.branding
+    ? {
+        logoUrl: data.branding.logo_url,
+        businessName: data.branding.business_name,
+        tutorName: data.branding.tutor_name,
+        contactInfo: [data.branding.contact_email, data.branding.contact_phone]
+          .filter(Boolean)
+          .join(" · "),
+        accentColor: data.branding.accent_color,
+      }
+    : null;
+
+  const pdfBlob = await generatePDF({
+    type: "parentReport",
+    branding,
+    data: {
+      studentName: data.student?.full_name || "Student",
+      dateRangeStart: data.report.date_range_start,
+      dateRangeEnd: data.report.date_range_end,
+      topicsCovered: data.report.topics_covered || [],
+      accuracySummary: data.report.accuracy_summary || {},
+      strengths: data.report.strengths || "",
+      areasToPractice: data.report.areas_to_practice || "",
+      tutorNotes: data.report.tutor_notes || "",
+      questionsForParent: data.report.questions_for_parent || [],
+    },
+  });
+
+  const path = `${data.tutor.id}/${data.report_id}.pdf`;
+  const { error: upErr } = await supabase.storage
+    .from("parent-reports")
+    .upload(path, pdfBlob, { upsert: true, contentType: "application/pdf" });
+  if (upErr) throw upErr;
+
+  const { error: sendErr } = await supabase.functions.invoke("sendParentReport", {
+    body: { report_id: data.report_id },
+  });
+  if (sendErr) throw sendErr;
 }
 
 function PrepCard({ title, body, ctaLabel, href }) {
