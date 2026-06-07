@@ -52,19 +52,32 @@ export default function ManageLiveSession() {
       const sessionData = sessions[0];
       setSession(sessionData);
 
-      // Sessions created from /Generate already have an embedded quiz array
-      // and (optionally) a video_url. Treat content as complete when EITHER
-      // questions are populated OR a case_study scenario is present. We no
-      // longer require video_url since classless live sessions don't always
-      // have a video (e.g. PDF-sourced handouts run live).
-      const hasQuiz = Array.isArray(sessionData.questions) && sessionData.questions.length > 0;
-      const hasCaseStudy = !!sessionData.case_study?.scenario;
+      // /Generate-created sessions arrive with content embedded as JSON on
+      // the row (questions[], case_study, attention_checks). Coerce both
+      // shapes — sometimes PostgREST returns a stringified JSON instead
+      // of a parsed array depending on the column type cast.
+      const rawQuestions = sessionData.questions;
+      const questions = Array.isArray(rawQuestions)
+        ? rawQuestions
+        : typeof rawQuestions === 'string'
+        ? (() => { try { return JSON.parse(rawQuestions); } catch { return []; } })()
+        : [];
+      const rawCs = sessionData.case_study;
+      const caseStudy =
+        rawCs && typeof rawCs === 'object'
+          ? rawCs
+          : typeof rawCs === 'string'
+          ? (() => { try { return JSON.parse(rawCs); } catch { return null; } })()
+          : null;
+
+      const hasQuiz = questions.length > 0;
+      const hasCaseStudy = !!caseStudy?.scenario;
       const contentComplete = hasQuiz || hasCaseStudy;
       setHasContent(contentComplete);
-
-      if (!contentComplete) {
-        setShowVideoModal(true);
-      }
+      // Intentionally never auto-open the video search modal here. /Generate
+      // produces the content client-side and writes it directly to the row;
+      // ManageLiveSession is just the lobby. If a teacher truly needs to
+      // replace the video, they can click the explicit button in the UI.
     } catch (err) {
       console.error("Failed to load session:", err);
     } finally {

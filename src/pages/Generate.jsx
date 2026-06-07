@@ -336,7 +336,10 @@ export default function Generate() {
       join_code: code,
       video_url: videoUrl,
       video_duration: payload?.video?.duration || 0,
-      status: "ready",
+      // 'waiting' is the status TeacherLiveSession looks for ({status in
+      // waiting/active}). 'ready' would never be picked up so Launch would
+      // navigate to an empty page.
+      status: "waiting",
       current_phase: "lobby",
       questions: payload?.quiz || [],
       case_study: payload?.case_study || null,
