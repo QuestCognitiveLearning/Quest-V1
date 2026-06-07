@@ -213,13 +213,11 @@ export default function ManageLiveSession() {
                             </>
                           )}
                         </Button>
-                        <Button
-                          onClick={() => setShowVideoModal(true)}
-                          variant="outline"
-                          className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 px-6"
-                        >
-                          Review & Edit Content
-                        </Button>
+                        {/* The full Session Details card below already shows
+                            video, attention checks, and the rest. Opening
+                            VideoSearchModal here put the user into the empty
+                            video-picker UI which read as 'everything is
+                            blank.' Removed in favor of the inline preview. */}
                       </div>
                     </div>
                   </div>
@@ -253,6 +251,64 @@ export default function ManageLiveSession() {
                           allowFullScreen
                         />
                       </div>
+
+                      {/* Inquiry hook preview */}
+                      {session.inquiry_session?.hook_question && (
+                        <details open className="mb-4 border-2 border-indigo-200 bg-indigo-50/40 rounded-lg p-4">
+                          <summary className="cursor-pointer font-semibold text-gray-900 flex items-center gap-2">
+                            <Badge className="bg-indigo-600 text-white px-3 py-1">Inquiry hook</Badge>
+                          </summary>
+                          <div className="mt-3 grid md:grid-cols-2 gap-4">
+                            {session.inquiry_session?.hook_image_url ? (
+                              <img src={session.inquiry_session.hook_image_url} alt="hook" className="w-full rounded-lg border border-slate-200" />
+                            ) : (
+                              <div className="aspect-video bg-gradient-to-br from-indigo-100 to-blue-100 rounded-lg border border-slate-200 flex items-center justify-center text-xs text-slate-500 px-4 text-center">
+                                {session.inquiry_session?.hook_image_prompt ? 'Image still generating…' : 'No hook image'}
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-semibold text-gray-900 mb-2">{session.inquiry_session.hook_question}</p>
+                              {session.inquiry_session.tutor_first_message && (
+                                <p className="text-sm text-gray-700 italic">{session.inquiry_session.tutor_first_message}</p>
+                              )}
+                            </div>
+                          </div>
+                        </details>
+                      )}
+
+                      {/* Quiz preview */}
+                      {Array.isArray(session.questions) && session.questions.length > 0 && (
+                        <details className="mb-4 border-2 border-emerald-200 bg-emerald-50/40 rounded-lg p-4">
+                          <summary className="cursor-pointer font-semibold text-gray-900 flex items-center gap-2">
+                            <Badge className="bg-emerald-600 text-white px-3 py-1">Quiz · {session.questions.length}</Badge>
+                          </summary>
+                          <ol className="mt-3 space-y-2 list-decimal list-inside text-sm text-gray-800">
+                            {session.questions.map((q, i) => (
+                              <li key={i} className="bg-white p-2.5 rounded border border-emerald-100">
+                                <span className="font-medium">{q.question}</span>
+                                <div className="mt-1 text-xs text-gray-600">Correct: {q.correct_choice}</div>
+                              </li>
+                            ))}
+                          </ol>
+                        </details>
+                      )}
+
+                      {/* Case study preview */}
+                      {session.case_study?.scenario && (
+                        <details className="mb-4 border-2 border-amber-200 bg-amber-50/40 rounded-lg p-4">
+                          <summary className="cursor-pointer font-semibold text-gray-900 flex items-center gap-2">
+                            <Badge className="bg-amber-600 text-white px-3 py-1">Case study</Badge>
+                          </summary>
+                          <p className="mt-3 text-sm text-gray-800 leading-relaxed">{session.case_study.scenario}</p>
+                          {Array.isArray(session.case_study.discussion_questions) && session.case_study.discussion_questions.length > 0 && (
+                            <ol className="mt-3 space-y-1.5 list-decimal list-inside text-sm text-gray-800">
+                              {session.case_study.discussion_questions.map((q, i) => (
+                                <li key={i}>{q}</li>
+                              ))}
+                            </ol>
+                          )}
+                        </details>
+                      )}
 
                       {session.attention_checks && session.attention_checks.length > 0 && (
                         <div>

@@ -467,6 +467,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       questions: payload?.quiz || [],
       case_study: payload?.case_study || null,
       attention_checks: payload?.attention_checks || [],
+      inquiry_session: payload?.inquiry_session || null,
       question_count: payload?.quiz?.length || 0,
       question_difficulty: options?.difficulty || "medium",
       created_by_id: me.id,
