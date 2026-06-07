@@ -15,7 +15,6 @@ import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { quest } from "@/api/questClient";
 import {
   Loader2,
   Trophy,
@@ -605,120 +604,191 @@ function Wrapper({ code, joinCtx, participant, progress, onAdminSkip, children }
 }
 
 // =============================== Views ====================================
-// Inquiry phase 1 — students chat with the Socratic tutor (Panda) about the
-// hook question. The tutor's system prompt + opening line come from the
-// session's inquiry_session blob (set in the builder / Generate handout).
-// We keep the chat short: 2+ student exchanges unlock the Continue button,
-// after which the student moves to the video/quiz phase.
+// Inquiry phase 1 — structured 4-step Socratic flow (Q1 observation FR →
+// Q2 analogy MC → Q3 bridge MC → Q4 transfer FR). Each step round-trips
+// through the public liveSessionSocratic Edge Function which holds the
+// canonical prompts server-side.
 function InquiryView({ inquiry, topic, onContinue }) {
-  const MIN_EXCHANGES = 2;
   const messagesEndRef = useRef(null);
-  // Always open with the same observation prompt — students look at the
-  // hook image and describe what they notice. We seed the first AI turn
-  // ourselves so it shows instantly with no API round-trip.
-  const [messages, setMessages] = useState(() => [
-    {
-      role: "assistant",
-      content: "What do you observe in this image? Share what you notice — anything counts.",
-    },
+  const codeFromUrl = (() => {
+    try {
+      return (new URLSearchParams(window.location.search).get('code') || '').toUpperCase();
+    } catch {
+      return '';
+    }
+  })();
+  const subunitName = topic || "this topic";
+
+  // Phases: q1_fr → q2_mc → q3_mc → q4_fr → complete
+  const [step, setStep] = useState("q1_fr");
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "What do you observe in this image? Share what you notice — anything counts." },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
 
+  // MC state shared across Q2 & Q3
+  const [mc, setMc] = useState(null); // { question, choices, correct_index }
+  const [picked, setPicked] = useState(null);
+  const [picking, setPicking] = useState(false);
+
+  // Memo of student's analogy answer for the Q3 summary step
+  const [analogyAnswer, setAnalogyAnswer] = useState("");
+  const [bridgeQuestion, setBridgeQuestion] = useState("");
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, sending]);
+  }, [messages.length, sending, mc, step]);
 
-  const studentTurns = messages.filter((m) => m.role === "user").length;
-  const canContinue = studentTurns >= MIN_EXCHANGES;
-
-  // Build the per-turn prompt. The first student message is treated as an
-  // "observation" — we use the Q1 acknowledgment style (warm validation,
-  // bold one word, no question). Later turns continue the Socratic flow.
-  const buildPrompt = (transcript, studentTurnIndex) => {
-    const topicLine = `Topic: "${topic || "this topic"}"`;
-    const hookLine = inquiry?.hook_question
-      ? `Inquiry hook question: "${inquiry.hook_question}"\n`
-      : "";
-
-    if (studentTurnIndex === 1) {
-      // First student observation — Q1 FR acknowledgment.
-      const lastObservation = transcript
-        .split("\n")
-        .filter((l) => l.startsWith("Student:"))
-        .pop()
-        ?.replace(/^Student:\s*/, "") || "";
-      return (
-        `You are Quest Panda, a warm Socratic tutor.\n` +
-        `${topicLine}\n${hookLine}` +
-        `Student's observation of the image: "${lastObservation}"\n\n` +
-        `In 1–2 sentences, warmly acknowledge what they noticed — pick up on a ` +
-        `specific word they used (use **bold**). Do NOT ask a question. ` +
-        `Just validate their thinking and say you'll explore this together.`
-      );
+  // Single helper for all Edge Function calls.
+  const callSocratic = async (payload) => {
+    const { data, error } = await supabase.functions.invoke("liveSessionSocratic", {
+      body: { code: codeFromUrl, subunitName, ...payload },
+    });
+    if (error || data?.error) {
+      throw new Error(data?.error || error?.message || "Tutor unavailable");
     }
-
-    // Subsequent turns — open Socratic dialogue, one question at a time.
-    const systemPrompt =
-      inquiry?.socratic_system_prompt?.trim() ||
-      `You are Quest Panda, a warm Socratic tutor. The student has NOT learned ` +
-        `"${topic || "this topic"}" yet. Guide them to think with everyday intuition. ` +
-        `Never give direct answers. Bold one key word. Keep replies under 3 sentences.`;
-    return (
-      `${systemPrompt}\n\n` +
-      `${topicLine}\n${hookLine}` +
-      `Conversation so far:\n${transcript}\n\n` +
-      `Reply as Panda in 1–3 sentences. Ask one short Socratic question (under 12 words).`
-    );
+    return data;
   };
 
-  const send = async () => {
+  const addAssistant = (content) =>
+    setMessages((prev) => [...prev, { role: "assistant", content }]);
+  const addStudent = (content) =>
+    setMessages((prev) => [...prev, { role: "user", content }]);
+
+  // ---- Q1: observation FR ------------------------------------------------
+  const submitObservation = async () => {
     const text = input.trim();
     if (!text || sending) return;
     setInput("");
-    const next = [...messages, { role: "user", content: text }];
-    setMessages(next);
+    addStudent(text);
     setSending(true);
     try {
-      const transcript = next
-        .map((m) => (m.role === "user" ? `Student: ${m.content}` : `Panda: ${m.content}`))
-        .join("\n");
-      const studentTurnIndex = next.filter((m) => m.role === "user").length;
-      const reply = await quest.integrations.Core.InvokeLLM({
-        model: "gpt-4.1-mini",
-        prompt: buildPrompt(transcript, studentTurnIndex),
-      });
-      const replyText = typeof reply === "string" ? reply : (reply?.text || JSON.stringify(reply));
-      setMessages((prev) => [...prev, { role: "assistant", content: replyText }]);
+      const r = await callSocratic({ step: "q1_ack", observation: text });
+      addAssistant(r.reply);
+      // Move straight into Q2 — generate analogy MC.
+      setStep("q2_mc");
+      const q2 = await callSocratic({ step: "q2_mc_generate" });
+      setMc(q2);
+      addAssistant(q2.question);
     } catch (err) {
-      console.warn("Socratic reply failed:", err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Hmm, I lost my train of thought. What were you thinking about that?",
-        },
-      ]);
+      console.warn("Q1 failed:", err);
+      addAssistant("Hmm, I couldn't think of a good follow-up. Try again?");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ---- Q2: analogy MC pick -----------------------------------------------
+  const pickQ2 = async (idx) => {
+    if (picking || picked !== null) return;
+    setPicked(idx);
+    setPicking(true);
+    setAnalogyAnswer(mc.choices[idx]);
+    addStudent(`I picked: ${mc.choices[idx]}`);
+    try {
+      const wasCorrect = idx === mc.correct_index;
+      const r = await callSocratic({
+        step: "q2_ack",
+        currentMcQuestion: mc.question,
+        choiceText: mc.choices[idx],
+        correctChoice: mc.choices[mc.correct_index],
+        wasCorrect,
+      });
+      addAssistant(r.reply);
+      setBridgeQuestion(r.bridgeQuestion);
+      // Move to Q3 — generate bridge MC.
+      setStep("q3_mc");
+      setMc(null);
+      setPicked(null);
+      const q3 = await callSocratic({
+        step: "q3_mc_generate",
+        bridgeQuestion: r.bridgeQuestion,
+      });
+      setMc(q3);
+      addAssistant(r.bridgeQuestion);
+    } catch (err) {
+      console.warn("Q2 failed:", err);
+      addAssistant("Hmm, I lost track. Pick again?");
+      setPicked(null);
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  // ---- Q3: bridge MC pick → summary --------------------------------------
+  const pickQ3 = async (idx) => {
+    if (picking || picked !== null) return;
+    setPicked(idx);
+    setPicking(true);
+    addStudent(`I picked: ${mc.choices[idx]}`);
+    try {
+      const wasCorrect = idx === mc.correct_index;
+      const r = await callSocratic({
+        step: "q3_summary",
+        analogyAnswer,
+        choiceText: mc.choices[idx],
+        correctChoice: mc.choices[mc.correct_index],
+        wasCorrect,
+      });
+      addAssistant(r.reply);
+      // Q4 — show the inquiry hook question and wait for a FR.
+      setStep("q4_fr");
+      setMc(null);
+      setPicked(null);
+      const hookQ =
+        inquiry?.hook_question ||
+        "What's one new connection you're noticing about this topic?";
+      addAssistant(hookQ);
+    } catch (err) {
+      console.warn("Q3 failed:", err);
+      addAssistant("Hmm, I lost track. Try again?");
+      setPicked(null);
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  // ---- Q4: final transfer FR ---------------------------------------------
+  const submitFinal = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    setInput("");
+    addStudent(text);
+    setSending(true);
+    try {
+      const r = await callSocratic({
+        step: "q4_ack",
+        inquiryHookQuestion: inquiry?.hook_question || "",
+        studentAnswer: text,
+      });
+      addAssistant(r.reply);
+      setStep("complete");
+    } catch (err) {
+      console.warn("Q4 failed:", err);
+      addAssistant("Great thinking! Let's keep going.");
+      setStep("complete");
     } finally {
       setSending(false);
     }
   };
 
   const onKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    if (step === "q1_fr") submitObservation();
+    else if (step === "q4_fr") submitFinal();
   };
+
+  const showInput = step === "q1_fr" || step === "q4_fr";
+  const showMc = (step === "q2_mc" || step === "q3_mc") && mc && picked === null;
+  const showContinue = step === "complete";
 
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-md">
       <div className="inline-flex items-center gap-1.5 bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3">
         <Sparkles className="w-3 h-3" /> Think first with Panda
       </div>
-      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
-        {inquiry?.hook_question}
-      </h2>
       {inquiry?.hook_image_url && (
         <img
           src={inquiry.hook_image_url}
@@ -727,7 +797,7 @@ function InquiryView({ inquiry, topic, onContinue }) {
         />
       )}
 
-      <div className="border border-slate-200 rounded-2xl bg-slate-50 p-3 max-h-[360px] overflow-y-auto mb-3 space-y-2">
+      <div className="border border-slate-200 rounded-2xl bg-slate-50 p-3 max-h-[400px] overflow-y-auto mb-3 space-y-2">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -749,7 +819,7 @@ function InquiryView({ inquiry, topic, onContinue }) {
             </div>
           </div>
         ))}
-        {sending && (
+        {(sending || picking) && (
           <div className="flex justify-start">
             <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-3.5 py-2 text-sm text-slate-500 inline-flex items-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -760,39 +830,55 @@ function InquiryView({ inquiry, topic, onContinue }) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="flex items-end gap-2 mb-3">
-        <Textarea
-          rows={2}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          disabled={sending}
-          placeholder="Type your thinking — even a guess is good."
-          className="resize-none flex-1"
-        />
-        <Button
-          onClick={send}
-          disabled={!input.trim() || sending}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white h-[58px] px-4"
-        >
-          <Send className="w-4 h-4" />
-        </Button>
-      </div>
+      {showMc && (
+        <div className="space-y-2 mb-3">
+          {mc.choices.map((choice, idx) => (
+            <button
+              key={idx}
+              onClick={() => (step === "q2_mc" ? pickQ2(idx) : pickQ3(idx))}
+              disabled={picking}
+              className="w-full text-left p-3.5 rounded-xl border-2 border-slate-200 bg-white hover:border-indigo-400 hover:bg-indigo-50/40 transition-colors disabled:opacity-50 flex items-center gap-3"
+            >
+              <span className="w-8 h-8 rounded-md bg-slate-100 text-slate-700 font-bold flex items-center justify-center flex-shrink-0">
+                {["A", "B", "C", "D"][idx]}
+              </span>
+              <span className="text-sm text-slate-900">{choice}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] text-slate-500">
-          {canContinue
-            ? "Nice thinking. Continue when you're ready."
-            : `Share at least ${MIN_EXCHANGES} thoughts to continue (${studentTurns}/${MIN_EXCHANGES}).`}
-        </p>
+      {showInput && (
+        <div className="flex items-end gap-2 mb-3">
+          <Textarea
+            rows={2}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={sending}
+            placeholder={step === "q1_fr"
+              ? "Type what you observe — even a guess is good."
+              : "Share your final thinking on the question."}
+            className="resize-none flex-1"
+          />
+          <Button
+            onClick={step === "q1_fr" ? submitObservation : submitFinal}
+            disabled={!input.trim() || sending}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white h-[58px] px-4"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+
+      {showContinue && (
         <Button
           onClick={onContinue}
-          disabled={!canContinue}
-          className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+          className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white"
         >
           Continue
         </Button>
-      </div>
+      )}
     </div>
   );
 }
@@ -999,6 +1085,14 @@ function CaseStudyView({ cs, onDone }) {
 
 function LeaderboardView({ participants, you, ended }) {
   const myRank = participants.findIndex((p) => p.id === you?.id);
+  const handleFinish = () => {
+    try {
+      sessionStorage.removeItem("quest_anon_join");
+    } catch { /* ignore */ }
+    // Send students back to the join page so the device is ready for the
+    // next session / next student.
+    window.location.href = "/Join";
+  };
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-md">
       <div className="text-center mb-5">
@@ -1013,7 +1107,7 @@ function LeaderboardView({ participants, you, ended }) {
           </p>
         )}
       </div>
-      <ol className="space-y-2">
+      <ol className="space-y-2 mb-5">
         {participants.slice(0, 10).map((p, i) => {
           const isMe = p.id === you?.id;
           return (
@@ -1046,6 +1140,14 @@ function LeaderboardView({ participants, you, ended }) {
           );
         })}
       </ol>
+
+      <Button
+        onClick={handleFinish}
+        className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-semibold"
+      >
+        <CheckCircle className="w-5 h-5 mr-2" />
+        Finish &amp; exit
+      </Button>
     </div>
   );
 }

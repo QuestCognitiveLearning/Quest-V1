@@ -1159,13 +1159,13 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                         Saved {new Date(row.created_at).toLocaleDateString()}
                       </p>
                       {!selectMode && (
-                        <div className="flex gap-2 mt-2">
+                        <div className="flex flex-wrap gap-2 mt-2">
                           <Button
                             size="sm"
                             onClick={() => handleRunLiveFromLibrary(row)}
                             className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
                           >
-                            <PlayCircle className="w-3.5 h-3.5" /> Use in live session
+                            <PlayCircle className="w-3.5 h-3.5" /> Run live
                           </Button>
                           <Button
                             size="sm"
@@ -1186,10 +1186,11 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                           <button
                             type="button"
                             onClick={() => handleDeleteFromLibrary(row.id)}
-                            className="ml-auto text-xs text-slate-400 hover:text-red-600"
+                            className="h-8 px-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md flex items-center justify-center ml-auto"
                             title="Delete"
+                            aria-label="Delete"
                           >
-                            Delete
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}
