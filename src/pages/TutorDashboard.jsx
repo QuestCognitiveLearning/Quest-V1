@@ -40,7 +40,13 @@ import { getUserRole, getUserTier } from "@/lib/tier";
 export default function TutorDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Two-phase loading: `userReady` flips as soon as quest.auth.me() resolves
+  // and the access gate passes, so the page can render its skeleton even if
+  // the data fetches take a moment. Individual sections show their own
+  // skeletons until their data lands.
+  const [userReady, setUserReady] = useState(false);
+  const [classesLoading, setClassesLoading] = useState(true);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [classes, setClasses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [recentReports, setRecentReports] = useState([]);
@@ -52,9 +58,11 @@ export default function TutorDashboard() {
     if (url.searchParams.get("welcome") === "1" || url.searchParams.get("checkout") === "success") {
       setShowWelcome(true);
     }
+    let cancelled = false;
     (async () => {
       try {
         const me = await quest.auth.me();
+        if (cancelled) return;
         setUser(me);
         // Access gate: Studio/Enterprise tier OR explicit tutor role can view
         // this page. Buying Studio doesn't automatically promote the role
@@ -79,41 +87,79 @@ export default function TutorDashboard() {
           navigate(createPageUrl("TeacherDashboard"), { replace: true });
           return;
         }
+        // Fire role promotion in the background — don't block render on it.
         if ((isStudioTier || fromCheckout) && !isTutorRole) {
-          try {
-            await quest.entities.User.update(me.id, { new_role: "tutor" });
-          } catch (err) {
-            // Non-fatal — they still see the dashboard this visit; the next
-            // visit will retry the promotion.
-            console.warn("Could not tag user as tutor:", err);
-          }
+          quest.entities.User.update(me.id, { new_role: "tutor" }).catch((err) =>
+            console.warn("Could not tag user as tutor:", err),
+          );
         }
-        const [classData, enrollmentData, reportRes, brandRes] = await Promise.all([
-          quest.entities.Class.filter({ teacher_id: me.id }),
-          quest.entities.StudentEnrollment.list(),
-          supabase
-            .from("parent_reports")
-            .select("id, student_id, sent_at, trigger_type, created_at")
-            .eq("tutor_id", me.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
-          supabase
-            .from("branding")
-            .select("booking_slug, business_name, tutor_name")
-            .eq("user_id", me.id)
-            .maybeSingle(),
-        ]);
-        setClasses(classData || []);
-        const classIds = new Set((classData || []).map((c) => c.id));
-        setEnrollments((enrollmentData || []).filter((e) => classIds.has(e.class_id)));
-        setRecentReports(reportRes?.data || []);
-        setBranding(brandRes?.data || null);
+        setUserReady(true);
+
+        // Branding is cheap (single row, indexed); fetch it eagerly because the
+        // welcome banner reads it.
+        supabase
+          .from("branding")
+          .select("booking_slug, business_name, tutor_name")
+          .eq("user_id", me.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (!cancelled) setBranding(data || null);
+          })
+          .catch(() => {});
+
+        // Classes + (scoped) enrollments together. We MUST get classes first
+        // and then ask the server for enrollments restricted to those class
+        // ids — the previous code did StudentEnrollment.list() which scanned
+        // every enrollment in the database and dragged the dashboard out for
+        // multiple seconds on prod.
+        (async () => {
+          try {
+            const classData = await quest.entities.Class.filter({ teacher_id: me.id });
+            if (cancelled) return;
+            setClasses(classData || []);
+            const classIds = (classData || []).map((c) => c.id);
+            if (classIds.length > 0) {
+              const enrolled = await quest.entities.StudentEnrollment.filter({
+                class_id: classIds,
+              });
+              if (!cancelled) setEnrollments(enrolled || []);
+            } else {
+              setEnrollments([]);
+            }
+          } catch (err) {
+            console.warn("Classes load failed:", err);
+          } finally {
+            if (!cancelled) setClassesLoading(false);
+          }
+        })();
+
+        // Reports separately — never blocks the rest of the page.
+        supabase
+          .from("parent_reports")
+          .select("id, student_id, sent_at, trigger_type, created_at")
+          .eq("tutor_id", me.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+          .then(({ data }) => {
+            if (cancelled) return;
+            setRecentReports(data || []);
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (!cancelled) setReportsLoading(false);
+          });
       } catch (err) {
         console.error("TutorDashboard load failed:", err);
-      } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setUserReady(true);
+          setClassesLoading(false);
+          setReportsLoading(false);
+        }
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   const strings = stringsFor(user);
@@ -160,7 +206,7 @@ export default function TutorDashboard() {
     return (recentReports || []).filter((r) => r.sent_at && new Date(r.sent_at).getTime() >= ms).length;
   }, [recentReports]);
 
-  if (loading) {
+  if (!userReady) {
     return (
       <TeacherLayout user={user} onSignOut={() => quest.auth.logout()} activeNav="dashboard">
         <div className="min-h-screen flex items-center justify-center">
@@ -210,9 +256,9 @@ export default function TutorDashboard() {
           </header>
 
           <div className="grid sm:grid-cols-3 gap-4 mb-8">
-            <Stat icon={Users} label="Active students" value={studentCount} />
-            <Stat icon={Clock} label="Sessions this week" value={sessionsThisWeek} />
-            <Stat icon={FileText} label="Reports sent (7d)" value={reportsThisWeek} />
+            <Stat icon={Users} label="Active students" value={classesLoading ? "—" : studentCount} />
+            <Stat icon={Clock} label="Sessions this week" value={classesLoading ? "—" : sessionsThisWeek} />
+            <Stat icon={FileText} label="Reports sent (7d)" value={reportsLoading ? "—" : reportsThisWeek} />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
@@ -223,13 +269,23 @@ export default function TutorDashboard() {
                   {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
                 </span>
               </header>
-              <SessionList rows={today} emptyText="Nothing on the books today." navigate={navigate} />
+              {classesLoading ? (
+                <SessionSkeleton />
+              ) : (
+                <SessionList rows={today} emptyText="Nothing on the books today." navigate={navigate} />
+              )}
 
               <header className="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-slate-900">Next 7 days</h2>
-                <span className="text-xs text-slate-500">{upcoming.length} scheduled</span>
+                <span className="text-xs text-slate-500">
+                  {classesLoading ? "—" : `${upcoming.length} scheduled`}
+                </span>
               </header>
-              <SessionList rows={upcoming} emptyText="No upcoming sessions scheduled." navigate={navigate} />
+              {classesLoading ? (
+                <SessionSkeleton />
+              ) : (
+                <SessionList rows={upcoming} emptyText="No upcoming sessions scheduled." navigate={navigate} />
+              )}
             </section>
 
             <aside className="space-y-4">
@@ -343,6 +399,22 @@ function SessionList({ rows, emptyText, navigate }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function SessionSkeleton() {
+  return (
+    <div className="px-5 py-3 space-y-3">
+      {[0, 1].map((i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 animate-pulse" />
+          <div className="flex-1">
+            <div className="h-3 w-1/3 bg-slate-100 rounded animate-pulse mb-1.5" />
+            <div className="h-2.5 w-1/2 bg-slate-100 rounded animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
