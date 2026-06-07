@@ -407,15 +407,52 @@ export default function Generate() {
   const handleRunLive = async () => {
     if (!savePicker.classId) {
       setSaveModalOpen(true);
-      toast.info("Pick a class to save the quiz first; live session opens after.");
+      toast.info("Pick a class — the live session will pre-populate after save.");
       return;
     }
     const saved = await handleSave();
-    if (saved?.classId) {
-      navigate(
-        createPageUrl("CreateLiveSession") +
-          `?class_id=${saved.classId}&quiz_id=${saved.quizId}`
-      );
+    if (!saved?.classId) return;
+
+    try {
+      const me = user || (await quest.auth.me());
+
+      // 6-char alphanumeric join code (excludes 0/O/1/I for legibility on
+      // the projected screen).
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      const topic = result?.video?.title || "Quest live session";
+
+      const session = await quest.entities.LiveSession.create({
+        teacher_id: me.id,
+        class_id: saved.classId,
+        title: topic,
+        session_name: topic,
+        subunit_name: topic,
+        session_code: code,
+        join_code: code,
+        video_url: result?.video?.url || "",
+        status: "waiting",
+        current_phase: "lobby",
+        questions: result?.quiz || [],
+        case_study: result?.case_study || null,
+        attention_checks: [],
+        question_count: result?.quiz?.length || 0,
+        question_difficulty: options?.difficulty || "medium",
+        source_subunit_id: saved.subunitId || null,
+        source_quiz_id: saved.quizId || null,
+        created_by_id: me.id,
+        created_by: me.email,
+      });
+
+      toast.success(`Live session ready — code ${code}`);
+      navigate(createPageUrl("ManageLiveSession") + `?sessionId=${session.id}`);
+    } catch (err) {
+      console.error("Live session create failed:", err);
+      toast.error("Could not start live session. Saved to library instead.");
     }
   };
 
