@@ -86,16 +86,26 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
     return () => saveTimer.current && clearTimeout(saveTimer.current);
   }, [notes, klass?.session_notes, klass?.session_started_at, klass?.session_ended_at, klass?.id]);
 
-  const beginSession = async () => {
+  const beginSession = async ({ topics } = {}) => {
     setBusy(true);
     try {
       const startedAt = new Date().toISOString();
+      const update = {
+        session_started_at: startedAt,
+        session_ended_at: null,
+      };
+      if (Array.isArray(topics) && topics.length) {
+        update.session_topics_covered = topics;
+      }
       const { error } = await supabase
         .from("classes")
-        .update({ session_started_at: startedAt, session_ended_at: null })
+        .update(update)
         .eq("id", classId);
       if (error) throw error;
-      setKlass((k) => ({ ...k, session_started_at: startedAt, session_ended_at: null }));
+      setKlass((k) => ({
+        ...k,
+        ...update,
+      }));
       onChanged?.();
     } catch (err) {
       toast.error(err?.message || "Could not start session.");
@@ -300,6 +310,10 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
         error={prepError}
         onLoad={loadPrep}
         studentName={studentName}
+        onUsePlan={(plan) =>
+          beginSession({ topics: plan.map((p) => p.topic) })
+        }
+        busy={busy}
       />
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -324,7 +338,7 @@ export default function TutorSessionPanel({ classId, enrollments, onChanged }) {
   );
 }
 
-function SessionPrepPanel({ prep, loading, error, onLoad, studentName }) {
+function SessionPrepPanel({ prep, loading, error, onLoad, studentName, onUsePlan, busy }) {
   if (!prep && !loading && !error) {
     return (
       <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 flex items-center justify-between">
@@ -405,6 +419,19 @@ function SessionPrepPanel({ prep, loading, error, onLoad, studentName }) {
           </li>
         ))}
       </ul>
+      {plan.length > 0 && onUsePlan && (
+        <div className="flex justify-end mt-3">
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => onUsePlan(plan)}
+            className="gap-2"
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            Use this plan and begin session
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
