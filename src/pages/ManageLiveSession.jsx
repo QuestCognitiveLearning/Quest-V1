@@ -51,13 +51,17 @@ export default function ManageLiveSession() {
 
       const sessionData = sessions[0];
       setSession(sessionData);
-      
-      // Check if content is complete
-      const contentComplete = sessionData.video_url && 
-                            sessionData.questions && 
-                            sessionData.questions.length > 0;
+
+      // Sessions created from /Generate already have an embedded quiz array
+      // and (optionally) a video_url. Treat content as complete when EITHER
+      // questions are populated OR a case_study scenario is present. We no
+      // longer require video_url since classless live sessions don't always
+      // have a video (e.g. PDF-sourced handouts run live).
+      const hasQuiz = Array.isArray(sessionData.questions) && sessionData.questions.length > 0;
+      const hasCaseStudy = !!sessionData.case_study?.scenario;
+      const contentComplete = hasQuiz || hasCaseStudy;
       setHasContent(contentComplete);
-      
+
       if (!contentComplete) {
         setShowVideoModal(true);
       }
