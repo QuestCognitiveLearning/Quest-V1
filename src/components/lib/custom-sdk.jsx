@@ -57,6 +57,11 @@ const TABLE_NAME_OVERRIDES = {
   Branding: "branding",
   Lead: "leads",
   ParentReport: "parent_reports",
+  GeneratedHandout: "generated_handouts",
+  LearningSession: "learning_sessions",
+  LearningSessionItem: "learning_session_items",
+  LearningSessionAssignment: "learning_session_assignments",
+  StudentSessionItemProgress: "student_session_item_progress",
 };
 
 function tableFor(entityName) {

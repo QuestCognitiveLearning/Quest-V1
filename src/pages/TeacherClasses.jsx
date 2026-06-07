@@ -77,11 +77,16 @@ export default function TeacherClasses() {
     try {
       const user = await quest.auth.me();
       const joinCode = generateJoinCode();
-      await quest.entities.Class.create({
+      // curriculum_id is now optional in prod (migration 0017 drops the
+      // NOT NULL constraint). Empty string from the form becomes null so
+      // the server-side FK accepts it.
+      const payload = {
         ...newClass,
+        curriculum_id: newClass.curriculum_id || null,
         teacher_id: user.id,
-        join_code: joinCode
-      });
+        join_code: joinCode,
+      };
+      await quest.entities.Class.create(payload);
 
       // Fire first_class_created if this is the user's first class.
       // The event handler is idempotent — re-firing on every create is fine
@@ -168,7 +173,7 @@ export default function TeacherClasses() {
               </div>
               <Button
                 onClick={tryOpenCreate}
-                disabled={curricula.length === 0}
+                disabled={false}
                 className="bg-white text-[#2563EB] hover:bg-blue-50 font-semibold shadow-md border-0"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
@@ -198,15 +203,25 @@ export default function TeacherClasses() {
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">Curriculum</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
+                  Curriculum <span className="normal-case font-medium text-gray-400">(optional)</span>
+                </label>
                 <Select
                   value={newClass.curriculum_id}
-                  onValueChange={(value) => setNewClass({...newClass, curriculum_id: value})}
+                  onValueChange={(value) =>
+                    setNewClass({
+                      ...newClass,
+                      curriculum_id: value === "__none__" ? "" : value,
+                    })
+                  }
                 >
                   <SelectTrigger className="border-gray-200 rounded-xl">
-                    <SelectValue placeholder="Select a curriculum" />
+                    <SelectValue placeholder="None — I'll just assign learning sessions" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">
+                      None &mdash; learning sessions only
+                    </SelectItem>
                     {curricula.map((curriculum) => (
                       <SelectItem key={curriculum.id} value={curriculum.id}>
                         {curriculum.subject_name} ({curriculum.curriculum_difficulty})
@@ -214,12 +229,15 @@ export default function TeacherClasses() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Skip this if you just want to assign Generated learning sessions to your students.
+                </p>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
               <Button
                 onClick={handleCreateClass}
-                disabled={!newClass.class_name || !newClass.curriculum_id}
+                disabled={!newClass.class_name}
                 className="bg-blue-600 hover:bg-blue-700 rounded-xl"
               >
                 Create Class

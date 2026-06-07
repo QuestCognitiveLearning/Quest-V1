@@ -11,15 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import DemoOverlay from "../components/teacher/DemoOverlay";
 import { format } from "date-fns";
-import { 
-  BookOpen, 
-  Users, 
+import {
+  BookOpen,
+  Users,
   Plus,
   ChevronRight,
   GraduationCap,
   CalendarIcon,
   CheckCircle,
-  Trash2
+  Trash2,
+  Sparkles,
+  Clock,
+  TrendingUp
 } from "lucide-react";
 
 export default function TeacherDashboard() {
@@ -30,6 +33,13 @@ export default function TeacherDashboard() {
   const [units, setUnits] = useState([]);
   const [subunits, setSubunits] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [resourceStats, setResourceStats] = useState({
+    generatedHandouts: 0,
+    quizzes: 0,
+    caseStudies: 0,
+    inquirySessions: 0,
+    subunits: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
@@ -127,11 +137,52 @@ export default function TeacherDashboard() {
       // Auto-select first class
       if (teacherClasses.length > 0) {
         setSelectedClass(teacherClasses[0].id);
-        
+
         const classIds = teacherClasses.map(c => c.id);
         const allAssignments = await quest.entities.Assignment.list();
         const teacherAssignments = allAssignments.filter(a => classIds.includes(a.class_id));
         setAssignments(teacherAssignments);
+      }
+
+      // Resource stats — counted up best-effort so the hero cards always
+      // render even if a single entity fetch fails.
+      try {
+        const subunitIds = new Set();
+        for (const cur of relevantCurricula) {
+          const u = await quest.entities.Unit.filter({ curriculum_id: cur.id });
+          for (const unit of u || []) {
+            const s = await quest.entities.Subunit.filter({ unit_id: unit.id });
+            (s || []).forEach((row) => subunitIds.add(row.id));
+          }
+        }
+        const idsArr = Array.from(subunitIds);
+        // Bulk-fetch all quizzes / case studies for the teacher's subunits.
+        const allQuizzes = await quest.entities.Quiz.list();
+        const allCaseStudies = await quest.entities.CaseStudy.list();
+        const allInquiries = await quest.entities.InquirySession.list();
+        const teacherQuizzes = allQuizzes.filter((q) => idsArr.includes(q.subunit_id));
+        const teacherCaseStudies = allCaseStudies.filter((c) => idsArr.includes(c.subunit_id));
+        const teacherInquiries = allInquiries.filter((i) => idsArr.includes(i.subunit_id));
+
+        let generatedHandoutsCount = 0;
+        try {
+          const handouts = await quest.entities.GeneratedHandout?.filter?.(
+            { teacher_id: currentUser.id }
+          );
+          generatedHandoutsCount = (handouts || []).length;
+        } catch {
+          // Entity may not be registered yet on older deploys.
+        }
+
+        setResourceStats({
+          generatedHandouts: generatedHandoutsCount,
+          quizzes: teacherQuizzes.length,
+          caseStudies: teacherCaseStudies.length,
+          inquirySessions: teacherInquiries.length,
+          subunits: idsArr.length,
+        });
+      } catch (err) {
+        console.warn("Resource stats partial load:", err);
       }
 
       setLoading(false);
@@ -140,6 +191,28 @@ export default function TeacherDashboard() {
       setLoading(false);
     }
   };
+
+  // Hours-saved algorithm. Reasonable averages from teacher interviews:
+  //   - Quiz with 10 MCQs ≈ 60 min to build manually
+  //   - Case study with model answers ≈ 45 min
+  //   - Inquiry session w/ Panda Tutor prompts ≈ 30 min
+  //   - Standalone /Try-style handout ≈ 60 min
+  // Returns whole-number hours, floored at 0.
+  const hoursSaved = Math.max(
+    0,
+    Math.round(
+      resourceStats.quizzes * 1.0 +
+      resourceStats.caseStudies * 0.75 +
+      resourceStats.inquirySessions * 0.5 +
+      resourceStats.generatedHandouts * 1.0
+    )
+  );
+
+  const totalResources =
+    resourceStats.quizzes +
+    resourceStats.caseStudies +
+    resourceStats.inquirySessions +
+    resourceStats.generatedHandouts;
 
   const loadClassSubunits = async (classId) => {
     try {
@@ -283,40 +356,80 @@ export default function TeacherDashboard() {
             </div>
           )}
 
-          <div className="mb-8">
-            <h1 className="text-3xl font-semibold text-black mb-1">Dashboard</h1>
-            <p className="text-sm text-gray-600">Overview of your teaching activities</p>
+          <div className="mb-8 flex items-end justify-between flex-wrap gap-3">
+            <div>
+              <h1 className="text-[34px] font-bold text-slate-900 tracking-tight leading-tight">
+                Welcome back{teacher?.full_name ? `, ${teacher.full_name.split(" ")[0]}` : ""}.
+              </h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Here's what Quest has handled for you so far.
+              </p>
+            </div>
+            <Button
+              onClick={() => navigate(createPageUrl("Generate"))}
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white gap-2 h-11 px-5 shadow-md"
+            >
+              <Sparkles className="w-4 h-4" />
+              Generate something new
+            </Button>
           </div>
 
-        {/* Stats Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card className="border border-gray-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium mb-2">Total Classes</p>
-                  <p className="text-4xl font-bold text-black">{classes.length}</p>
-                </div>
-                <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <Users className="w-7 h-7 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Hero stat: Hours saved */}
+        <div
+          className="rounded-3xl p-7 mb-6 text-white relative overflow-hidden"
+          style={{
+            background:
+              "linear-gradient(135deg, #2563EB 0%, #1D4ED8 50%, #1E40AF 100%)",
+          }}
+        >
+          <div className="absolute -right-10 -top-10 opacity-20">
+            <Clock className="w-40 h-40" />
+          </div>
+          <div className="relative">
+            <div className="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-3">
+              <TrendingUp className="w-3.5 h-3.5" />
+              Hours saved with Quest
+            </div>
+            <p className="text-6xl font-extrabold tracking-tight leading-none">
+              {hoursSaved.toLocaleString()}
+              <span className="text-2xl font-semibold opacity-80 ml-2">hrs</span>
+            </p>
+            <p className="text-sm text-white/80 mt-2 max-w-md">
+              Based on {totalResources.toLocaleString()} AI-generated resources across
+              your curricula, library, and live sessions. Rough math from teacher
+              interviews — actual mileage varies.
+            </p>
+          </div>
+        </div>
 
-          <Card className="border border-gray-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium mb-2">Curriculum Created</p>
-                  <p className="text-4xl font-bold text-black">{curricula.length}</p>
-                </div>
-                <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
-                  <GraduationCap className="w-7 h-7 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Stats row */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <StatCard
+            label="Active classes"
+            value={classes.length}
+            icon={Users}
+            color="blue"
+          />
+          <StatCard
+            label="Curriculums"
+            value={curricula.length}
+            icon={GraduationCap}
+            color="emerald"
+          />
+          <StatCard
+            label="Resources generated"
+            value={totalResources}
+            icon={Sparkles}
+            color="violet"
+            sublabel={`${resourceStats.quizzes} quizzes · ${resourceStats.caseStudies} case studies`}
+          />
+          <StatCard
+            label="Library handouts"
+            value={resourceStats.generatedHandouts}
+            icon={BookOpen}
+            color="amber"
+            sublabel="One-off generations saved for reuse"
+          />
         </div>
 
         {/* Assign Section */}
@@ -465,5 +578,34 @@ export default function TeacherDashboard() {
       </div>
       </TeacherLayout>
     </>
+  );
+}
+
+const COLOR_MAP = {
+  blue:    { bg: "bg-blue-50",    text: "text-blue-600",    border: "border-blue-100" },
+  emerald: { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-100" },
+  violet:  { bg: "bg-violet-50",  text: "text-violet-600",  border: "border-violet-100" },
+  amber:   { bg: "bg-amber-50",   text: "text-amber-600",   border: "border-amber-100" },
+};
+
+function StatCard({ label, value, icon: Icon, color = "blue", sublabel }) {
+  const c = COLOR_MAP[color] || COLOR_MAP.blue;
+  return (
+    <div className={`bg-white rounded-2xl border ${c.border} p-5 hover:shadow-md transition-shadow`}>
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-[12px] font-semibold tracking-wider uppercase text-slate-500">
+          {label}
+        </p>
+        <div className={`w-9 h-9 rounded-lg ${c.bg} flex items-center justify-center`}>
+          <Icon className={`w-4 h-4 ${c.text}`} />
+        </div>
+      </div>
+      <p className="text-3xl font-extrabold text-slate-900 tracking-tight">
+        {Number(value || 0).toLocaleString()}
+      </p>
+      {sublabel ? (
+        <p className="text-xs text-slate-500 mt-1.5">{sublabel}</p>
+      ) : null}
+    </div>
   );
 }

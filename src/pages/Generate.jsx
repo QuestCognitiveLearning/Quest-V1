@@ -91,61 +91,43 @@ export default function Generate() {
   // Result state
   const [result, setResult] = useState(null);
 
-  // Save-to-subunit modal state
-  const [saveModalOpen, setSaveModalOpen] = useState(false);
-  const [curricula, setCurricula] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [units, setUnits] = useState([]);
-  const [subunits, setSubunits] = useState([]);
-  const [savePicker, setSavePicker] = useState({
-    classId: "",
-    unitId: "",
-    subunitId: "",
-    newSubunitName: "",
-    mode: "existing", // existing | new
-  });
+  // Library state — teacher's saved handouts
+  const [library, setLibrary] = useState([]);
+  const [libraryLoading, setLibraryLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Join-code modal shown after "Run as live session" succeeds
+  const [joinModal, setJoinModal] = useState(null); // { sessionId, code, title }
+
+  const loadLibrary = async (teacherId) => {
+    try {
+      setLibraryLoading(true);
+      const rows = await quest.entities.GeneratedHandout?.filter?.(
+        { teacher_id: teacherId },
+        "-created_at",
+        50
+      );
+      setLibrary(rows || []);
+    } catch (err) {
+      console.error("Could not load library:", err);
+      setLibrary([]);
+    } finally {
+      setLibraryLoading(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
       try {
         const me = await quest.auth.me();
         setUser(me);
-        const [cur, cls] = await Promise.all([
-          quest.entities.Curriculum.filter({ teacher_id: me.id }),
-          quest.entities.Class.filter({ teacher_id: me.id }),
-        ]);
-        setCurricula(cur || []);
-        setClasses(cls || []);
+        loadLibrary(me.id);
       } catch (err) {
         console.error("Failed to load teacher context:", err);
+        setLibraryLoading(false);
       }
     })();
   }, []);
-
-  // Load units when a class is picked
-  useEffect(() => {
-    if (!savePicker.classId) {
-      setUnits([]);
-      setSubunits([]);
-      return;
-    }
-    const cls = classes.find((c) => c.id === savePicker.classId);
-    if (!cls) return;
-    quest.entities.Unit.filter({ curriculum_id: cls.curriculum_id })
-      .then((u) => setUnits(u || []))
-      .catch(() => setUnits([]));
-  }, [savePicker.classId, classes]);
-
-  useEffect(() => {
-    if (!savePicker.unitId) {
-      setSubunits([]);
-      return;
-    }
-    quest.entities.Subunit.filter({ unit_id: savePicker.unitId })
-      .then((s) => setSubunits(s || []))
-      .catch(() => setSubunits([]));
-  }, [savePicker.unitId]);
 
   const handlePdfPick = async (file) => {
     if (!file) return;
@@ -286,173 +268,114 @@ export default function Generate() {
     setError("");
   };
 
-  // ---- Save flow ---------------------------------------------------------
-  const persistGeneratedQuiz = async (targetSubunitId) => {
-    if (!result || !targetSubunitId) return null;
-
+  // ---- Library save ------------------------------------------------------
+  const saveToLibrary = async (payload) => {
     const me = user || (await quest.auth.me());
-    const quiz = await quest.entities.Quiz.create({
-      subunit_id: targetSubunitId,
-      quiz_type: "new_topic",
-      created_by_id: me.id,
-      created_by: me.email,
+    const row = await quest.entities.GeneratedHandout.create({
+      teacher_id: me.id,
+      title: payload?.video?.title || "Untitled handout",
+      source_type: tab === "pdf" ? "pdf" : "youtube",
+      source_url: payload?.video?.url || null,
+      payload,
     });
-
-    const LETTER_TO_NUM = { A: 1, B: 2, C: 3, D: 4 };
-    for (let i = 0; i < result.quiz.length; i++) {
-      const q = result.quiz[i];
-      await quest.entities.Question.create({
-        quiz_id: quiz.id,
-        question_text: q.question,
-        choice_1: q.choice_a,
-        choice_2: q.choice_b,
-        choice_3: q.choice_c,
-        choice_4: q.choice_d,
-        correct_choice:
-          LETTER_TO_NUM[String(q.correct_choice || "").toUpperCase()] || 1,
-        question_order: i,
-        difficulty: options.difficulty || "medium",
-        created_by_id: me.id,
-        created_by: me.email,
-      });
-    }
-
-    if (result.case_study?.scenario) {
-      const cs = result.case_study;
-      const prompts = cs.discussion_questions || [];
-      await quest.entities.CaseStudy.create({
-        subunit_id: targetSubunitId,
-        scenario: cs.scenario,
-        question_a: prompts[0] || null,
-        question_b: prompts[1] || null,
-        question_c: prompts[2] || null,
-        question_d: prompts[3] || null,
-        created_by_id: me.id,
-        created_by: me.email,
-      });
-    }
-
-    return quiz.id;
+    return row;
   };
 
-  const handleSave = async () => {
-    if (!savePicker.classId) {
-      toast.error("Pick a class first.");
-      return;
-    }
-    if (savePicker.mode === "existing" && !savePicker.subunitId) {
-      toast.error("Pick a subunit.");
-      return;
-    }
-    if (savePicker.mode === "new" && !savePicker.newSubunitName.trim()) {
-      toast.error("Give your new subunit a name.");
-      return;
-    }
-
+  const handleSaveToLibrary = async () => {
+    if (!result) return;
     setSaving(true);
     try {
-      const cls = classes.find((c) => c.id === savePicker.classId);
-      let targetSubunitId = savePicker.subunitId;
-
-      if (savePicker.mode === "new") {
-        let unitId = savePicker.unitId;
-        if (!unitId) {
-          // Auto-create a unit if the user picked none.
-          const me = user || (await quest.auth.me());
-          const newUnit = await quest.entities.Unit.create({
-            curriculum_id: cls.curriculum_id,
-            unit_name: "Generated content",
-            unit_order: (units?.length || 0) + 1,
-            created_by_id: me.id,
-            created_by: me.email,
-          });
-          unitId = newUnit.id;
-        }
-        const me2 = user || (await quest.auth.me());
-        const newSubunit = await quest.entities.Subunit.create({
-          unit_id: unitId,
-          subunit_name: savePicker.newSubunitName.trim(),
-          subunit_order: (subunits?.length || 0) + 1,
-          created_by_id: me2.id,
-          created_by: me2.email,
-        });
-        targetSubunitId = newSubunit.id;
-      }
-
-      const quizId = await persistGeneratedQuiz(targetSubunitId);
+      await saveToLibrary(result);
       toast.success("Saved to your library");
-      setSaveModalOpen(false);
-      return { quizId, subunitId: targetSubunitId, classId: savePicker.classId };
+      if (user?.id) loadLibrary(user.id);
     } catch (err) {
       console.error("Save failed:", err);
       toast.error(err?.message || "Save failed");
-      return null;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSaveAndOpen = async () => {
-    const saved = await handleSave();
-    if (saved?.subunitId) {
-      navigate(
-        createPageUrl("ManageCurriculum") +
-          `?curriculum_id=${
-            classes.find((c) => c.id === saved.classId)?.curriculum_id || ""
-          }`
-      );
+  // 6-char alphanumeric join code, avoiding 0/O/1/I for readability on a
+  // projected screen.
+  const mintJoinCode = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
+    return code;
+  };
+
+  const startLiveSessionFromPayload = async (payload, opts = {}) => {
+    if (!payload) return null;
+    const me = user || (await quest.auth.me());
+    const code = mintJoinCode();
+    const topic = payload?.video?.title || opts.title || "Quest live session";
+    const session = await quest.entities.LiveSession.create({
+      teacher_id: me.id,
+      class_id: null,
+      title: topic,
+      session_name: topic,
+      subunit_name: topic,
+      session_code: code,
+      join_code: code,
+      video_url: payload?.video?.url || "",
+      status: "waiting",
+      current_phase: "lobby",
+      questions: payload?.quiz || [],
+      case_study: payload?.case_study || null,
+      attention_checks: [],
+      question_count: payload?.quiz?.length || 0,
+      question_difficulty: options?.difficulty || "medium",
+      created_by_id: me.id,
+      created_by: me.email,
+    });
+    return { sessionId: session.id, code, title: topic };
   };
 
   const handleRunLive = async () => {
-    if (!savePicker.classId) {
-      setSaveModalOpen(true);
-      toast.info("Pick a class — the live session will pre-populate after save.");
-      return;
-    }
-    const saved = await handleSave();
-    if (!saved?.classId) return;
-
+    if (!result) return;
+    setSaving(true);
     try {
-      const me = user || (await quest.auth.me());
-
-      // 6-char alphanumeric join code (excludes 0/O/1/I for legibility on
-      // the projected screen).
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      // Auto-save to library on first live session so the teacher always
+      // has the content even if they navigate away mid-game.
+      let savedPayload = result;
+      try {
+        await saveToLibrary(result);
+        if (user?.id) loadLibrary(user.id);
+      } catch (err) {
+        console.warn("Library save failed (non-fatal):", err);
       }
-
-      const topic = result?.video?.title || "Quest live session";
-
-      const session = await quest.entities.LiveSession.create({
-        teacher_id: me.id,
-        class_id: saved.classId,
-        title: topic,
-        session_name: topic,
-        subunit_name: topic,
-        session_code: code,
-        join_code: code,
-        video_url: result?.video?.url || "",
-        status: "waiting",
-        current_phase: "lobby",
-        questions: result?.quiz || [],
-        case_study: result?.case_study || null,
-        attention_checks: [],
-        question_count: result?.quiz?.length || 0,
-        question_difficulty: options?.difficulty || "medium",
-        source_subunit_id: saved.subunitId || null,
-        source_quiz_id: saved.quizId || null,
-        created_by_id: me.id,
-        created_by: me.email,
-      });
-
-      toast.success(`Live session ready — code ${code}`);
-      navigate(createPageUrl("ManageLiveSession") + `?sessionId=${session.id}`);
+      const created = await startLiveSessionFromPayload(savedPayload);
+      if (created) setJoinModal(created);
     } catch (err) {
       console.error("Live session create failed:", err);
-      toast.error("Could not start live session. Saved to library instead.");
+      toast.error("Could not start live session.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRunLiveFromLibrary = async (row) => {
+    try {
+      const created = await startLiveSessionFromPayload(row.payload, {
+        title: row.title,
+      });
+      if (created) setJoinModal(created);
+    } catch (err) {
+      console.error("Live session create failed:", err);
+      toast.error("Could not start live session.");
+    }
+  };
+
+  const handleDeleteFromLibrary = async (rowId) => {
+    if (!window.confirm("Delete this handout from your library?")) return;
+    try {
+      await quest.entities.GeneratedHandout.delete(rowId);
+      if (user?.id) loadLibrary(user.id);
+    } catch (err) {
+      toast.error("Could not delete.");
     }
   };
 
@@ -728,13 +651,15 @@ export default function Generate() {
         {stage === "result" && result && (
           <div className="space-y-5">
             <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-3 flex flex-wrap gap-2 shadow-sm">
-              <Button onClick={() => setSaveModalOpen(true)} className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]">
-                <Save className="w-4 h-4" /> Save to class
+              <Button
+                onClick={handleSaveToLibrary}
+                disabled={saving}
+                className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save to library
               </Button>
-              <Button onClick={handleSaveAndOpen} variant="outline" className="gap-2">
-                <Library className="w-4 h-4" /> Save &amp; open in curriculum
-              </Button>
-              <Button onClick={handleRunLive} variant="outline" className="gap-2">
+              <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                 <PlayCircle className="w-4 h-4" /> Run as live session
               </Button>
               <Button onClick={handleDownloadPDF} variant="outline" className="gap-2">
@@ -751,136 +676,134 @@ export default function Generate() {
             <ResultPreview result={result} />
           </div>
         )}
+
+        {/* Library section — always visible (when not actively generating) */}
+        {stage !== "generating" && (
+          <section className="mt-12">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Library className="w-5 h-5 text-[#2563EB]" />
+                  Your library
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Generated handouts you can run live anytime &mdash; no class required.
+                </p>
+              </div>
+              {library.length > 0 && (
+                <span className="text-xs text-slate-500">{library.length} item{library.length === 1 ? "" : "s"}</span>
+              )}
+            </div>
+
+            {libraryLoading ? (
+              <div className="text-center py-10 text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              </div>
+            ) : library.length === 0 ? (
+              <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-10 text-center">
+                <Library className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm text-slate-500">
+                  Nothing saved yet. Generate a quiz above and hit <strong>Save to library</strong>.
+                </p>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {library.map((row) => (
+                  <div
+                    key={row.id}
+                    className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col gap-2 hover:border-[#2563EB] transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-slate-900 line-clamp-2">
+                        {row.title}
+                      </h3>
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 shrink-0">
+                        {row.source_type}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {(row.payload?.quiz?.length || 0)} questions{row.payload?.case_study?.scenario ? " · 1 case study" : ""}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Saved {new Date(row.created_at).toLocaleDateString()}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleRunLiveFromLibrary(row)}
+                        className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
+                      >
+                        <PlayCircle className="w-3.5 h-3.5" /> Run live
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setResult(row.payload) || setStage("result")}
+                        className="h-8 px-3 text-xs"
+                      >
+                        Open
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFromLibrary(row.id)}
+                        className="ml-auto text-xs text-slate-400 hover:text-red-600"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
-      {/* Save modal */}
-      {saveModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Save to your library</h3>
-
-            <label className="block text-xs font-semibold tracking-wider uppercase text-slate-500 mb-1.5">
-              Class
-            </label>
-            <Select
-              value={savePicker.classId}
-              onValueChange={(v) =>
-                setSavePicker((p) => ({
-                  ...p,
-                  classId: v,
-                  unitId: "",
-                  subunitId: "",
-                }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pick a class" />
-              </SelectTrigger>
-              <SelectContent>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.class_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {savePicker.classId && (
-              <>
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => setSavePicker((p) => ({ ...p, mode: "existing" }))}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold ${
-                      savePicker.mode === "existing"
-                        ? "bg-[#2563EB] text-white"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    Existing subunit
-                  </button>
-                  <button
-                    onClick={() => setSavePicker((p) => ({ ...p, mode: "new" }))}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold ${
-                      savePicker.mode === "new"
-                        ? "bg-[#2563EB] text-white"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    New subunit
-                  </button>
-                </div>
-
-                <label className="block text-xs font-semibold tracking-wider uppercase text-slate-500 mt-3 mb-1.5">
-                  Unit
-                </label>
-                <Select
-                  value={savePicker.unitId}
-                  onValueChange={(v) =>
-                    setSavePicker((p) => ({ ...p, unitId: v, subunitId: "" }))
-                  }
+      {/* Join code modal */}
+      {joinModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-7">
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3">
+                <PlayCircle className="w-3.5 h-3.5" /> Live session ready
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-1">{joinModal.title}</h3>
+              <p className="text-sm text-slate-500 mb-5">
+                Students join at <strong>questlearning.co/join</strong> with this code:
+              </p>
+              <div className="bg-slate-900 text-white rounded-xl py-6 px-4 mb-5">
+                <p className="text-[44px] font-extrabold tracking-[0.2em] font-mono">
+                  {joinModal.code}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(joinModal.code);
+                    toast.success("Code copied");
+                  }}
+                  variant="outline"
+                  className="gap-2"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pick a unit (optional for new)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.unit_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {savePicker.mode === "existing" ? (
-                  <>
-                    <label className="block text-xs font-semibold tracking-wider uppercase text-slate-500 mt-3 mb-1.5">
-                      Subunit
-                    </label>
-                    <Select
-                      value={savePicker.subunitId}
-                      onValueChange={(v) =>
-                        setSavePicker((p) => ({ ...p, subunitId: v }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pick a subunit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subunits.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.subunit_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </>
-                ) : (
-                  <>
-                    <label className="block text-xs font-semibold tracking-wider uppercase text-slate-500 mt-3 mb-1.5">
-                      New subunit name
-                    </label>
-                    <Input
-                      value={savePicker.newSubunitName}
-                      onChange={(e) =>
-                        setSavePicker((p) => ({
-                          ...p,
-                          newSubunitName: e.target.value,
-                        }))
-                      }
-                      placeholder="e.g. Photosynthesis basics"
-                    />
-                  </>
-                )}
-              </>
-            )}
-
-            <div className="flex justify-end gap-2 mt-5">
-              <Button variant="outline" onClick={() => setSaveModalOpen(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={saving} className="bg-[#2563EB] hover:bg-[#1D4ED8]">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
-              </Button>
+                  Copy code
+                </Button>
+                <Button
+                  onClick={() =>
+                    navigate(createPageUrl("ManageLiveSession") + `?sessionId=${joinModal.sessionId}`)
+                  }
+                  className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
+                >
+                  Open teacher view <ArrowRight className="w-4 h-4" />
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setJoinModal(null)}
+                  className="text-xs text-slate-400 hover:text-slate-700 mt-2"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
