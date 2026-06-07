@@ -58,10 +58,13 @@ const TABLE_NAME_OVERRIDES = {
   Lead: "leads",
   ParentReport: "parent_reports",
   GeneratedHandout: "generated_handouts",
-  LearningSession: "learning_sessions",
-  LearningSessionItem: "learning_session_items",
-  LearningSessionAssignment: "learning_session_assignments",
-  StudentSessionItemProgress: "student_session_item_progress",
+  // UI keeps "Learning Session" terminology but the underlying table is
+  // lesson_bundles to avoid a name clash with the pre-existing
+  // learning_sessions student-progress table.
+  LearningSession: "lesson_bundles",
+  LearningSessionItem: "lesson_bundle_items",
+  LearningSessionAssignment: "lesson_bundle_assignments",
+  StudentSessionItemProgress: "student_bundle_item_progress",
 };
 
 function tableFor(entityName) {
