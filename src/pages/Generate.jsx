@@ -272,11 +272,15 @@ export default function Generate() {
   // ---- Library save ------------------------------------------------------
   const saveToLibrary = async (payload) => {
     const me = user || (await quest.auth.me());
+    const vid = payload?.video?.videoId;
+    const url = vid
+      ? `https://www.youtube.com/watch?v=${vid}`
+      : (payload?.video?.url || null);
     const row = await quest.entities.GeneratedHandout.create({
       teacher_id: me.id,
       title: payload?.video?.title || "Untitled handout",
       source_type: tab === "pdf" ? "pdf" : "youtube",
-      source_url: payload?.video?.url || null,
+      source_url: url,
       payload,
     });
     return row;
@@ -313,6 +317,15 @@ export default function Generate() {
     const me = user || (await quest.auth.me());
     const code = mintJoinCode();
     const topic = payload?.video?.title || opts.title || "Quest live session";
+
+    // publicTryFunnel returns { videoId, title, channelTitle, thumbnail, ... }
+    // — no `url` field. Reconstruct it so ManageLiveSession doesn't ask the
+    // teacher to re-pick a video they already chose on /Generate.
+    const videoId = payload?.video?.videoId;
+    const videoUrl = videoId
+      ? `https://www.youtube.com/watch?v=${videoId}`
+      : (payload?.video?.url || "");
+
     const session = await quest.entities.LiveSession.create({
       teacher_id: me.id,
       class_id: null,
@@ -321,12 +334,13 @@ export default function Generate() {
       subunit_name: topic,
       session_code: code,
       join_code: code,
-      video_url: payload?.video?.url || "",
-      status: "waiting",
+      video_url: videoUrl,
+      video_duration: payload?.video?.duration || 0,
+      status: "ready",
       current_phase: "lobby",
       questions: payload?.quiz || [],
       case_study: payload?.case_study || null,
-      attention_checks: [],
+      attention_checks: payload?.attention_checks || [],
       question_count: payload?.quiz?.length || 0,
       question_difficulty: options?.difficulty || "medium",
       created_by_id: me.id,
