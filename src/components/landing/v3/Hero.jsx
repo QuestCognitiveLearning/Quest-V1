@@ -131,7 +131,7 @@ export default function Hero() {
   const eyebrow = isStudent
     ? "Inquiry · Instruction · Recalling · Applying"
     : "AI Curriculum · Live Sessions · Parent Reports";
-  const headlinePre = isStudent ? "Learn to" : "Teacher or Tutor?";
+  const headlinePre = isStudent ? "Learn to" : "Teacher?";
   const headlineEm = isStudent ? "remember." : "We save you time.";
   const lede = isStudent
     ? "Inquiry, instruction, recall, and applying — wired into every lesson. Your Knowledge Map shows what you've mastered and what's due."
@@ -218,15 +218,6 @@ export default function Hero() {
                 {ctaLabel}
                 <ArrowRight size={16} strokeWidth={2.2} />
               </button>
-              {!isStudent && (
-                <button
-                  type="button"
-                  onClick={() => navigate("/try")}
-                  className="inline-flex items-center gap-2 h-[50px] px-5 rounded-xl bg-white/80 hover:bg-white border border-[#E2E8F0] hover:border-[#2563EB] text-[#0F172A] hover:text-[#2563EB] font-semibold text-[14.5px] transition-colors"
-                >
-                  Try free YouTube quiz tool
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => setDemoOpen(true)}
