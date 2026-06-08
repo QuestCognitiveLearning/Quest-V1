@@ -940,12 +940,16 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
           </div>
         )}
 
-        {/* Tabs */}
+        {/* Tabs — students only Create from YouTube videos; PDF is a
+            teacher-only source today. */}
         <div className="flex border-b border-slate-200 mb-6 gap-1">
-          {[
-            { id: "youtube", label: "From YouTube", icon: Youtube },
-            { id: "pdf", label: "From PDF", icon: FileText },
-          ].map((t) => (
+          {(isStudent
+            ? [{ id: "youtube", label: "From YouTube", icon: Youtube }]
+            : [
+                { id: "youtube", label: "From YouTube", icon: Youtube },
+                { id: "pdf", label: "From PDF", icon: FileText },
+              ]
+          ).map((t) => (
             <button
               key={t.id}
               type="button"
@@ -1521,7 +1525,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 
 // Banner shown above the Generate page for student accounts. Tracks
 // lifetime free generations against the cap. Clicking Upgrade opens the
-// modal which kicks off Stripe checkout for the $9.99/mo student plan.
+// modal which kicks off Stripe checkout for the $9/mo student plan.
 function StudentUsageBanner({ used, limit, remaining, onUpgrade }) {
   const finite = Number.isFinite(limit);
   if (!finite) return null;
@@ -1542,7 +1546,7 @@ function StudentUsageBanner({ used, limit, remaining, onUpgrade }) {
         </p>
         <p className="text-xs text-slate-600 mt-0.5">
           {exhausted
-            ? "Upgrade to Student Pro for unlimited generations — $9.99/mo, cancel anytime."
+            ? "Upgrade to Student Pro for unlimited generations — $9/mo, cancel anytime."
             : `Used ${used}/${limit}. Upgrade for unlimited generations.`}
         </p>
       </div>
@@ -1550,7 +1554,7 @@ function StudentUsageBanner({ used, limit, remaining, onUpgrade }) {
         onClick={onUpgrade}
         className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
       >
-        Upgrade — $9.99/mo
+        Upgrade — $9/mo
       </Button>
     </div>
   );
@@ -1573,7 +1577,7 @@ function UpgradeModal({ used, limit, onCancel, onUpgrade, upgrading }) {
 
         <div className="border border-slate-200 rounded-xl p-4 mb-4 bg-slate-50">
           <div className="flex items-baseline gap-1 mb-2">
-            <span className="text-3xl font-bold text-slate-900">$9.99</span>
+            <span className="text-3xl font-bold text-slate-900">$9</span>
             <span className="text-sm text-slate-500">/ month</span>
           </div>
           <ul className="text-sm text-slate-700 space-y-1.5">
