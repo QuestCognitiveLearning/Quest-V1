@@ -217,13 +217,23 @@ export default function TeacherDashboard() {
           )
       );
 
-      // Quizzes / case studies / inquiry sessions — list() returns whatever
-      // RLS lets the teacher see, which for these tables is everything they
-      // created. Don't try to scope by subunit — too lossy + a slow walk.
-      counts.quizzes = await safeCount("quizzes", () => quest.entities.Quiz.list());
-      counts.caseStudies = await safeCount("case studies", () => quest.entities.CaseStudy.list());
-      counts.inquirySessions = await safeCount("inquiry sessions", () => quest.entities.InquirySession.list());
-      counts.subunits = await safeCount("subunits", () => quest.entities.Subunit.list());
+      // Quizzes / case studies / inquiry sessions / subunits — scope strictly
+      // to rows this teacher created. .list() returns anything RLS permits,
+      // which on these tables can include other teachers' rows reachable via
+      // shared curricula or class membership — that would inflate Hours Saved
+      // by crediting work this teacher didn't do.
+      counts.quizzes = await safeCount("quizzes", () =>
+        quest.entities.Quiz.filter({ created_by_id: currentUser.id })
+      );
+      counts.caseStudies = await safeCount("case studies", () =>
+        quest.entities.CaseStudy.filter({ created_by_id: currentUser.id })
+      );
+      counts.inquirySessions = await safeCount("inquiry sessions", () =>
+        quest.entities.InquirySession.filter({ created_by_id: currentUser.id })
+      );
+      counts.subunits = await safeCount("subunits", () =>
+        quest.entities.Subunit.filter({ created_by_id: currentUser.id })
+      );
 
       console.log("[dashboard] resource stats:", counts);
       setResourceStats(counts);
@@ -248,6 +258,11 @@ export default function TeacherDashboard() {
   //   3 (curriculum) + 20 × 0.5 (subunits) + 20 × (1.5 + 1.0 + 0.75)
   //   = 3 + 10 + 65 = 78 hours
   // Which is in line with the 60–80 hour Sunday-prep estimates teachers give.
+  // Only count curricula this teacher *created* — not ones they reference
+  // via a class. Sharing a curriculum someone else built didn't save them
+  // the time of building it.
+  const ownCurriculaCount = curricula.filter((c) => c.teacher_id === teacher?.id).length;
+
   const hoursSaved = Math.max(
     0,
     Math.round(
@@ -255,7 +270,7 @@ export default function TeacherDashboard() {
       resourceStats.caseStudies * 1.0 +
       resourceStats.inquirySessions * 0.75 +
       resourceStats.subunits * 0.5 +
-      curricula.length * 3.0 +
+      ownCurriculaCount * 3.0 +
       resourceStats.generatedHandouts * 1.0
     )
   );
