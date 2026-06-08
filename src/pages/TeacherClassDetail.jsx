@@ -18,7 +18,10 @@ import {
   XCircle,
   Trophy,
   Medal,
-  Award
+  Award,
+  Sparkles,
+  Calendar,
+  ChevronRight,
 } from "lucide-react";
 import SubunitProgressModal from "../components/teacher/SubunitProgressModal";
 import DownloadPDFButton from "@/components/shared/pdf/DownloadPDFButton";
@@ -298,7 +301,7 @@ export default function TeacherClassDetail() {
           <Tabs defaultValue="mindmap" className="w-full">
             {/* 4 tabs distributed evenly across the full width. Was `grid-cols-6`
                 which left two empty columns on the right. */}
-            <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
+            <TabsList className="grid w-full grid-cols-5 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
               <TabsTrigger
                 value="mindmap"
                 className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
@@ -312,6 +315,13 @@ export default function TeacherClassDetail() {
               >
                 <Users className="w-4 h-4 mr-2" />
                 Students
+              </TabsTrigger>
+              <TabsTrigger
+                value="sessions"
+                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Sessions
               </TabsTrigger>
               <TabsTrigger
                 value="leaderboard"
@@ -348,8 +358,15 @@ export default function TeacherClassDetail() {
               />
             </TabsContent>
 
+            <TabsContent value="sessions">
+              <AssignedSessionsTab
+                assignedBundles={assignedBundles}
+                students={students}
+              />
+            </TabsContent>
+
             <TabsContent value="leaderboard">
-              <ClassLeaderboard 
+              <ClassLeaderboard
                 students={students}
                 progressData={progressData}
                 subunits={subunits}
@@ -731,6 +748,141 @@ function ClassLeaderboard({ students, progressData, subunits }) {
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+// Per-class view of every assigned learning session + the per-student grade
+// roll-up. Expand a session to see who finished it, when, and what they
+// scored. Mirrors the dashboard's progress block but scoped to one class.
+function AssignedSessionsTab({ assignedBundles, students }) {
+  const [openId, setOpenId] = useState(null);
+
+  if (!assignedBundles || assignedBundles.length === 0) {
+    return (
+      <Card className="border border-gray-200">
+        <CardContent className="py-12 text-center">
+          <Sparkles className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+            No learning sessions assigned to this class yet
+          </h3>
+          <p className="text-sm text-gray-500">
+            Use <strong>Curriculum → Create Curriculum with Quest → Create one learning session</strong> to assign one.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const rosterSize = students?.length || 0;
+
+  return (
+    <div className="space-y-3">
+      {assignedBundles.map((a) => {
+        const completions = a.completions || [];
+        const scored = completions.filter((c) => c.quiz_score_pct !== null && c.quiz_score_pct !== undefined);
+        const avgPct = scored.length
+          ? Math.round(scored.reduce((s, r) => s + Number(r.quiz_score_pct), 0) / scored.length)
+          : null;
+        const ratioPct = rosterSize > 0 ? Math.round((completions.length / rosterSize) * 100) : 0;
+        const isOpen = openId === a.id;
+        const completionByStudent = new Map(completions.map((c) => [c.student_id, c]));
+        return (
+          <Card key={a.id} className="border border-gray-200">
+            <CardContent className="p-0">
+              <button
+                type="button"
+                onClick={() => setOpenId(isOpen ? null : a.id)}
+                className="w-full flex items-center justify-between gap-4 p-4 text-left hover:bg-slate-50/60 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-900 truncate">{a.bundle_title}</p>
+                    <p className="text-xs text-slate-500 inline-flex items-center gap-3 mt-0.5">
+                      <span>
+                        <strong>{completions.length}/{rosterSize}</strong> done
+                      </span>
+                      {avgPct !== null && (
+                        <span>· {avgPct}% avg</span>
+                      )}
+                      {a.due_at && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Due {new Date(a.due_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+              </button>
+
+              <div className="px-4 pb-3">
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-violet-500 transition-all" style={{ width: `${ratioPct}%` }} />
+                </div>
+              </div>
+
+              {isOpen && (
+                <div className="border-t border-slate-100 p-4 bg-slate-50/40">
+                  {rosterSize === 0 ? (
+                    <p className="text-sm text-slate-500 italic text-center py-4">
+                      No students enrolled in this class yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {students.map((s) => {
+                        const c = completionByStudent.get(s.id);
+                        const pct = c?.quiz_score_pct !== null && c?.quiz_score_pct !== undefined
+                          ? Math.round(Number(c.quiz_score_pct))
+                          : null;
+                        const pctColor =
+                          c === undefined ? "text-slate-400" :
+                          pct === null ? "text-slate-500" :
+                          pct >= 75 ? "text-emerald-700" :
+                          pct >= 50 ? "text-amber-700" :
+                          "text-red-700";
+                        return (
+                          <li
+                            key={s.id}
+                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white border border-slate-100"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-slate-900 truncate">
+                                {s.full_name || s.email || "Student"}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                {c?.completed_at
+                                  ? `Done ${new Date(c.completed_at).toLocaleString(undefined, {
+                                      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                                    })}`
+                                  : "Not started"}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-base font-bold tabular-nums ${pctColor}`}>
+                                {c === undefined ? "—" : pct !== null ? `${pct}%` : "—"}
+                              </p>
+                              {c?.quiz_total !== null && c?.quiz_total !== undefined && (
+                                <p className="text-[10px] text-slate-400 tabular-nums">
+                                  {c.quiz_correct ?? 0}/{c.quiz_total}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
