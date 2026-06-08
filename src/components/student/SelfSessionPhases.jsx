@@ -353,8 +353,7 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
       case_study_score: csResult?.score ?? null,
       case_study_max: csResult?.max ?? null,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [phase, quiz.length, quizCorrect, quizPct, acResponses, csResult, onComplete, quizResponses]);
 
   // ===== Render =====
   return (

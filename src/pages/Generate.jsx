@@ -146,6 +146,133 @@ export default function Generate() {
   const studentUsed = user?.student_generations_used ?? 0;
   const studentBlocked = isStudent && !canStudentGenerate(user);
 
+  // Generate a 5-bullet summary client-side after the base publicTryFunnel
+  // returns. We don't gate on this — if it fails, the Summary phase just
+  // gets skipped (the player checks payload.summary.bullets.length).
+  const enrichWithSummary = async (baseData, setProgressive) => {
+    if (!isStudent || !includeSummary) return;
+    if (baseData?.summary?.bullets?.length) return;
+    try {
+      const topic = baseData?.video?.title || pdfTopic || "this topic";
+      const transcriptText = (baseData?.timestamped_segments || [])
+        .map((s) => s.text || "")
+        .join(" ")
+        .slice(0, 6000);
+      const schema = {
+        type: "object",
+        properties: {
+          bullets: {
+            type: "array",
+            items: { type: "string" },
+          },
+        },
+        required: ["bullets"],
+      };
+      const result = await invokeLLM({
+        model: LLM_MODELS.CASE_STUDY_GRADING,
+        prompt: `Write a 5-bullet pre-watch summary for a student about to learn "${topic}". Each bullet should preview ONE key idea they'll see in the video — concise, specific, and curiosity-piquing. No fluff, no introductions. Return JSON.
+
+${transcriptText ? `Reference transcript (for grounding):\n${transcriptText}` : ""}`,
+        response_json_schema: schema,
+      });
+      const bullets = Array.isArray(result?.bullets) ? result.bullets.filter(Boolean).slice(0, 5) : [];
+      if (bullets.length > 0) {
+        setProgressive((prev) =>
+          prev ? { ...prev, summary: { bullets } } : prev,
+        );
+      }
+    } catch (err) {
+      console.warn("Summary generation failed (non-fatal):", err);
+    }
+  };
+
+  // Persist the student-created session: bundle row + student_self_sessions
+  // row (with scheduled date + review-enabled flag). If reviews are enabled
+  // AND the student has already completed it inline, queue 5 review rows
+  // at +1/+3/+7/+14/+30 days.
+  const REVIEW_OFFSETS = [1, 3, 7, 14, 30];
+  const saveStudentSession = async () => {
+    if (!isStudent || !user || !result || saving) return;
+    setSaving(true);
+    try {
+      const vid = result?.video?.videoId;
+      const sourceUrl = vid
+        ? `https://www.youtube.com/watch?v=${vid}`
+        : result?.video?.url || null;
+
+      const { data: bundle, error: bErr } = await supabase
+        .from("lesson_bundles")
+        .insert({
+          teacher_id: user.id,
+          title: result?.video?.title || "My learning session",
+          source_type: tab === "pdf" ? "pdf" : "youtube",
+          source_url: sourceUrl,
+          grade_level: options.gradeLevel || null,
+          payload: result,
+        })
+        .select("id")
+        .single();
+      if (bErr) throw bErr;
+
+      const completion = studentCompletion || null;
+      const completedAt = completion ? new Date().toISOString() : null;
+      const responsesJson = completion
+        ? {
+            quiz_responses: completion.quiz_responses || null,
+            attention_check_responses: completion.attention_check_responses || null,
+            case_study_responses: completion.case_study_responses || null,
+          }
+        : null;
+
+      const { data: selfSession, error: sErr } = await supabase
+        .from("student_self_sessions")
+        .insert({
+          student_id: user.id,
+          bundle_id: bundle.id,
+          scheduled_for: scheduledFor,
+          review_enabled: reviewsEnabled,
+          review_number: 0,
+          completed_at: completedAt,
+          quiz_score_pct: completion?.quiz_score_pct ?? null,
+          case_study_score: completion?.case_study_score ?? null,
+          case_study_max: completion?.case_study_max ?? null,
+          responses: responsesJson,
+        })
+        .select("id")
+        .single();
+      if (sErr) throw sErr;
+
+      if (reviewsEnabled && completion) {
+        const base = new Date(`${scheduledFor}T00:00:00`);
+        const rows = REVIEW_OFFSETS.map((days, idx) => {
+          const d = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+          return {
+            student_id: user.id,
+            bundle_id: bundle.id,
+            scheduled_for: d.toISOString().slice(0, 10),
+            review_enabled: false,
+            parent_session_id: selfSession.id,
+            review_number: idx + 1,
+          };
+        });
+        const { error: rErr } = await supabase.from("student_self_sessions").insert(rows);
+        if (rErr) console.warn("Review queue insert failed (non-fatal):", rErr);
+      }
+
+      setStudentSessionSaved(true);
+      toast.success(
+        completion
+          ? "Saved to your library — reviews queued."
+          : `Saved — appears on your Learning Hub on ${scheduledFor}.`
+      );
+    } catch (err) {
+      console.error("Save self-session failed:", err);
+      toast.error(err?.message || "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Bumps the student counter AFTER a successful generation. Best-effort:
   // a failed bump shouldn't break the user's generation result.
   const incrementStudentGenerations = async () => {
@@ -450,7 +577,10 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       // Wait for inquiry hook + attention checks (when included) before
       // revealing the handout. Keeps the result page from flashing a
       // partial state.
-      await enrichWithCurriculumGeneration(data, setResult);
+      await Promise.all([
+        enrichWithCurriculumGeneration(data, setResult),
+        enrichWithSummary(data, setResult),
+      ]);
       setStage("result");
     } catch (err) {
       setError(err?.message || "Generation failed.");
@@ -484,7 +614,10 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
         setResult(data);
         incrementStudentGenerations();
-        await enrichWithCurriculumGeneration(data, setResult);
+        await Promise.all([
+          enrichWithCurriculumGeneration(data, setResult),
+          enrichWithSummary(data, setResult),
+        ]);
         setStage("result");
       } catch (err) {
         setError(err?.message || "Generation failed.");
@@ -515,7 +648,10 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
         setResult(data);
         incrementStudentGenerations();
-        await enrichWithCurriculumGeneration(data, setResult);
+        await Promise.all([
+          enrichWithCurriculumGeneration(data, setResult),
+          enrichWithSummary(data, setResult),
+        ]);
         setStage("result");
       } catch (err) {
         setError(err?.message || "Generation failed.");
@@ -532,6 +668,8 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
     setPdfTopic("");
     setStage("input");
     setError("");
+    setStudentCompletion(null);
+    setStudentSessionSaved(false);
   };
 
   // ---- Library save ------------------------------------------------------
@@ -829,15 +967,39 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 
         {stage === "input" && (
           <div className="space-y-5">
+            {/* Student-only Learning Session controls — summary toggle,
+                attention checks toggle, scheduled date, and the spaced-
+                repetition review toggle. Hidden for Flashcards mode
+                (which doesn't need scheduling or video extras) and for
+                teachers (they keep the CustomizePanel below). */}
+            {isStudent && studentMode === "learning_session" && (
+              <StudentSessionControls
+                includeSummary={includeSummary}
+                setIncludeSummary={setIncludeSummary}
+                includeAttention={includeAttention}
+                setIncludeAttention={(on) => {
+                  setIncludeAttention(on);
+                  setOptions((o) => ({ ...o, includeAttentionChecks: on }));
+                }}
+                scheduledFor={scheduledFor}
+                setScheduledFor={setScheduledFor}
+                reviewsEnabled={reviewsEnabled}
+                setReviewsEnabled={setReviewsEnabled}
+              />
+            )}
+
             {/* CustomizePanel sits ABOVE the video picker so the teacher
                 picks what to include BEFORE choosing a source — clicking a
                 search result then fires generation with the current toggle
-                state. */}
-            <CustomizePanel
-              options={options}
-              onChange={setOptions}
-              mode={mode}
-            />
+                state. Hidden for students — their controls live in
+                StudentSessionControls above. */}
+            {!isStudent && (
+              <CustomizePanel
+                options={options}
+                onChange={setOptions}
+                mode={mode}
+              />
+            )}
 
             {tab === "youtube" ? (
               <div className="space-y-4">
@@ -1106,13 +1268,55 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
               onStartOver={startOver}
             />
           ) : (
-            <StudentLearningSessionView
-              result={result}
-              enriching={enriching}
-              saving={saving}
-              onSave={handleSaveToLibrary}
-              onStartOver={startOver}
-            />
+            <div className="space-y-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap gap-2 shadow-sm items-center">
+                <div className="text-xs text-slate-600">
+                  Scheduled for <span className="font-semibold text-slate-900">{scheduledFor}</span>
+                  {reviewsEnabled && (
+                    <span className="text-slate-400"> · spaced reviews on</span>
+                  )}
+                </div>
+                <Button
+                  onClick={saveStudentSession}
+                  disabled={saving || studentSessionSaved}
+                  className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8] ml-auto"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {studentSessionSaved
+                    ? "Saved"
+                    : studentCompletion
+                    ? "Save with score"
+                    : "Save to library"}
+                </Button>
+                <Button onClick={startOver} variant="ghost">
+                  Start over
+                </Button>
+              </div>
+
+              <SelfSessionPhases
+                payload={result}
+                onComplete={(payload) => setStudentCompletion(payload)}
+                saving={saving}
+                onSavePrompt={(isSaving, label) => (
+                  <Button
+                    onClick={saveStudentSession}
+                    disabled={isSaving || studentSessionSaved}
+                    className="w-full gap-2 bg-[#2563EB] hover:bg-[#1D4ED8] h-12 text-base font-semibold"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    {studentSessionSaved ? "Saved to library ✓" : label}
+                  </Button>
+                )}
+              />
+            </div>
           )
         )}
 
@@ -1412,6 +1616,95 @@ function UpgradeModal({ used, limit, onCancel, onUpgrade, upgrading }) {
 }
 
 // =========================================================================
+// Student-side pre-generation controls (Learning Session mode only)
+// =========================================================================
+
+// Summary / attention-checks toggles + scheduled date + reviews toggle.
+// Sits above the source picker on the Generate page when a student is
+// in Learning Session mode.
+function StudentSessionControls({
+  includeSummary,
+  setIncludeSummary,
+  includeAttention,
+  setIncludeAttention,
+  scheduledFor,
+  setScheduledFor,
+  reviewsEnabled,
+  setReviewsEnabled,
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="text-sm font-semibold text-slate-900">Customize this session</div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <ToggleRow
+          on={includeSummary}
+          onChange={setIncludeSummary}
+          title="Pre-watch summary"
+          desc="A 5-bullet preview of the key ideas before you watch."
+        />
+        <ToggleRow
+          on={includeAttention}
+          onChange={setIncludeAttention}
+          title="Attention checks"
+          desc="Pop-up MCQs mid-video. You can still skip them."
+        />
+      </div>
+      <div className="border-t border-slate-100 pt-4 grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold tracking-wider uppercase text-slate-500 mb-1.5">
+            Show on Learning Hub on
+          </label>
+          <input
+            type="date"
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
+            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm"
+          />
+        </div>
+        <ToggleRow
+          on={reviewsEnabled}
+          onChange={setReviewsEnabled}
+          title="Spaced-repetition reviews"
+          desc="After you complete this, reviews appear at +1, 3, 7, 14, 30 days."
+        />
+      </div>
+    </div>
+  );
+}
+
+function ToggleRow({ on, onChange, title, desc }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!on)}
+      className={`text-left p-3 rounded-xl border-2 transition-colors ${
+        on
+          ? "border-blue-500 bg-blue-50"
+          : "border-slate-200 bg-white hover:border-slate-300"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">{title}</div>
+          <div className="text-[11.5px] text-slate-500 mt-0.5">{desc}</div>
+        </div>
+        <div
+          className={`w-10 h-6 rounded-full relative transition-colors shrink-0 ${
+            on ? "bg-blue-600" : "bg-slate-300"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
+              on ? "left-[18px]" : "left-0.5"
+            }`}
+          />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// =========================================================================
 // Student-side post-generation views
 // =========================================================================
 
@@ -1532,12 +1825,12 @@ function StudentFlashcardsView({ result, saving, onSave, onStartOver }) {
   );
 }
 
-// Inline phased learning session — student walks the bundle right here
-// in Generate (video → quiz → case study → done). Lighter than
-// AssignedSessionPlay because no completion is persisted; the Save
-// button just snapshots the bundle into the library so the student can
-// open it later. Reuses the result payload as-is.
-function StudentLearningSessionView({ result, enriching, saving, onSave, onStartOver }) {
+// Inline phased learning session — superseded by SelfSessionPhases.
+// Old body removed; the import-from-component path is the only renderer now.
+function _StudentLearningSessionView_unused() {
+  return null;
+  /* eslint-disable */
+  function __dead() {
   const video = result?.video || {};
   const quiz = Array.isArray(result?.quiz) ? result.quiz : [];
   const caseStudy = result?.case_study || null;
@@ -1762,6 +2055,8 @@ function StudentLearningSessionView({ result, enriching, saving, onSave, onStart
       )}
     </div>
   );
+  }
+  /* eslint-enable */
 }
 
 // Step row inside the "Generating…" panel. Three visual states:
