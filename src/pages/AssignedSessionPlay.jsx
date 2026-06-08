@@ -1,12 +1,18 @@
 /**
- * AssignedSessionPlay — student-facing player for a teacher-assigned
- * learning session bundle. Walks the bundle payload inline (no slideshow):
- * inquiry hook → video → quiz → case study.
+ * AssignedSessionPlay — student-facing phased player for a teacher-assigned
+ * learning session bundle. Walks the bundle in distinct phases like the
+ * LiveSessionPlay UX (one screen at a time, Continue advances), but with
+ * no live-session participant/leaderboard machinery.
  *
- * Progress is tracked in student_bundle_completion at the
- * (student_id, assignment_id) grain. If the student already submitted,
- * their answers are re-hydrated and the quiz locks; "Try again" wipes
- * the row so they can re-attempt.
+ * Phase order: inquiry → video → quiz → case study → results.
+ * Each phase is included only if the payload has the matching content.
+ * Quiz phase walks one question at a time; the answer auto-reveals on
+ * pick and "Next question" advances. The results phase computes the
+ * final score and writes a row to student_bundle_completion.
+ *
+ * If the student already submitted before, we re-hydrate the saved
+ * answers and jump straight to the results phase with a "Try again"
+ * button that wipes the completion row and resets to phase 0.
  *
  * RLS requirements:
  *   - 0029 + 0030: students SELECT lesson_bundle_assignments + lesson_bundles
@@ -21,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   ArrowLeft,
+  ArrowRight,
   Loader2,
   PlayCircle,
   HelpCircle,
@@ -29,6 +36,8 @@ import {
   XCircle,
   Trophy,
   RotateCcw,
+  BookOpen,
+  Send,
 } from "lucide-react";
 
 const LETTERS = ["a", "b", "c", "d"];
@@ -44,7 +53,9 @@ export default function AssignedSessionPlay() {
   const [assignment, setAssignment] = useState(null);
   const [bundle, setBundle] = useState(null);
 
-  // Per-question selected letter + revealed state
+  // Walk state
+  const [phaseIdx, setPhaseIdx] = useState(0);
+  const [qIdx, setQIdx] = useState(0);
   const [selected, setSelected] = useState({}); // { [qIdx]: 'a' }
   const [revealed, setRevealed] = useState({}); // { [qIdx]: true }
 
@@ -84,9 +95,7 @@ export default function AssignedSessionPlay() {
       if (bErr) throw bErr;
       setBundle(bRow);
 
-      // Existing completion? Re-hydrate state so the quiz locks in
-      // whatever the student picked last time. .maybeSingle() returns null
-      // (not an error) when there's no row.
+      // Existing completion? Re-hydrate answers and jump to results.
       const { data: cRow } = await supabase
         .from("student_bundle_completion")
         .select("*")
@@ -127,32 +136,66 @@ export default function AssignedSessionPlay() {
     return null;
   }, [video.videoId]);
 
-  const isLocked = !!completion;
-  const answeredCount = Object.keys(selected).length;
-  const allAnswered = quiz.length > 0 && answeredCount === quiz.length;
+  const phases = useMemo(() => {
+    const out = [];
+    if (inquiry?.hook_question) out.push("inquiry");
+    if (videoEmbedSrc || bundle?.source_url) out.push("video");
+    if (quiz.length > 0) out.push("quiz");
+    if (caseStudy?.scenario) out.push("case_study");
+    out.push("results");
+    return out;
+  }, [inquiry, videoEmbedSrc, bundle?.source_url, quiz.length, caseStudy]);
 
-  const choose = (qIdx, letter) => {
-    if (isLocked) return;
+  // If they've already submitted, jump straight to results on first render.
+  useEffect(() => {
+    if (completion && phases.length > 0) {
+      setPhaseIdx(phases.length - 1);
+    }
+  }, [completion, phases.length]);
+
+  const currentPhase = phases[phaseIdx];
+
+  const goNext = () => {
+    setPhaseIdx((i) => Math.min(i + 1, phases.length - 1));
+  };
+
+  const goPrev = () => {
+    setPhaseIdx((i) => Math.max(i - 1, 0));
+  };
+
+  // ---- Quiz interaction ----
+  const choose = (letter) => {
+    if (revealed[qIdx] || completion) return;
     setSelected((prev) => ({ ...prev, [qIdx]: letter }));
-    // Auto-reveal the moment a letter is picked so students see correctness
-    // inline as they go — matches the existing single-question reveal UX.
     setRevealed((prev) => ({ ...prev, [qIdx]: true }));
   };
+
+  const nextQuestion = () => {
+    if (qIdx + 1 < quiz.length) {
+      setQIdx((i) => i + 1);
+    } else {
+      goNext();
+    }
+  };
+
+  // ---- Submit + retry ----
+  const computeResponses = () =>
+    quiz.map((q, i) => {
+      const picked = selected[i] || null;
+      const correct = (q.correct_choice || "").toLowerCase() || null;
+      return {
+        q_index: i,
+        picked,
+        correct,
+        is_correct: !!picked && !!correct && picked === correct,
+      };
+    });
 
   const handleSubmit = async () => {
     if (!user || !assignment || submitting) return;
     setSubmitting(true);
     try {
-      const responses = quiz.map((q, i) => {
-        const picked = selected[i] || null;
-        const correct = (q.correct_choice || "").toLowerCase() || null;
-        return {
-          q_index: i,
-          picked,
-          correct,
-          is_correct: !!picked && !!correct && picked === correct,
-        };
-      });
+      const responses = computeResponses();
       const total = quiz.length;
       const correct = responses.filter((r) => r.is_correct).length;
       const pct = total > 0 ? Math.round((correct / total) * 100) : null;
@@ -195,6 +238,8 @@ export default function AssignedSessionPlay() {
       setCompletion(null);
       setSelected({});
       setRevealed({});
+      setQIdx(0);
+      setPhaseIdx(0);
     } catch (err) {
       console.error("Retry failed:", err);
     } finally {
@@ -227,25 +272,42 @@ export default function AssignedSessionPlay() {
     );
   }
 
+  // Live computation for results phase (also used to derive sidebar
+  // progress badge during the walk).
+  const liveResponses = computeResponses();
+  const liveCorrect = liveResponses.filter((r) => r.is_correct).length;
+  const livePct = quiz.length > 0 ? Math.round((liveCorrect / quiz.length) * 100) : null;
+
   return (
-    <div className="min-h-screen bg-gray-50" style={{ fontFamily: '"Inter", sans-serif' }}>
+    <div
+      className="min-h-screen"
+      style={{
+        background: "linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 50%, #FAF5FF 100%)",
+        fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
+      }}
+    >
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <button
-          onClick={() => navigate(createPageUrl("LearningHub"))}
-          className="text-sm text-slate-600 hover:text-slate-900 inline-flex items-center gap-1.5 mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Learning Hub
-        </button>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Top bar: back + phase progress */}
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <button
+            onClick={() => navigate(createPageUrl("LearningHub"))}
+            className="text-sm text-slate-600 hover:text-slate-900 inline-flex items-center gap-1.5"
+          >
+            <ArrowLeft className="w-4 h-4" /> Learning Hub
+          </button>
+          <PhaseDots phases={phases} current={phaseIdx} />
+        </div>
 
+        {/* Title */}
         <div className="mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold mb-3">
             <Sparkles className="w-3.5 h-3.5" /> Assigned learning session
           </div>
-          <h1 className="text-3xl font-semibold text-slate-900 mb-1">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-1">
             {bundle?.title || video.title || "Learning session"}
           </h1>
           {assignment?.due_at && (
@@ -255,216 +317,115 @@ export default function AssignedSessionPlay() {
           )}
         </div>
 
-        {completion && (
-          <Card className="border border-emerald-200 bg-emerald-50 mb-6">
-            <CardContent className="p-5 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <Trophy className="w-5 h-5 text-emerald-700" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-emerald-900">
-                    {quiz.length > 0
-                      ? `You scored ${completion.quiz_correct}/${completion.quiz_total} (${completion.quiz_score_pct}%)`
-                      : "Marked complete"}
-                  </p>
-                  <p className="text-xs text-emerald-700">
-                    Submitted {new Date(completion.completed_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                onClick={handleRetry}
-                disabled={submitting}
-                className="border-emerald-300 text-emerald-800 hover:bg-emerald-100"
-              >
-                <RotateCcw className="w-4 h-4 mr-1.5" /> Try again
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {inquiry?.hook_question && (
-          <Card className="border border-slate-200 mb-6">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-3">
-                <HelpCircle className="w-5 h-5 text-amber-600" />
-                <h2 className="text-base font-semibold text-slate-900">Think first</h2>
-              </div>
-              <p className="text-slate-800 leading-relaxed">{inquiry.hook_question}</p>
-              {inquiry.tutor_first_message && (
-                <p className="text-sm text-slate-500 mt-3 italic">{inquiry.tutor_first_message}</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {videoEmbedSrc && (
-          <Card className="border border-slate-200 mb-6 overflow-hidden">
-            <div className="aspect-video bg-black">
-              <iframe
-                src={videoEmbedSrc}
-                title={video.title || "Video"}
-                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full border-0"
-              />
-            </div>
-            {video.title && (
-              <div className="px-4 py-3 flex items-center gap-2 text-sm text-slate-700">
-                <PlayCircle className="w-4 h-4 text-slate-400" />
-                <span className="font-medium">{video.title}</span>
-              </div>
+        {/* Phase body */}
+        {currentPhase === "inquiry" && (
+          <PhaseCard
+            icon={<HelpCircle className="w-5 h-5 text-amber-600" />}
+            title="Think first"
+          >
+            <p className="text-slate-800 leading-relaxed text-lg">{inquiry.hook_question}</p>
+            {inquiry.tutor_first_message && (
+              <p className="text-sm text-slate-500 mt-4 italic">{inquiry.tutor_first_message}</p>
             )}
-          </Card>
+            <PhaseFooter onContinue={goNext} continueLabel="I've thought about it" />
+          </PhaseCard>
         )}
 
-        {!videoEmbedSrc && bundle?.source_url && (
-          <Card className="border border-slate-200 mb-6">
-            <CardContent className="p-4 flex items-center justify-between gap-3">
-              <div className="text-sm text-slate-700">
-                <p className="font-medium">Source material</p>
-                <p className="text-xs text-slate-500 truncate max-w-md">{bundle.source_url}</p>
+        {currentPhase === "video" && (
+          <PhaseCard
+            icon={<PlayCircle className="w-5 h-5 text-blue-600" />}
+            title={video.title || "Watch"}
+          >
+            {videoEmbedSrc ? (
+              <div className="aspect-video bg-black rounded-xl overflow-hidden">
+                <iframe
+                  src={videoEmbedSrc}
+                  title={video.title || "Video"}
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full border-0"
+                />
               </div>
-              <a
-                href={bundle.source_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
-              >
-                Open ↗
-              </a>
-            </CardContent>
-          </Card>
-        )}
-
-        {quiz.length > 0 && (
-          <Card className="border border-slate-200 mb-6">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-base font-semibold text-slate-900">Quiz</h2>
-                  <p className="text-xs text-slate-500">
-                    {quiz.length} questions
-                    {!isLocked && ` · ${answeredCount}/${quiz.length} answered`}
-                  </p>
+            ) : bundle?.source_url ? (
+              <div className="border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div className="text-sm text-slate-700 min-w-0">
+                  <p className="font-medium">Source material</p>
+                  <p className="text-xs text-slate-500 truncate">{bundle.source_url}</p>
                 </div>
-              </div>
-              <ol className="space-y-4">
-                {quiz.map((q, i) => {
-                  const correctLetter = (q.correct_choice || "").toLowerCase();
-                  const isRevealed = !!revealed[i];
-                  const pick = selected[i];
-                  return (
-                    <li key={i} className="border border-slate-200 rounded-xl p-4">
-                      <p className="font-medium text-slate-900 mb-3">
-                        <span className="text-slate-400 mr-2">{i + 1}.</span>
-                        {q.question}
-                      </p>
-                      <ul className="space-y-2">
-                        {LETTERS.map((letter) => {
-                          const text = q[`choice_${letter}`];
-                          if (!text) return null;
-                          const isPicked = pick === letter;
-                          const isCorrect = isRevealed && correctLetter === letter;
-                          const isWrongPick = isRevealed && isPicked && correctLetter !== letter;
-                          return (
-                            <li key={letter}>
-                              <button
-                                onClick={() => choose(i, letter)}
-                                disabled={isLocked}
-                                className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-2 ${
-                                  isCorrect
-                                    ? "border-green-300 bg-green-50 text-green-900"
-                                    : isWrongPick
-                                    ? "border-red-300 bg-red-50 text-red-900"
-                                    : isPicked
-                                    ? "border-blue-400 bg-blue-50 text-blue-900"
-                                    : `border-slate-200 text-slate-800 ${isLocked ? "" : "hover:border-slate-300"}`
-                                }`}
-                              >
-                                <span className="font-semibold w-5">{letter.toUpperCase()}.</span>
-                                <span className="flex-1">{text}</span>
-                                {isCorrect && <CheckCircle2 className="w-4 h-4 text-green-600" />}
-                                {isWrongPick && <XCircle className="w-4 h-4 text-red-600" />}
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      {isRevealed && q.explanation && (
-                        <p className="mt-3 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">
-                          <span className="font-semibold text-slate-700">Why:</span> {q.explanation}
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ol>
-            </CardContent>
-          </Card>
-        )}
-
-        {caseStudy?.scenario && (
-          <Card className="border border-slate-200 mb-6">
-            <CardContent className="p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-3">Case study</h2>
-              <p className="text-slate-800 leading-relaxed whitespace-pre-line">{caseStudy.scenario}</p>
-              {Array.isArray(caseStudy.discussion_questions) && caseStudy.discussion_questions.length > 0 && (
-                <>
-                  <h3 className="text-sm font-semibold text-slate-900 mt-5 mb-2">Discussion questions</h3>
-                  <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700">
-                    {caseStudy.discussion_questions.map((q, i) => (
-                      <li key={i}>{q}</li>
-                    ))}
-                  </ol>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {!inquiry && !videoEmbedSrc && !bundle?.source_url && quiz.length === 0 && !caseStudy?.scenario && (
-          <Card className="border border-slate-200">
-            <CardContent className="p-8 text-center">
-              <p className="text-slate-600">This session doesn't have any content yet. Check back later.</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLocked && (quiz.length > 0 || videoEmbedSrc || bundle?.source_url) && (
-          <div className="sticky bottom-4 z-10">
-            <Card className="border border-blue-200 shadow-lg">
-              <CardContent className="p-4 flex items-center justify-between gap-4">
-                <div className="text-sm text-slate-700">
-                  {quiz.length > 0 ? (
-                    <>
-                      <span className="font-semibold">{answeredCount}/{quiz.length}</span> questions answered
-                      {!allAnswered && <span className="text-slate-500"> · answer them all to submit</span>}
-                    </>
-                  ) : (
-                    <span>Mark this session complete when you're done.</span>
-                  )}
-                </div>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={submitting || (quiz.length > 0 && !allAnswered)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                <a
+                  href={bundle.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700 shrink-0"
                 >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
-                    </>
-                  ) : quiz.length > 0 ? (
-                    "Submit & finish"
-                  ) : (
-                    "Mark complete"
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                  Open ↗
+                </a>
+              </div>
+            ) : null}
+            <PhaseFooter onContinue={goNext} continueLabel="I've watched it" onBack={phaseIdx > 0 ? goPrev : null} />
+          </PhaseCard>
+        )}
+
+        {currentPhase === "quiz" && quiz[qIdx] && (
+          <PhaseCard
+            icon={<BookOpen className="w-5 h-5 text-violet-600" />}
+            title={`Quiz · question ${qIdx + 1} of ${quiz.length}`}
+          >
+            <QuizQuestion
+              q={quiz[qIdx]}
+              picked={selected[qIdx] || null}
+              revealed={!!revealed[qIdx]}
+              locked={!!completion}
+              onPick={choose}
+            />
+            <PhaseFooter
+              onContinue={revealed[qIdx] || completion ? nextQuestion : null}
+              continueLabel={
+                qIdx + 1 < quiz.length
+                  ? "Next question"
+                  : "Finish quiz"
+              }
+              onBack={qIdx > 0 ? () => setQIdx((i) => i - 1) : (phaseIdx > 0 ? goPrev : null)}
+              hint={!revealed[qIdx] && !completion ? "Pick an answer to continue" : null}
+            />
+          </PhaseCard>
+        )}
+
+        {currentPhase === "case_study" && (
+          <PhaseCard
+            icon={<Sparkles className="w-5 h-5 text-violet-600" />}
+            title="Case study"
+          >
+            <p className="text-slate-800 leading-relaxed whitespace-pre-line">{caseStudy.scenario}</p>
+            {Array.isArray(caseStudy.discussion_questions) && caseStudy.discussion_questions.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold text-slate-900 mt-5 mb-2">Discussion questions</h3>
+                <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700">
+                  {caseStudy.discussion_questions.map((q, i) => (
+                    <li key={i}>{q}</li>
+                  ))}
+                </ol>
+              </>
+            )}
+            <PhaseFooter onContinue={goNext} continueLabel="Continue" onBack={phaseIdx > 0 ? goPrev : null} />
+          </PhaseCard>
+        )}
+
+        {currentPhase === "results" && (
+          <ResultsCard
+            quiz={quiz}
+            responses={completion?.quiz_responses || liveResponses}
+            score={completion ? completion.quiz_score_pct : livePct}
+            correct={completion ? completion.quiz_correct : liveCorrect}
+            total={completion ? completion.quiz_total : quiz.length}
+            submittedAt={completion?.completed_at}
+            submitted={!!completion}
+            submitting={submitting}
+            onSubmit={handleSubmit}
+            onRetry={handleRetry}
+            onBack={phaseIdx > 0 ? goPrev : null}
+            onHome={() => navigate(createPageUrl("LearningHub"))}
+          />
         )}
 
         {error && bundle && (
@@ -472,5 +433,266 @@ export default function AssignedSessionPlay() {
         )}
       </div>
     </div>
+  );
+}
+
+// ===================== Subcomponents =====================
+
+function PhaseDots({ phases, current }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {phases.map((p, i) => (
+        <span
+          key={i}
+          className={`h-1.5 rounded-full transition-all ${
+            i === current
+              ? "w-6 bg-blue-600"
+              : i < current
+              ? "w-3 bg-blue-400"
+              : "w-3 bg-slate-200"
+          }`}
+          title={p}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PhaseCard({ icon, title, children }) {
+  return (
+    <Card className="border border-slate-200 shadow-sm">
+      <CardContent className="p-6 sm:p-8">
+        <div className="flex items-center gap-2 mb-4">
+          {icon}
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+        </div>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PhaseFooter({ onContinue, continueLabel = "Continue", onBack, hint }) {
+  return (
+    <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center gap-2">
+        {onBack && (
+          <Button variant="ghost" onClick={onBack} className="text-slate-500">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </Button>
+        )}
+        {hint && <span className="text-xs text-slate-500">{hint}</span>}
+      </div>
+      <Button
+        onClick={onContinue}
+        disabled={!onContinue}
+        className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
+      >
+        {continueLabel} <ArrowRight className="w-4 h-4 ml-1.5" />
+      </Button>
+    </div>
+  );
+}
+
+function QuizQuestion({ q, picked, revealed, locked, onPick }) {
+  const correctLetter = (q.correct_choice || "").toLowerCase();
+  return (
+    <>
+      <p className="text-lg font-medium text-slate-900 mb-4">{q.question}</p>
+      <ul className="space-y-2">
+        {LETTERS.map((letter) => {
+          const text = q[`choice_${letter}`];
+          if (!text) return null;
+          const isPicked = picked === letter;
+          const isCorrect = revealed && correctLetter === letter;
+          const isWrongPick = revealed && isPicked && correctLetter !== letter;
+          const disabled = locked || revealed;
+          return (
+            <li key={letter}>
+              <button
+                onClick={() => onPick(letter)}
+                disabled={disabled}
+                className={`w-full text-left px-4 py-3 rounded-xl border text-sm transition-all flex items-center gap-3 ${
+                  isCorrect
+                    ? "border-green-400 bg-green-50 text-green-900"
+                    : isWrongPick
+                    ? "border-red-400 bg-red-50 text-red-900"
+                    : isPicked
+                    ? "border-blue-500 bg-blue-50 text-blue-900"
+                    : `border-slate-200 text-slate-800 ${disabled ? "" : "hover:border-slate-300 hover:bg-slate-50"}`
+                }`}
+              >
+                <span className="font-semibold w-6">{letter.toUpperCase()}.</span>
+                <span className="flex-1">{text}</span>
+                {isCorrect && <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />}
+                {isWrongPick && <XCircle className="w-5 h-5 text-red-600 shrink-0" />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {revealed && (
+        <div className={`mt-4 px-4 py-3 rounded-xl text-sm ${picked === correctLetter ? "bg-green-50 border border-green-200 text-green-900" : "bg-amber-50 border border-amber-200 text-amber-900"}`}>
+          <p className="font-semibold mb-1">
+            {picked === correctLetter
+              ? "Correct!"
+              : `The correct answer is ${correctLetter.toUpperCase()}.`}
+          </p>
+          {q.explanation && <p className="text-slate-700">{q.explanation}</p>}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ResultsCard({
+  quiz,
+  responses,
+  score,
+  correct,
+  total,
+  submittedAt,
+  submitted,
+  submitting,
+  onSubmit,
+  onRetry,
+  onBack,
+  onHome,
+}) {
+  const hasQuiz = (total || 0) > 0;
+  const passed = hasQuiz && score >= 70;
+
+  return (
+    <Card className="border border-slate-200 shadow-sm">
+      <CardContent className="p-6 sm:p-8">
+        <div className="text-center mb-6">
+          <div
+            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              !submitted
+                ? "bg-blue-100"
+                : passed
+                ? "bg-emerald-100"
+                : "bg-amber-100"
+            }`}
+          >
+            <Trophy
+              className={`w-8 h-8 ${
+                !submitted ? "text-blue-600" : passed ? "text-emerald-700" : "text-amber-700"
+              }`}
+            />
+          </div>
+          <h2 className="text-2xl font-semibold text-slate-900 mb-1">
+            {submitted ? "Session complete" : "Ready to submit?"}
+          </h2>
+          {hasQuiz ? (
+            <>
+              <p className="text-4xl font-bold mt-3 mb-1 tabular-nums">
+                <span className={passed ? "text-emerald-700" : submitted ? "text-amber-700" : "text-slate-900"}>
+                  {score}%
+                </span>
+              </p>
+              <p className="text-sm text-slate-600">
+                {correct} of {total} correct
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">
+              {submitted ? "Marked complete." : "Mark this session complete when you're ready."}
+            </p>
+          )}
+          {submitted && submittedAt && (
+            <p className="text-xs text-slate-400 mt-2">
+              Submitted {new Date(submittedAt).toLocaleString()}
+            </p>
+          )}
+        </div>
+
+        {hasQuiz && (
+          <div className="border-t border-slate-100 pt-5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-3">Question review</h3>
+            <ol className="space-y-2">
+              {quiz.map((q, i) => {
+                const r = responses[i] || {};
+                return (
+                  <li
+                    key={i}
+                    className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${
+                      r.is_correct
+                        ? "border-green-200 bg-green-50"
+                        : r.picked
+                        ? "border-red-200 bg-red-50"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    {r.is_correct ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-900 text-sm line-clamp-2">
+                        {i + 1}. {q.question}
+                      </p>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Your answer: <span className="font-semibold">{r.picked ? r.picked.toUpperCase() : "—"}</span>
+                        {!r.is_correct && r.correct && (
+                          <>
+                            {" "}· Correct: <span className="font-semibold text-green-700">{r.correct.toUpperCase()}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
+
+        <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+          {!submitted ? (
+            <>
+              {onBack && (
+                <Button variant="ghost" onClick={onBack} className="text-slate-500">
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                </Button>
+              )}
+              <Button
+                onClick={onSubmit}
+                disabled={submitting}
+                className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-1.5" /> {hasQuiz ? "Submit & finish" : "Mark complete"}
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={onRetry}
+                disabled={submitting}
+                className="border-slate-300"
+              >
+                <RotateCcw className="w-4 h-4 mr-1.5" /> Try again
+              </Button>
+              <Button
+                onClick={onHome}
+                className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
+              >
+                Back to Learning Hub <ArrowRight className="w-4 h-4 ml-1.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
