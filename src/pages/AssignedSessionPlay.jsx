@@ -1,15 +1,16 @@
 /**
- * AssignedSessionPlay — student-facing read-only player for a learning
- * session a teacher assigned to their class via Generate → "Assign to class".
+ * AssignedSessionPlay — student-facing player for a teacher-assigned
+ * learning session bundle. Walks the bundle payload inline (no slideshow):
+ * inquiry hook → video → quiz → case study.
  *
- * Loads a `lesson_bundle_assignments` row by ID, then the parent
- * `lesson_bundles.payload` (the raw generated session). Renders the four
- * canonical phases inline (no slideshow): inquiry hook → video → quiz with
- * per-question reveal → case study. v1 has no scoring or progress write-back;
- * students can re-open any time.
+ * Progress is tracked in student_bundle_completion at the
+ * (student_id, assignment_id) grain. If the student already submitted,
+ * their answers are re-hydrated and the quiz locks; "Try again" wipes
+ * the row so they can re-attempt.
  *
- * Required RLS (migration 0029): enrolled students get SELECT on
- * lesson_bundle_assignments + lesson_bundles for their classes.
+ * RLS requirements:
+ *   - 0029 + 0030: students SELECT lesson_bundle_assignments + lesson_bundles
+ *   - 0031: students manage their own student_bundle_completion rows
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -26,6 +27,8 @@ import {
   Sparkles,
   CheckCircle2,
   XCircle,
+  Trophy,
+  RotateCcw,
 } from "lucide-react";
 
 const LETTERS = ["a", "b", "c", "d"];
@@ -37,6 +40,7 @@ export default function AssignedSessionPlay() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [user, setUser] = useState(null);
   const [assignment, setAssignment] = useState(null);
   const [bundle, setBundle] = useState(null);
 
@@ -44,19 +48,26 @@ export default function AssignedSessionPlay() {
   const [selected, setSelected] = useState({}); // { [qIdx]: 'a' }
   const [revealed, setRevealed] = useState({}); // { [qIdx]: true }
 
+  // Completion row (if student already submitted)
+  const [completion, setCompletion] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     if (!assignmentId) {
       setError("No assignment specified.");
       setLoading(false);
       return;
     }
-    loadAssignment();
+    loadAll();
   }, [assignmentId]);
 
-  const loadAssignment = async () => {
+  const loadAll = async () => {
     setLoading(true);
     setError("");
     try {
+      const me = await quest.auth.me();
+      setUser(me);
+
       const { data: aRow, error: aErr } = await supabase
         .from("lesson_bundle_assignments")
         .select("id, bundle_id, class_id, due_at, assigned_at")
@@ -72,6 +83,29 @@ export default function AssignedSessionPlay() {
         .single();
       if (bErr) throw bErr;
       setBundle(bRow);
+
+      // Existing completion? Re-hydrate state so the quiz locks in
+      // whatever the student picked last time. .maybeSingle() returns null
+      // (not an error) when there's no row.
+      const { data: cRow } = await supabase
+        .from("student_bundle_completion")
+        .select("*")
+        .eq("student_id", me.id)
+        .eq("assignment_id", aRow.id)
+        .maybeSingle();
+      if (cRow) {
+        setCompletion(cRow);
+        const sel = {};
+        const rev = {};
+        for (const r of cRow.quiz_responses || []) {
+          if (typeof r.q_index === "number") {
+            if (r.picked) sel[r.q_index] = r.picked;
+            rev[r.q_index] = true;
+          }
+        }
+        setSelected(sel);
+        setRevealed(rev);
+      }
     } catch (err) {
       console.error("Failed to load assigned session:", err);
       setError(err?.message || "Could not load this session.");
@@ -93,13 +127,79 @@ export default function AssignedSessionPlay() {
     return null;
   }, [video.videoId]);
 
+  const isLocked = !!completion;
+  const answeredCount = Object.keys(selected).length;
+  const allAnswered = quiz.length > 0 && answeredCount === quiz.length;
+
   const choose = (qIdx, letter) => {
-    if (revealed[qIdx]) return;
+    if (isLocked) return;
     setSelected((prev) => ({ ...prev, [qIdx]: letter }));
+    // Auto-reveal the moment a letter is picked so students see correctness
+    // inline as they go — matches the existing single-question reveal UX.
+    setRevealed((prev) => ({ ...prev, [qIdx]: true }));
   };
 
-  const reveal = (qIdx) => {
-    setRevealed((prev) => ({ ...prev, [qIdx]: true }));
+  const handleSubmit = async () => {
+    if (!user || !assignment || submitting) return;
+    setSubmitting(true);
+    try {
+      const responses = quiz.map((q, i) => {
+        const picked = selected[i] || null;
+        const correct = (q.correct_choice || "").toLowerCase() || null;
+        return {
+          q_index: i,
+          picked,
+          correct,
+          is_correct: !!picked && !!correct && picked === correct,
+        };
+      });
+      const total = quiz.length;
+      const correct = responses.filter((r) => r.is_correct).length;
+      const pct = total > 0 ? Math.round((correct / total) * 100) : null;
+
+      const { data: row, error: upErr } = await supabase
+        .from("student_bundle_completion")
+        .upsert(
+          {
+            student_id: user.id,
+            assignment_id: assignment.id,
+            quiz_total: total || null,
+            quiz_correct: total > 0 ? correct : null,
+            quiz_score_pct: pct,
+            quiz_responses: responses,
+            completed_at: new Date().toISOString(),
+          },
+          { onConflict: "student_id,assignment_id" }
+        )
+        .select("*")
+        .single();
+      if (upErr) throw upErr;
+      setCompletion(row);
+    } catch (err) {
+      console.error("Failed to save completion:", err);
+      setError(err?.message || "Could not save. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!user || !assignment) return;
+    setSubmitting(true);
+    try {
+      await supabase
+        .from("student_bundle_completion")
+        .delete()
+        .eq("student_id", user.id)
+        .eq("assignment_id", assignment.id);
+      setCompletion(null);
+      setSelected({});
+      setRevealed({});
+    } catch (err) {
+      console.error("Retry failed:", err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -110,7 +210,7 @@ export default function AssignedSessionPlay() {
     );
   }
 
-  if (error) {
+  if (error && !bundle) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
         <Card className="max-w-md w-full">
@@ -154,6 +254,36 @@ export default function AssignedSessionPlay() {
             </p>
           )}
         </div>
+
+        {completion && (
+          <Card className="border border-emerald-200 bg-emerald-50 mb-6">
+            <CardContent className="p-5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <Trophy className="w-5 h-5 text-emerald-700" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900">
+                    {quiz.length > 0
+                      ? `You scored ${completion.quiz_correct}/${completion.quiz_total} (${completion.quiz_score_pct}%)`
+                      : "Marked complete"}
+                  </p>
+                  <p className="text-xs text-emerald-700">
+                    Submitted {new Date(completion.completed_at).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleRetry}
+                disabled={submitting}
+                className="border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+              >
+                <RotateCcw className="w-4 h-4 mr-1.5" /> Try again
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {inquiry?.hook_question && (
           <Card className="border border-slate-200 mb-6">
@@ -212,8 +342,15 @@ export default function AssignedSessionPlay() {
         {quiz.length > 0 && (
           <Card className="border border-slate-200 mb-6">
             <CardContent className="p-6">
-              <h2 className="text-base font-semibold text-slate-900 mb-1">Quiz</h2>
-              <p className="text-xs text-slate-500 mb-4">{quiz.length} questions · pick an answer to see if you got it right</p>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Quiz</h2>
+                  <p className="text-xs text-slate-500">
+                    {quiz.length} questions
+                    {!isLocked && ` · ${answeredCount}/${quiz.length} answered`}
+                  </p>
+                </div>
+              </div>
               <ol className="space-y-4">
                 {quiz.map((q, i) => {
                   const correctLetter = (q.correct_choice || "").toLowerCase();
@@ -236,7 +373,7 @@ export default function AssignedSessionPlay() {
                             <li key={letter}>
                               <button
                                 onClick={() => choose(i, letter)}
-                                disabled={isRevealed}
+                                disabled={isLocked}
                                 className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-2 ${
                                   isCorrect
                                     ? "border-green-300 bg-green-50 text-green-900"
@@ -244,7 +381,7 @@ export default function AssignedSessionPlay() {
                                     ? "border-red-300 bg-red-50 text-red-900"
                                     : isPicked
                                     ? "border-blue-400 bg-blue-50 text-blue-900"
-                                    : "border-slate-200 hover:border-slate-300 text-slate-800"
+                                    : `border-slate-200 text-slate-800 ${isLocked ? "" : "hover:border-slate-300"}`
                                 }`}
                               >
                                 <span className="font-semibold w-5">{letter.toUpperCase()}.</span>
@@ -256,20 +393,10 @@ export default function AssignedSessionPlay() {
                           );
                         })}
                       </ul>
-                      {!isRevealed ? (
-                        <Button
-                          onClick={() => reveal(i)}
-                          disabled={!pick}
-                          className="mt-3 h-8 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          Check answer
-                        </Button>
-                      ) : (
-                        q.explanation && (
-                          <p className="mt-3 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">
-                            <span className="font-semibold text-slate-700">Why:</span> {q.explanation}
-                          </p>
-                        )
+                      {isRevealed && q.explanation && (
+                        <p className="mt-3 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">
+                          <span className="font-semibold text-slate-700">Why:</span> {q.explanation}
+                        </p>
                       )}
                     </li>
                   );
@@ -304,6 +431,44 @@ export default function AssignedSessionPlay() {
               <p className="text-slate-600">This session doesn't have any content yet. Check back later.</p>
             </CardContent>
           </Card>
+        )}
+
+        {!isLocked && (quiz.length > 0 || videoEmbedSrc || bundle?.source_url) && (
+          <div className="sticky bottom-4 z-10">
+            <Card className="border border-blue-200 shadow-lg">
+              <CardContent className="p-4 flex items-center justify-between gap-4">
+                <div className="text-sm text-slate-700">
+                  {quiz.length > 0 ? (
+                    <>
+                      <span className="font-semibold">{answeredCount}/{quiz.length}</span> questions answered
+                      {!allAnswered && <span className="text-slate-500"> · answer them all to submit</span>}
+                    </>
+                  ) : (
+                    <span>Mark this session complete when you're done.</span>
+                  )}
+                </div>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={submitting || (quiz.length > 0 && !allAnswered)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
+                    </>
+                  ) : quiz.length > 0 ? (
+                    "Submit & finish"
+                  ) : (
+                    "Mark complete"
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {error && bundle && (
+          <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mt-4">{error}</p>
         )}
       </div>
     </div>

@@ -58,13 +58,21 @@ const TABLE_NAME_OVERRIDES = {
   Lead: "leads",
   ParentReport: "parent_reports",
   GeneratedHandout: "generated_handouts",
-  // UI keeps "Learning Session" terminology but the underlying table is
-  // lesson_bundles to avoid a name clash with the pre-existing
-  // learning_sessions student-progress table.
-  LearningSession: "lesson_bundles",
+  // The newer "learning session" concept (generated handouts assigned to
+  // classes) lives in lesson_bundles. It is exposed as LessonBundle here
+  // so it doesn't shadow LearningSession above — that one is the original
+  // student-progress table and remains the canonical entity for per-
+  // student session tracking.
+  LessonBundle: "lesson_bundles",
+  LessonBundleItem: "lesson_bundle_items",
+  LessonBundleAssignment: "lesson_bundle_assignments",
+  StudentSessionItemProgress: "student_bundle_item_progress",
+  StudentBundleCompletion: "student_bundle_completion",
+  // Backwards-compat aliases — older imports still reference the previous
+  // names. Keep these mapped to lesson_bundles so existing reads don't
+  // regress while call sites migrate to the LessonBundle* names.
   LearningSessionItem: "lesson_bundle_items",
   LearningSessionAssignment: "lesson_bundle_assignments",
-  StudentSessionItemProgress: "student_bundle_item_progress",
 };
 
 function tableFor(entityName) {

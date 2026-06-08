@@ -143,16 +143,27 @@ export default function LearningHub() {
           );
           const bundleIds = [...new Set((bundleAssns || []).map(a => a.bundle_id))];
           if (bundleIds.length > 0) {
-            const bundles = await quest.entities.LearningSession.filter(
+            const bundles = await quest.entities.LessonBundle.filter(
               { id: bundleIds },
               "-created_at"
             );
             const bundleMap = new Map((bundles || []).map(b => [b.id, b]));
+
+            // Completion rows for these assignments — one query for the
+            // whole list. RLS scopes the result to the current student.
+            const assignmentIds = (bundleAssns || []).map(a => a.id);
+            const completions = await quest.entities.StudentBundleCompletion.filter(
+              { student_id: user.id, assignment_id: assignmentIds },
+              "-completed_at"
+            ).catch(() => []);
+            const completionMap = new Map((completions || []).map(c => [c.assignment_id, c]));
+
             setAssignedBundles(
               (bundleAssns || []).map(a => ({
                 ...a,
                 bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
                 source_type: bundleMap.get(a.bundle_id)?.source_type || null,
+                completion: completionMap.get(a.id) || null,
               }))
             );
           } else {
@@ -539,24 +550,52 @@ export default function LearningHub() {
                     </div>
                     <div className="space-y-3">
                       {assignedBundles.map((a) => {
-                        const overdue = a.due_at && new Date(a.due_at) < new Date();
+                        const isDone = !!a.completion;
+                        const overdue = !isDone && a.due_at && new Date(a.due_at) < new Date();
+                        const cardBg = isDone
+                          ? "border-emerald-200 bg-emerald-50"
+                          : overdue
+                          ? "border-red-200 bg-red-50"
+                          : "border-violet-100 bg-violet-50";
+                        const iconBg = isDone
+                          ? "bg-emerald-100"
+                          : overdue
+                          ? "bg-red-100"
+                          : "bg-violet-100";
+                        const iconColor = isDone
+                          ? "text-emerald-600"
+                          : overdue
+                          ? "text-red-600"
+                          : "text-violet-600";
+                        const Icon = isDone ? CheckCircle2 : Sparkles;
                         return (
                           <div
                             key={a.id}
                             onClick={() => navigate(createPageUrl(`AssignedSessionPlay?assignment_id=${a.id}`))}
-                            className={`flex items-center justify-between p-4 border rounded-lg hover:border-violet-400 transition-all cursor-pointer ${overdue ? "border-red-200 bg-red-50" : "border-violet-100 bg-violet-50"}`}
+                            className={`flex items-center justify-between p-4 border rounded-lg hover:border-violet-400 transition-all cursor-pointer ${cardBg}`}
                           >
                             <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${overdue ? "bg-red-100" : "bg-violet-100"}`}>
-                                <Sparkles className={`w-5 h-5 ${overdue ? "text-red-600" : "text-violet-600"}`} />
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconBg}`}>
+                                <Icon className={`w-5 h-5 ${iconColor}`} />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
                                   <h3 className="font-semibold text-black text-sm">{a.bundle_title}</h3>
-                                  {overdue && <Badge className="text-xs bg-red-100 text-red-700">Overdue</Badge>}
+                                  {isDone && (
+                                    <Badge className="text-xs bg-emerald-100 text-emerald-700">
+                                      {a.completion.quiz_total
+                                        ? `${a.completion.quiz_score_pct}%`
+                                        : "Done"}
+                                    </Badge>
+                                  )}
+                                  {!isDone && overdue && (
+                                    <Badge className="text-xs bg-red-100 text-red-700">Overdue</Badge>
+                                  )}
                                 </div>
-                                <p className={`text-xs ${overdue ? "text-red-600" : "text-gray-500"}`}>
-                                  {a.due_at
+                                <p className={`text-xs ${isDone ? "text-emerald-700" : overdue ? "text-red-600" : "text-gray-500"}`}>
+                                  {isDone
+                                    ? `Submitted ${new Date(a.completion.completed_at).toLocaleDateString()}`
+                                    : a.due_at
                                     ? `Due ${new Date(a.due_at).toLocaleDateString()}`
                                     : "No due date"}
                                 </p>

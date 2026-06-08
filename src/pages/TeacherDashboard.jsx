@@ -166,7 +166,7 @@ export default function TeacherDashboard() {
           );
           const bundleIds = [...new Set((assignments || []).map(a => a.bundle_id))];
           if (bundleIds.length > 0) {
-            const bundles = await quest.entities.LearningSession.filter(
+            const bundles = await quest.entities.LessonBundle.filter(
               { id: bundleIds },
               "-created_at"
             );
