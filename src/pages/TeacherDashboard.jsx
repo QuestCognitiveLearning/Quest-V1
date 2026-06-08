@@ -155,14 +155,20 @@ export default function TeacherDashboard() {
         // Lesson bundle assignments — pulled with their parent bundle for
         // the title. Filtered to this teacher's classes. Uses .in() since
         // the SDK's filter converts arrays to Postgres IN().
+        // Explicit orderBy: lesson_bundle_assignments has assigned_at, not
+        // the SDK-default created_date; lesson_bundles has created_at.
+        // Passing the wrong column 400s and the catch silently zeroes the
+        // dashboard — assignments stop showing up.
         try {
           const assignments = await quest.entities.LearningSessionAssignment.filter(
-            { class_id: classIds }
+            { class_id: classIds },
+            "-assigned_at"
           );
           const bundleIds = [...new Set((assignments || []).map(a => a.bundle_id))];
           if (bundleIds.length > 0) {
             const bundles = await quest.entities.LearningSession.filter(
-              { id: bundleIds }
+              { id: bundleIds },
+              "-created_at"
             );
             const bundleMap = new Map((bundles || []).map(b => [b.id, b]));
             setBundleAssignments(
