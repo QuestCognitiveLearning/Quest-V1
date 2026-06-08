@@ -9,7 +9,7 @@
  *       gates stay declarative at call sites (no enum branching scattered).
  */
 
-export const TIERS = ["free", "classroom"];
+export const TIERS = ["free", "student", "classroom"];
 
 const INF = Number.POSITIVE_INFINITY;
 
@@ -19,11 +19,20 @@ export const TIER_LIMITS = {
     maxStudents: 30,
     aiGenerationsPerMonth: 10,
     // Lifetime cap on student-account generations (no monthly reset).
-    // Hit at 5 → upgrade modal opens. classroom-tier students are
-    // unbounded (paid).
+    // Hit at 5 → upgrade modal opens. Paid Student-tier and Classroom-tier
+    // accounts are unbounded.
     studentGenerationsTotal: 5,
     liveSessionsEnabled: false,
     pandaTutorEnabled: false,
+  },
+  // $9/mo solo learner plan — unlimited Panda Tutor + practice sessions.
+  student: {
+    maxClasses: 0,
+    maxStudents: 0,
+    aiGenerationsPerMonth: INF,
+    studentGenerationsTotal: INF,
+    liveSessionsEnabled: false,
+    pandaTutorEnabled: true,
   },
   classroom: {
     maxClasses: INF,
@@ -42,9 +51,11 @@ export const TIER_LIMITS = {
 // subscription remains active.
 export function getUserTier(user) {
   if (!user) return "free";
-  if (user.tier === "classroom" || user.tier === "free") return user.tier;
+  if (user.tier === "classroom" || user.tier === "student" || user.tier === "free") return user.tier;
   if (user.tier === "studio" || user.tier === "enterprise") return "classroom";
-  if (user.subscription_tier === "premium") return "classroom";
+  if (user.subscription_tier === "premium") {
+    return user.account_type === "student" ? "student" : "classroom";
+  }
   return "free";
 }
 
@@ -76,6 +87,7 @@ export function tierLabel(tier) {
   return (
     {
       free: "Free",
+      student: "Student",
       classroom: "Classroom",
     }[tier] || tier
   );

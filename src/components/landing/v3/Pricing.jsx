@@ -3,20 +3,41 @@ import { useNavigate } from "react-router-dom";
 import { Check, Sparkles } from "lucide-react";
 import ContactSalesModal from "@/components/shared/ContactSalesModal";
 
-// Homepage pricing section. Mirrors /Pricing's 3-tier model (Classroom /
-// Studio / Enterprise) so visitors see the new subscription options without
-// clicking through. Founding-member pricing surfaced with strike-through
-// standard rates.
+// Homepage pricing section. 3-tier model: Student / Classroom / Enterprise.
+// Students pay $9/mo for solo self-paced access; teachers pay for the
+// classroom tooling; districts contact sales.
 const buildTiers = (navigate, openContact) => [
+  {
+    id: "student",
+    name: "Student",
+    desc: "For learners studying on their own.",
+    price: "$9",
+    standardPrice: null,
+    per: "/ month",
+    cta: "Start learning",
+    popular: false,
+    features: [
+      "AI Panda Tutor — your 1-on-1 coach",
+      "Unlimited practice sessions",
+      "Personal knowledge map + progress",
+      "Self-paced quizzes and case studies",
+      "Cancel anytime",
+    ],
+    action: () => {
+      try { sessionStorage.setItem("signupRole", "student"); } catch {}
+      try { sessionStorage.setItem("nextUrl", "/Pricing"); } catch {}
+      navigate("/SignIn?mode=signup&next=/Pricing&intent=student");
+    },
+  },
   {
     id: "classroom",
     name: "Classroom",
-    desc: "For individual teachers ready to ditch lesson-plan Sundays.",
+    desc: "For teachers ready to ditch lesson-plan Sundays.",
     price: "$29",
     standardPrice: "$49",
     per: "/ month",
     cta: "Start 7-day free trial",
-    popular: false,
+    popular: true,
     features: [
       "Unlimited classes and students",
       "Unlimited AI quiz + case study generation",
@@ -32,43 +53,19 @@ const buildTiers = (navigate, openContact) => [
     },
   },
   {
-    id: "studio",
-    name: "Studio",
-    desc: "For tutors and tutoring businesses with paying parents.",
-    price: "$59",
-    standardPrice: "$99",
-    per: "/ month",
-    cta: "Start 14-day free trial",
-    popular: true,
-    features: [
-      "Everything in Classroom",
-      "Unlimited classes and students",
-      "Your logo + brand colors on every PDF",
-      "Automated branded parent progress reports",
-      "Multi-tutor seats ($29/mo each)",
-      "30-min onboarding call with the founder",
-    ],
-    action: () => {
-      try { sessionStorage.setItem("signupRole", "teacher"); } catch {}
-      try { sessionStorage.setItem("nextUrl", "/Pricing"); } catch {}
-      navigate("/SignIn?mode=signup&next=/Pricing&intent=studio");
-    },
-  },
-  {
     id: "enterprise",
     name: "Enterprise",
-    desc: "For schools, districts, and tutoring chains.",
+    desc: "For schools and districts.",
     price: "Custom",
     standardPrice: null,
     per: "",
     cta: "Contact Sales",
     popular: false,
     features: [
-      "Everything in Studio",
-      "Unlimited tutor + admin seats",
+      "Everything in Classroom",
+      "Unlimited teacher + admin seats",
       "SSO (Google, Okta, ClassLink)",
       "Admin dashboard + audit log",
-      "White-label deployment",
       "Dedicated account manager",
     ],
     action: () => openContact(),
@@ -97,9 +94,9 @@ export default function Pricing() {
             Simple Pricing. <em className="not-italic text-[#2563EB]">Built for the way you teach.</em>
           </h2>
           <p className="text-[17px] text-[#64748B]">
-            Students join free with a class code. Founding members lock in
-            this price for life — standard pricing kicks in once we hit 100
-            paid accounts.
+            Students learning solo pay $9/mo. Teachers get full classroom
+            tooling. Students invited by a teacher join free with a class
+            code.
           </p>
         </div>
 

@@ -37,9 +37,12 @@ import {
 } from "@/components/ui/select";
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import StudentSidebar from "../components/shared/StudentSidebar";
+import SelfSessionPhases from "../components/student/SelfSessionPhases";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import { studentGenerationsRemaining, canStudentGenerate, getLimits } from "@/lib/tier";
+import { invokeLLM } from "@/components/utils/openai";
+import { LLM_MODELS } from "@/lib/llmModels";
 import CustomizePanel, { DEFAULT_OPTIONS } from "@/components/try/CustomizePanel";
 import { generateTryPDF } from "@/lib/pdf/generatePDF";
 import { downloadTryWord } from "@/lib/pdf/generateWord";
@@ -81,9 +84,24 @@ export default function Generate() {
   const [mode, setMode] = useState("live"); // teacher: live | handout
   // Student-only: which post-generation view to show.
   // 'flashcards' = study-card deck. 'learning_session' = phased walk
-  // (video → quiz → case study) that the student completes inline and
-  // then saves to their library.
+  // (summary → video+attention checks → quiz → case study) that the
+  // student completes inline and then saves to their library.
   const [studentMode, setStudentMode] = useState("learning_session");
+  // Pre-generation toggles + scheduling for student Learning Sessions.
+  // includeSummary: prepend a quick 5-bullet summary of the video.
+  // includeAttention: pause-on-timestamp attention checks during the video.
+  // scheduledFor: date the session appears on the student's Learning Hub.
+  // reviewsEnabled: queue spaced-repetition reviews at +1/+3/+7/+14/+30 days.
+  const [includeSummary, setIncludeSummary] = useState(true);
+  const [includeAttention, setIncludeAttention] = useState(true);
+  const [scheduledFor, setScheduledFor] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [reviewsEnabled, setReviewsEnabled] = useState(true);
+  // Set once the student finishes the inline phases — we can then offer
+  // a Save button below that persists the bundle + self-session row.
+  const [studentCompletion, setStudentCompletion] = useState(null);
+  const [studentSessionSaved, setStudentSessionSaved] = useState(false);
   const [stage, setStage] = useState("input"); // input | generating | result
   const [error, setError] = useState("");
   const [options, setOptions] = useState({ ...DEFAULT_OPTIONS });
