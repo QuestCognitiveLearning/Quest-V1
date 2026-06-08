@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import MindmapPreview from "../components/teacher/MindmapPreview";
+import CreateAssignedSessionModal from "../components/teacher/CreateAssignedSessionModal";
 import {
   BookOpen,
   Plus,
@@ -25,6 +26,7 @@ export default function TeacherCurricula() {
   // routing them — full-year curriculum (multi-unit, multi-subunit) vs
   // a single subunit-style learning session (one video → quiz/case study).
   const [chooserOpen, setChooserOpen] = useState(false);
+  const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const openCreateChooser = () => setChooserOpen(true);
 
   useEffect(() => {
@@ -215,18 +217,16 @@ export default function TeacherCurricula() {
                 type="button"
                 onClick={() => {
                   setChooserOpen(false);
-                  // /Generate is the one-shot subunit-style flow: paste a
-                  // video or PDF, get a quiz + case study + inquiry + checks.
-                  navigate(createPageUrl("Generate"));
+                  setSessionModalOpen(true);
                 }}
                 className="text-left p-5 rounded-xl border-2 border-slate-200 hover:border-violet-500 hover:bg-violet-50/40 transition-colors group"
               >
                 <div className="w-10 h-10 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                   <Sparkles className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-slate-900 mb-1">One subunit</h3>
+                <h3 className="font-bold text-slate-900 mb-1">Create one learning session</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Single learning session from a video or PDF — quiz, case study, inquiry hook, attention checks.
+                  Single subunit from a YouTube video — pick which parts to include, assign to a class with a due date.
                 </p>
               </button>
             </div>
@@ -240,6 +240,11 @@ export default function TeacherCurricula() {
           </div>
         </div>
       )}
+
+      <CreateAssignedSessionModal
+        open={sessionModalOpen}
+        onClose={() => setSessionModalOpen(false)}
+      />
     </TeacherLayout>
   );
 }
