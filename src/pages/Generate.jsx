@@ -146,6 +146,66 @@ export default function Generate() {
   const studentUsed = user?.student_generations_used ?? 0;
   const studentBlocked = isStudent && !canStudentGenerate(user);
 
+  // Generate flashcards client-side via invokeLLM. The model decides
+  // how many cards to produce — we don't cap or floor. Cards must be
+  // self-contained ("What is X?" / "X is …"), no meta-references like
+  // "according to the transcript" or "according to the video". Falls
+  // back to quiz-derived cards if the call fails.
+  const enrichWithFlashcards = async (baseData, setProgressive) => {
+    if (!isStudent || studentMode !== "flashcards") return;
+    if (baseData?.flashcards?.length) return;
+    try {
+      const topic = baseData?.video?.title || pdfTopic || "this topic";
+      const sourceText = (baseData?.timestamped_segments || [])
+        .map((s) => s.text || "")
+        .join(" ")
+        .slice(0, 12000);
+      const schema = {
+        type: "object",
+        properties: {
+          cards: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                front: { type: "string" },
+                back: { type: "string" },
+              },
+              required: ["front", "back"],
+            },
+          },
+        },
+        required: ["cards"],
+      };
+      const result = await invokeLLM({
+        model: LLM_MODELS.CASE_STUDY_GRADING,
+        prompt: `Generate a study flashcard deck about "${topic}" using the source content below.
+
+RULES (strict):
+- Generate as many cards as the content requires to cover every important concept, term, mechanism, and relationship — no fixed count, no padding, no skipping. A short video might need 6 cards; a dense one might need 20+.
+- Each card stands alone: the front is a clear question, term, or prompt; the back is a concise, complete answer that makes sense without any outside context.
+- NEVER use phrases like "according to the transcript", "according to the video", "as mentioned", "the speaker said", or "in this video". The cards must read like they came from a textbook, not from notes about a video.
+- Mix card types where helpful: definitions, "what happens when …?", cause→effect, key numbers, compare/contrast.
+- Skip filler, intros, and host talk.
+- Keep each side under ~30 words.
+
+Source content:
+${sourceText}
+
+Return JSON: { cards: [{ front, back }, ...] }`,
+        response_json_schema: schema,
+      });
+      const cards = Array.isArray(result?.cards)
+        ? result.cards.filter((c) => c?.front && c?.back)
+        : [];
+      if (cards.length > 0) {
+        setProgressive((prev) => (prev ? { ...prev, flashcards: cards } : prev));
+      }
+    } catch (err) {
+      console.warn("Flashcard generation failed (non-fatal):", err);
+    }
+  };
+
   // Generate a 5-bullet summary client-side after the base publicTryFunnel
   // returns. We don't gate on this — if it fails, the Summary phase just
   // gets skipped (the player checks payload.summary.bullets.length).
@@ -170,9 +230,13 @@ export default function Generate() {
       };
       const result = await invokeLLM({
         model: LLM_MODELS.CASE_STUDY_GRADING,
-        prompt: `Write a 5-bullet pre-watch summary for a student about to learn "${topic}". Each bullet should preview ONE key idea they'll see in the video — concise, specific, and curiosity-piquing. No fluff, no introductions. Return JSON.
+        prompt: `Write a 5-bullet pre-watch summary for a student about to learn "${topic}". Each bullet should preview ONE key idea — concise, specific, and curiosity-piquing.
 
-${transcriptText ? `Reference transcript (for grounding):\n${transcriptText}` : ""}`,
+Rules: No fluff, no introductions. Do NOT use phrases like "according to the transcript", "in this video", or "the speaker says" — the bullets must read like the previewed material itself, not meta-notes.
+
+${transcriptText ? `Source content:\n${transcriptText}` : ""}
+
+Return JSON: { bullets: [string, string, string, string, string] }`,
         response_json_schema: schema,
       });
       const bullets = Array.isArray(result?.bullets) ? result.bullets.filter(Boolean).slice(0, 5) : [];
@@ -580,6 +644,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       await Promise.all([
         enrichWithCurriculumGeneration(data, setResult),
         enrichWithSummary(data, setResult),
+        enrichWithFlashcards(data, setResult),
       ]);
       setStage("result");
     } catch (err) {
@@ -617,6 +682,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         await Promise.all([
           enrichWithCurriculumGeneration(data, setResult),
           enrichWithSummary(data, setResult),
+          enrichWithFlashcards(data, setResult),
         ]);
         setStage("result");
       } catch (err) {
@@ -651,6 +717,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         await Promise.all([
           enrichWithCurriculumGeneration(data, setResult),
           enrichWithSummary(data, setResult),
+          enrichWithFlashcards(data, setResult),
         ]);
         setStage("result");
       } catch (err) {
@@ -698,6 +765,41 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       if (user?.id) loadLibrary(user.id);
     } catch (err) {
       console.error("Save failed:", err);
+      toast.error(err?.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Flashcards-only save: strips the result payload down to just the
+  // flashcards array + minimal video metadata so the library entry is
+  // a pure deck (no quiz / case study / attention checks come back when
+  // the student re-opens it later).
+  const handleSaveFlashcardsToLibrary = async () => {
+    if (!result) return;
+    const llmCards = Array.isArray(result.flashcards) ? result.flashcards : [];
+    const quizDerived = (Array.isArray(result.quiz) ? result.quiz : []).map((q) => {
+      const correctLetter = String(q.correct_choice || "A").toUpperCase();
+      return {
+        front: q.question,
+        back: q[`choice_${correctLetter.toLowerCase()}`] || "",
+      };
+    });
+    const cards = llmCards.length > 0 ? llmCards : quizDerived;
+    if (cards.length === 0) {
+      toast.error("No flashcards to save.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveToLibrary({
+        video: result.video || null,
+        flashcards: cards,
+      });
+      toast.success(`Saved ${cards.length} flashcard${cards.length === 1 ? "" : "s"} to your library`);
+      if (user?.id) loadLibrary(user.id);
+    } catch (err) {
+      console.error("Flashcards save failed:", err);
       toast.error(err?.message || "Save failed");
     } finally {
       setSaving(false);
@@ -1268,7 +1370,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
             <StudentFlashcardsView
               result={result}
               saving={saving}
-              onSave={handleSaveToLibrary}
+              onSave={handleSaveFlashcardsToLibrary}
               onStartOver={startOver}
             />
           ) : (
@@ -1409,20 +1511,24 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                         </span>
                       </div>
                       <p className="text-xs text-slate-500">
-                        {(row.payload?.quiz?.length || 0)} questions{row.payload?.case_study?.scenario ? " · 1 case study" : ""}
+                        {Array.isArray(row.payload?.flashcards) && row.payload.flashcards.length > 0
+                          ? `${row.payload.flashcards.length} flashcard${row.payload.flashcards.length === 1 ? "" : "s"}`
+                          : `${(row.payload?.quiz?.length || 0)} questions${row.payload?.case_study?.scenario ? " · 1 case study" : ""}`}
                       </p>
                       <p className="text-[11px] text-slate-400">
                         Saved {new Date(row.created_at).toLocaleDateString()}
                       </p>
                       {!selectMode && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleRunLiveFromLibrary(row)}
-                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
-                          >
-                            <PlayCircle className="w-3.5 h-3.5" /> Run live
-                          </Button>
+                          {!isStudent && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleRunLiveFromLibrary(row)}
+                              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
+                            >
+                              <PlayCircle className="w-3.5 h-3.5" /> Run live
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -1712,12 +1818,23 @@ function ToggleRow({ on, onChange, title, desc }) {
 // Student-side post-generation views
 // =========================================================================
 
-// Flippable flashcard deck. One card per quiz question — front is the
-// prompt, back is the correct answer text with optional explanation.
-// Click to flip; arrows to step through. Save button persists the
-// underlying handout to the library so students can come back later.
+// Flippable flashcard deck. Source of truth is result.flashcards
+// (LLM-generated, variable count) when present; falls back to quiz-
+// derived cards while the flashcards enrichment is still in flight.
+// Click to flip; arrows to step through. Save button persists ONLY
+// the flashcards (not the full bundle payload) so the library entry
+// is a pure deck.
 function StudentFlashcardsView({ result, saving, onSave, onStartOver }) {
   const cards = React.useMemo(() => {
+    const llm = Array.isArray(result?.flashcards) ? result.flashcards : [];
+    if (llm.length > 0) {
+      return llm.map((c, i) => ({
+        index: i,
+        front: c.front,
+        back: c.back,
+        explanation: null,
+      }));
+    }
     const quiz = Array.isArray(result?.quiz) ? result.quiz : [];
     return quiz.map((q, i) => {
       const correctLetter = String(q.correct_choice || "A").toUpperCase();
@@ -1730,6 +1847,8 @@ function StudentFlashcardsView({ result, saving, onSave, onStartOver }) {
       };
     });
   }, [result]);
+
+  const usingLlmCards = Array.isArray(result?.flashcards) && result.flashcards.length > 0;
 
   const [idx, setIdx] = React.useState(0);
   const [flipped, setFlipped] = React.useState(false);
