@@ -140,8 +140,8 @@ export default function StudentLiveSessions() {
             <Card className="border border-gray-200">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                    <Radio className="w-5 h-5 text-emerald-600" />
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <Radio className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-black">Join a live session</h2>
@@ -175,7 +175,7 @@ export default function StudentLiveSessions() {
                   <Button
                     type="submit"
                     disabled={joining}
-                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-base"
+                    className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white gap-2 text-base"
                   >
                     {joining ? (
                       <>
