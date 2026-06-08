@@ -79,7 +79,8 @@ export default function Pricing() {
 
   const checkout = async (tier) => {
     if (!user) {
-      sessionStorage.setItem("signupRole", "teacher");
+      const signupRole = tier === "student" ? "student" : "teacher";
+      sessionStorage.setItem("signupRole", signupRole);
       sessionStorage.setItem("nextUrl", window.location.href);
       window.location.href = `/SignIn?mode=signup&next=/Pricing&intent=${tier}`;
       return;
@@ -88,10 +89,16 @@ export default function Pricing() {
       toast.error("Please open the published app to complete checkout");
       return;
     }
-    const priceId =
-      billing === "annual"
-        ? priceIds?.tiers?.classroom?.annual
-        : priceIds?.tiers?.classroom?.monthly || priceIds?.premium_price_id;
+
+    let priceId;
+    if (tier === "student") {
+      priceId = priceIds?.tiers?.student?.monthly;
+    } else {
+      priceId =
+        billing === "annual"
+          ? priceIds?.tiers?.classroom?.annual
+          : priceIds?.tiers?.classroom?.monthly || priceIds?.premium_price_id;
+    }
 
     if (!priceId) {
       toast.error("Stripe products not configured. Please refresh.");
@@ -99,11 +106,16 @@ export default function Pricing() {
     }
     setLoading({ tier });
     try {
+      // Student checkout returns to Generate so the upgrade-modal CTA
+      // path lands the user back where they were. Teacher checkout
+      // returns to the dashboard as before.
+      const successPath =
+        tier === "student"
+          ? `${createPageUrl("Generate")}?checkout=success`
+          : `${createPageUrl("TeacherDashboard")}?checkout=success`;
       const response = await quest.functions.invoke("createCheckout", {
         priceId,
-        successUrl: `${window.location.origin}${createPageUrl(
-          "TeacherDashboard"
-        )}?checkout=success`,
+        successUrl: `${window.location.origin}${successPath}`,
         cancelUrl: window.location.href,
       });
       if (response.data?.url) window.location.href = response.data.url;
@@ -115,6 +127,24 @@ export default function Pricing() {
   };
 
   const TIERS = [
+    {
+      id: "student",
+      name: "Student",
+      desc: "For students who want to study smarter on their own.",
+      price: "$9",
+      per: "/ month",
+      standardPrice: null,
+      cta: "Upgrade — $9/mo",
+      popular: true,
+      features: [
+        "Unlimited AI-generated learning sessions",
+        "Flashcards from any YouTube video or PDF",
+        "AI-graded case studies + quizzes",
+        "Save sessions to your library, replay anytime",
+        "Cancel anytime from the billing portal",
+      ],
+      action: () => checkout("student"),
+    },
     {
       id: "classroom",
       name: "Classroom",
@@ -563,7 +593,7 @@ export default function Pricing() {
             />
             <FaqRow
               q="What about students? Do they pay?"
-              a="No. Students join free with a class code. Only teachers pay."
+              a="Students always join a teacher's class for free with a class code. The Student plan ($9/mo) is optional — it unlocks unlimited self-serve AI generations for students who want to create their own study sessions from any YouTube video or PDF. Free students get 5 lifetime generations."
             />
           </div>
         </div>

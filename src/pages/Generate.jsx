@@ -78,7 +78,12 @@ export default function Generate() {
   const location = useLocation();
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("youtube"); // youtube | pdf
-  const [mode, setMode] = useState("live"); // live | handout
+  const [mode, setMode] = useState("live"); // teacher: live | handout
+  // Student-only: which post-generation view to show.
+  // 'flashcards' = study-card deck. 'learning_session' = phased walk
+  // (video → quiz → case study) that the student completes inline and
+  // then saves to their library.
+  const [studentMode, setStudentMode] = useState("learning_session");
   const [stage, setStage] = useState("input"); // input | generating | result
   const [error, setError] = useState("");
   const [options, setOptions] = useState({ ...DEFAULT_OPTIONS });
@@ -673,60 +678,111 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
           />
         )}
 
-        {/* Mode toggle — pick the outcome up front. */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
-          <button
-            type="button"
-            onClick={() => {
-              setMode("live");
-              setOptions((o) => ({
-                ...o,
-                includeInquiry: true,
-                includeAttentionChecks: true,
-              }));
-            }}
-            className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
-              mode === "live"
-                ? "bg-emerald-50 border-2 border-emerald-500"
-                : "border-2 border-transparent hover:bg-slate-50"
-            }`}
-          >
-            <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "live" ? "text-emerald-600" : "text-slate-400"}`} />
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Live session</div>
-              <div className="text-[11.5px] text-slate-500 mt-0.5">
-                Generate then run it as a game. Students join with a code, earn points.
+        {/* Mode toggle — pick the outcome up front. Students choose
+            Flashcards vs Learning Session; teachers choose Live vs Handout. */}
+        {isStudent ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setStudentMode("learning_session");
+                setOptions((o) => ({
+                  ...o,
+                  includeInquiry: false,
+                  includeAttentionChecks: true,
+                }));
+              }}
+              className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+                studentMode === "learning_session"
+                  ? "bg-emerald-50 border-2 border-emerald-500"
+                  : "border-2 border-transparent hover:bg-slate-50"
+              }`}
+            >
+              <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${studentMode === "learning_session" ? "text-emerald-600" : "text-slate-400"}`} />
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Learning session</div>
+                <div className="text-[11.5px] text-slate-500 mt-0.5">
+                  Watch the video, answer the quiz, complete the case study — then save it to your library.
+                </div>
               </div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("handout");
-              // Force the live-only toggles off when switching to handout —
-              // there's no Socratic dialogue on paper, no mid-video MCQ on a
-              // printed sheet.
-              setOptions((o) => ({
-                ...o,
-                includeInquiry: false,
-                includeAttentionChecks: false,
-              }));
-            }}
-            className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
-              mode === "handout"
-                ? "bg-blue-50 border-2 border-[#2563EB]"
-                : "border-2 border-transparent hover:bg-slate-50"
-            }`}
-          >
-            <FileText className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "handout" ? "text-[#2563EB]" : "text-slate-400"}`} />
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Handout</div>
-              <div className="text-[11.5px] text-slate-500 mt-0.5">
-                Print-ready PDF + editable Word.
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStudentMode("flashcards");
+                setOptions((o) => ({
+                  ...o,
+                  includeInquiry: false,
+                  includeAttentionChecks: false,
+                }));
+              }}
+              className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+                studentMode === "flashcards"
+                  ? "bg-blue-50 border-2 border-[#2563EB]"
+                  : "border-2 border-transparent hover:bg-slate-50"
+              }`}
+            >
+              <Sparkles className={`w-5 h-5 mt-0.5 shrink-0 ${studentMode === "flashcards" ? "text-[#2563EB]" : "text-slate-400"}`} />
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Flashcards</div>
+                <div className="text-[11.5px] text-slate-500 mt-0.5">
+                  A flippable card deck from the key concepts in the video.
+                </div>
               </div>
-            </div>
-          </button>
-        </div>
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("live");
+                setOptions((o) => ({
+                  ...o,
+                  includeInquiry: true,
+                  includeAttentionChecks: true,
+                }));
+              }}
+              className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+                mode === "live"
+                  ? "bg-emerald-50 border-2 border-emerald-500"
+                  : "border-2 border-transparent hover:bg-slate-50"
+              }`}
+            >
+              <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "live" ? "text-emerald-600" : "text-slate-400"}`} />
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Live session</div>
+                <div className="text-[11.5px] text-slate-500 mt-0.5">
+                  Generate then run it as a game. Students join with a code, earn points.
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("handout");
+                setOptions((o) => ({
+                  ...o,
+                  includeInquiry: false,
+                  includeAttentionChecks: false,
+                }));
+              }}
+              className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+                mode === "handout"
+                  ? "bg-blue-50 border-2 border-[#2563EB]"
+                  : "border-2 border-transparent hover:bg-slate-50"
+              }`}
+            >
+              <FileText className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "handout" ? "text-[#2563EB]" : "text-slate-400"}`} />
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Handout</div>
+                <div className="text-[11.5px] text-slate-500 mt-0.5">
+                  Print-ready PDF + editable Word.
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 mb-6 gap-1">
@@ -994,7 +1050,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
           </div>
         )}
 
-        {stage === "result" && result && (
+        {stage === "result" && result && !isStudent && (
           <div className="space-y-5">
             <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-3 flex flex-wrap gap-2 shadow-sm">
               <Button
@@ -1021,6 +1077,25 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 
             <ResultPreview result={result} enriching={enriching} />
           </div>
+        )}
+
+        {stage === "result" && result && isStudent && (
+          studentMode === "flashcards" ? (
+            <StudentFlashcardsView
+              result={result}
+              saving={saving}
+              onSave={handleSaveToLibrary}
+              onStartOver={startOver}
+            />
+          ) : (
+            <StudentLearningSessionView
+              result={result}
+              enriching={enriching}
+              saving={saving}
+              onSave={handleSaveToLibrary}
+              onStartOver={startOver}
+            />
+          )
         )}
 
         {/* Library section — always visible (when not actively generating) */}
@@ -1314,6 +1389,359 @@ function UpgradeModal({ used, limit, onCancel, onUpgrade, upgrading }) {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// Student-side post-generation views
+// =========================================================================
+
+// Flippable flashcard deck. One card per quiz question — front is the
+// prompt, back is the correct answer text with optional explanation.
+// Click to flip; arrows to step through. Save button persists the
+// underlying handout to the library so students can come back later.
+function StudentFlashcardsView({ result, saving, onSave, onStartOver }) {
+  const cards = React.useMemo(() => {
+    const quiz = Array.isArray(result?.quiz) ? result.quiz : [];
+    return quiz.map((q, i) => {
+      const correctLetter = String(q.correct_choice || "A").toUpperCase();
+      const correctText = q[`choice_${correctLetter.toLowerCase()}`] || "";
+      return {
+        index: i,
+        front: q.question,
+        back: correctText,
+        explanation: q.explanation || null,
+      };
+    });
+  }, [result]);
+
+  const [idx, setIdx] = React.useState(0);
+  const [flipped, setFlipped] = React.useState(false);
+
+  React.useEffect(() => {
+    setFlipped(false);
+  }, [idx]);
+
+  if (cards.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
+        <p className="text-slate-600">No flashcards available for this video yet.</p>
+        <Button onClick={onStartOver} variant="outline" className="mt-4">
+          Start over
+        </Button>
+      </div>
+    );
+  }
+
+  const card = cards[idx];
+  const goPrev = () => setIdx((i) => Math.max(0, i - 1));
+  const goNext = () => setIdx((i) => Math.min(cards.length - 1, i + 1));
+
+  return (
+    <div className="space-y-5">
+      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-3 flex flex-wrap gap-2 shadow-sm">
+        <Button
+          onClick={onSave}
+          disabled={saving}
+          className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save to library
+        </Button>
+        <Button onClick={onStartOver} variant="ghost" className="ml-auto">
+          Start over
+        </Button>
+      </div>
+
+      <div className="text-center">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+          Card {idx + 1} of {cards.length}
+        </div>
+        <button
+          type="button"
+          onClick={() => setFlipped((f) => !f)}
+          className={`w-full min-h-[280px] sm:min-h-[340px] rounded-3xl border-2 shadow-md p-8 sm:p-12 flex items-center justify-center text-center transition-colors ${
+            flipped
+              ? "border-emerald-300 bg-emerald-50"
+              : "border-slate-200 bg-white hover:border-blue-300"
+          }`}
+        >
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-3 ${flipped ? 'text-emerald-700' : 'text-slate-400'}">
+              {flipped ? "Answer" : "Question"}
+            </div>
+            <p className={`text-xl sm:text-2xl font-semibold leading-snug ${flipped ? "text-emerald-900" : "text-slate-900"}`}>
+              {flipped ? card.back : card.front}
+            </p>
+            {flipped && card.explanation && (
+              <p className="text-sm text-slate-700 mt-4 leading-relaxed italic">
+                {card.explanation}
+              </p>
+            )}
+            <p className="text-xs text-slate-400 mt-6">Click card to flip</p>
+          </div>
+        </button>
+
+        <div className="flex items-center justify-center gap-3 mt-5">
+          <Button
+            variant="outline"
+            onClick={goPrev}
+            disabled={idx === 0}
+            className="gap-1"
+          >
+            ← Previous
+          </Button>
+          <div className="flex items-center gap-1.5 px-2">
+            {cards.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all ${i === idx ? "w-6 bg-blue-600" : i < idx ? "w-3 bg-blue-300" : "w-3 bg-slate-200"}`}
+              />
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            onClick={goNext}
+            disabled={idx === cards.length - 1}
+            className="gap-1"
+          >
+            Next →
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Inline phased learning session — student walks the bundle right here
+// in Generate (video → quiz → case study → done). Lighter than
+// AssignedSessionPlay because no completion is persisted; the Save
+// button just snapshots the bundle into the library so the student can
+// open it later. Reuses the result payload as-is.
+function StudentLearningSessionView({ result, enriching, saving, onSave, onStartOver }) {
+  const video = result?.video || {};
+  const quiz = Array.isArray(result?.quiz) ? result.quiz : [];
+  const caseStudy = result?.case_study || null;
+
+  const videoEmbedSrc = video.videoId
+    ? `https://www.youtube.com/embed/${video.videoId}?rel=0`
+    : null;
+
+  const phases = React.useMemo(() => {
+    const out = [];
+    if (videoEmbedSrc) out.push("video");
+    if (quiz.length > 0) out.push("quiz");
+    if (caseStudy?.scenario) out.push("case_study");
+    out.push("done");
+    return out;
+  }, [videoEmbedSrc, quiz.length, caseStudy]);
+
+  const [phaseIdx, setPhaseIdx] = React.useState(0);
+  const [qIdx, setQIdx] = React.useState(0);
+  const [selected, setSelected] = React.useState({});
+  const [revealed, setRevealed] = React.useState({});
+
+  const phase = phases[phaseIdx] || "done";
+
+  const goNext = () => setPhaseIdx((i) => Math.min(i + 1, phases.length - 1));
+
+  const choose = (letter) => {
+    if (revealed[qIdx]) return;
+    setSelected((p) => ({ ...p, [qIdx]: letter }));
+    setRevealed((p) => ({ ...p, [qIdx]: true }));
+  };
+
+  const nextQ = () => {
+    if (qIdx + 1 < quiz.length) setQIdx((i) => i + 1);
+    else goNext();
+  };
+
+  const correctCount = Object.entries(selected).filter(([i, l]) => {
+    const c = (quiz[Number(i)]?.correct_choice || "").toLowerCase();
+    return l && c && l === c;
+  }).length;
+  const quizPct = quiz.length ? Math.round((correctCount / quiz.length) * 100) : null;
+
+  return (
+    <div className="space-y-5">
+      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center gap-2 shadow-sm">
+        <div className="flex items-center gap-1.5">
+          {phases.map((p, i) => (
+            <span
+              key={i}
+              className={`h-1.5 rounded-full transition-all ${
+                i === phaseIdx ? "w-6 bg-emerald-600" : i < phaseIdx ? "w-3 bg-emerald-400" : "w-3 bg-slate-200"
+              }`}
+              title={p}
+            />
+          ))}
+        </div>
+        <span className="text-xs font-semibold text-slate-600 ml-2">
+          {phase === "video" ? "Watch" : phase === "quiz" ? `Quiz ${qIdx + 1}/${quiz.length}` : phase === "case_study" ? "Case study" : "Done"}
+        </span>
+        <Button
+          onClick={onSave}
+          disabled={saving}
+          className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8] ml-auto"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save to library
+        </Button>
+        <Button onClick={onStartOver} variant="ghost">
+          Start over
+        </Button>
+      </div>
+
+      {phase === "video" && videoEmbedSrc && (
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="aspect-video bg-black">
+            <iframe
+              src={videoEmbedSrc}
+              title={video.title || "Video"}
+              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="w-full h-full border-0"
+            />
+          </div>
+          {video.title && (
+            <div className="px-4 py-3 text-sm text-slate-700 font-medium border-t border-slate-100">
+              {video.title}
+            </div>
+          )}
+          <div className="p-4 border-t border-slate-100 flex justify-end">
+            <Button onClick={goNext} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
+              I've watched it →
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {phase === "quiz" && quiz[qIdx] && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+            Question {qIdx + 1} of {quiz.length}
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-4">{quiz[qIdx].question}</h3>
+          {(() => {
+            const q = quiz[qIdx];
+            const correctLetter = String(q.correct_choice || "A").toLowerCase();
+            const isRevealed = !!revealed[qIdx];
+            const pick = selected[qIdx];
+            return (
+              <>
+                <ul className="space-y-2 mb-4">
+                  {["a", "b", "c", "d"].map((letter) => {
+                    const text = q[`choice_${letter}`];
+                    if (!text) return null;
+                    const isPicked = pick === letter;
+                    const isCorrect = isRevealed && correctLetter === letter;
+                    const isWrongPick = isRevealed && isPicked && correctLetter !== letter;
+                    let cls = "border-slate-200 bg-white hover:border-slate-300";
+                    if (isCorrect) cls = "border-emerald-500 bg-emerald-50 text-emerald-900";
+                    else if (isWrongPick) cls = "border-red-400 bg-red-50 text-red-900";
+                    else if (isPicked) cls = "border-blue-500 bg-blue-50 text-blue-900";
+                    return (
+                      <li key={letter}>
+                        <button
+                          onClick={() => choose(letter)}
+                          disabled={isRevealed}
+                          className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm transition-all flex items-center gap-3 ${cls}`}
+                        >
+                          <span className="w-7 h-7 rounded-md bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-xs">
+                            {letter.toUpperCase()}
+                          </span>
+                          <span className="flex-1">{text}</span>
+                          {isCorrect && <CheckCircle className="w-5 h-5 text-emerald-600" />}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {isRevealed && (
+                  <div className={`mb-4 px-4 py-3 rounded-xl text-sm ${pick === correctLetter ? "bg-emerald-50 border border-emerald-200 text-emerald-900" : "bg-amber-50 border border-amber-200 text-amber-900"}`}>
+                    <p className="font-bold mb-1">
+                      {pick === correctLetter
+                        ? "Correct!"
+                        : `The answer was ${correctLetter.toUpperCase()}.`}
+                    </p>
+                    {q.explanation && <p className="text-slate-700">{q.explanation}</p>}
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    onClick={nextQ}
+                    disabled={!isRevealed}
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {qIdx + 1 < quiz.length ? "Next question →" : "Finish quiz →"}
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {phase === "case_study" && caseStudy?.scenario && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-900 mb-3">Case study</h3>
+          <p className="text-slate-800 leading-relaxed whitespace-pre-line mb-4">
+            {caseStudy.scenario}
+          </p>
+          {Array.isArray(caseStudy.discussion_questions) && caseStudy.discussion_questions.length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-slate-900 mb-2">Discussion questions</h4>
+              <ol className="list-decimal list-inside space-y-1.5 text-slate-700 text-sm mb-4">
+                {caseStudy.discussion_questions.map((qq, i) => (
+                  <li key={i}>{qq}</li>
+                ))}
+              </ol>
+            </>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={goNext} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
+              I've thought about it →
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {phase === "done" && (
+        <div className="bg-white border border-emerald-200 rounded-2xl p-8 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+            <CheckCircle className="w-7 h-7 text-emerald-700" />
+          </div>
+          <h3 className="text-2xl font-bold text-slate-900 mb-1">Session complete</h3>
+          {quizPct !== null && (
+            <p className="text-3xl font-extrabold text-emerald-700 mt-2 tabular-nums">
+              {quizPct}%
+            </p>
+          )}
+          <p className="text-sm text-slate-600 mt-1">
+            {quizPct !== null ? `${correctCount} of ${quiz.length} correct on the quiz.` : "Nice work."}
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-5">
+            <Button
+              onClick={onSave}
+              disabled={saving}
+              className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save to library
+            </Button>
+            <Button onClick={onStartOver} variant="outline">
+              Create another
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {enriching.attentionChecks && phase === "video" && (
+        <p className="text-xs text-slate-400 text-center">
+          Generating extras in the background…
+        </p>
+      )}
     </div>
   );
 }

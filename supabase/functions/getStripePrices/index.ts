@@ -17,10 +17,11 @@ import { handlePreflight, json } from '../_shared/cors.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 
 const LEGACY_PRICE_ID = 'price_1TY7vGK8xO8FkG1xd8ArliXn';
-// Student Pro — $9.99/mo recurring. Live Stripe price created via API
-// on 2026-06-08, product prod_UfU6wkeqKeabHK. Env var override available
+// Student Pro — $9.00/mo recurring. Product prod_UfU6wkeqKeabHK.
+// Original $9.99 price (price_1Tg98mK8xO8FkG1xHeohb4iU) was archived
+// 2026-06-08 in favour of this $9.00 price. Env var override available
 // via STRIPE_PRICE_STUDENT_MONTHLY.
-const STUDENT_MONTHLY_FALLBACK = 'price_1Tg98mK8xO8FkG1xHeohb4iU';
+const STUDENT_MONTHLY_FALLBACK = 'price_1Tg9HCK8xO8FkG1xxRos8YRk';
 
 Deno.serve((req) => {
   const pre = handlePreflight(req);

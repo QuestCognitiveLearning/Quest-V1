@@ -75,6 +75,16 @@ export default function StudentSidebar({
 
       <nav className="flex-1 overflow-y-auto py-2 px-2">
         <button
+          onClick={() => handleNavigation("generate", "Generate")}
+          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
+            activeNav === "generate" ? "bg-white/20" : "hover:bg-white/10"
+          }`}
+        >
+          <Sparkles className="w-4 h-4 flex-shrink-0" />
+          <span>Create</span>
+        </button>
+
+        <button
           onClick={() => handleNavigation("knowledge-map", "KnowledgeMap")}
           className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
             activeNav === "knowledge-map" ? "bg-white/20" : "hover:bg-white/10"
@@ -122,16 +132,6 @@ export default function StudentSidebar({
         >
           <Radio className="w-4 h-4 flex-shrink-0" />
           <span>Live Sessions</span>
-        </button>
-
-        <button
-          onClick={() => handleNavigation("generate", "Generate")}
-          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
-            activeNav === "generate" ? "bg-white/20" : "hover:bg-white/10"
-          }`}
-        >
-          <Sparkles className="w-4 h-4 flex-shrink-0" />
-          <span>Create</span>
         </button>
       </nav>
 
