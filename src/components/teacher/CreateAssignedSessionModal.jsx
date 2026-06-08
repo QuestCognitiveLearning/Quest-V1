@@ -26,6 +26,8 @@ import {
   Users,
   Calendar,
   Rocket,
+  Search,
+  Youtube,
 } from "lucide-react";
 
 function extractYouTubeId(url) {
@@ -49,6 +51,15 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
   // Form
   const [title, setTitle] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
+  // YouTube search inside the modal — same publicTryFunnel action used by
+  // /Generate. Picking a result fills videoUrl + title.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchError, setSearchError] = useState("");
+  // Track which video the teacher selected from the result list so the row
+  // can highlight as "picked" instead of just silently filling the URL.
+  const [pickedVideoId, setPickedVideoId] = useState(null);
   const [includes, setIncludes] = useState({
     inquiry: true,
     attentionChecks: true,
@@ -84,6 +95,38 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
     })();
     return () => { cancelled = true; };
   }, [open]);
+
+  const handleSearch = async (e) => {
+    e?.preventDefault?.();
+    const q = searchQuery.trim();
+    if (!q) return;
+    setSearching(true);
+    setSearchError("");
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke(
+        "publicTryFunnel",
+        { body: { action: "search", query: q } }
+      );
+      if (fnErr) throw fnErr;
+      const items = data?.items || [];
+      setSearchResults(items);
+      if (items.length === 0) {
+        setSearchError("No long-form videos for that search. Try different keywords.");
+      }
+    } catch (err) {
+      console.warn("Video search failed:", err);
+      setSearchError(err?.message || "Search failed.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const pickSearchResult = (r) => {
+    setPickedVideoId(r.videoId);
+    setVideoUrl(`https://www.youtube.com/watch?v=${r.videoId}`);
+    // Auto-fill title from the video if the teacher hasn't typed one yet.
+    if (!title.trim() && r.title) setTitle(r.title);
+  };
 
   const canSubmit = () => {
     if (working) return false;
@@ -287,14 +330,100 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
               />
             </div>
 
-            {/* YouTube */}
+            {/* Video search */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 inline-flex items-center gap-1.5">
+                <Youtube className="w-3 h-3 text-red-600" /> Find a video by topic
+              </label>
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder='e.g. "photosynthesis for high school"'
+                  className="flex-1"
+                />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={searching || !searchQuery.trim()}
+                  className="gap-1.5"
+                >
+                  {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  Search
+                </Button>
+              </form>
+              {searchError && (
+                <p className="text-xs text-amber-700 mt-2">{searchError}</p>
+              )}
+              {searchResults.length > 0 && (
+                <div className="mt-3 grid sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto">
+                  {searchResults.map((r) => {
+                    const picked = pickedVideoId === r.videoId;
+                    return (
+                      <button
+                        key={r.videoId}
+                        type="button"
+                        onClick={() => pickSearchResult(r)}
+                        className={`text-left group rounded-lg border-2 transition overflow-hidden ${
+                          picked
+                            ? "border-blue-500 ring-2 ring-blue-200 bg-blue-50/40"
+                            : "border-slate-200 hover:border-blue-300 bg-white"
+                        }`}
+                      >
+                        <div className="relative aspect-video bg-slate-100">
+                          {r.thumbnail && (
+                            <img
+                              src={r.thumbnail}
+                              alt=""
+                              loading="lazy"
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                          {r.duration ? (
+                            <span className="absolute bottom-1.5 right-1.5 text-[10px] bg-black/75 text-white px-1.5 py-0.5 rounded">
+                              {Math.floor(r.duration / 60)}:{String(Math.floor(r.duration % 60)).padStart(2, "0")}
+                            </span>
+                          ) : null}
+                          {picked && (
+                            <div className="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> Picked
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2.5">
+                          <h4 className="text-xs font-semibold text-slate-900 line-clamp-2">
+                            {r.title}
+                          </h4>
+                          <p className="text-[10px] text-slate-500 mt-0.5 truncate">{r.channelTitle}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-[11px] uppercase tracking-wider text-slate-400">or paste a URL</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+
+            {/* YouTube URL fallback */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 YouTube video URL
               </label>
               <Input
                 value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
+                onChange={(e) => {
+                  setVideoUrl(e.target.value);
+                  // Clear the "picked" highlight if they're manually typing
+                  // a different URL.
+                  if (pickedVideoId && extractYouTubeId(e.target.value) !== pickedVideoId) {
+                    setPickedVideoId(null);
+                  }
+                }}
                 placeholder="https://www.youtube.com/watch?v=..."
               />
               {videoUrl && !extractYouTubeId(videoUrl) && (
