@@ -21,7 +21,6 @@ import {
   Plus,
   Download,
   Search,
-  Send,
   Users,
   Trash2,
   CheckSquare,
@@ -39,8 +38,7 @@ import {
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
-import CustomizePanel, { DEFAULT_OPTIONS, defaultOptionsForRole } from "@/components/try/CustomizePanel";
-import { getUserRole } from "@/lib/tier";
+import CustomizePanel, { DEFAULT_OPTIONS } from "@/components/try/CustomizePanel";
 import { generateTryPDF } from "@/lib/pdf/generatePDF";
 import { downloadTryWord } from "@/lib/pdf/generateWord";
 import { createPageUrl } from "@/utils";
@@ -113,14 +111,6 @@ export default function Generate() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  // Assign-to-class modal state
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignClasses, setAssignClasses] = useState([]);
-  const [assignDueDate, setAssignDueDate] = useState("");
-  const [assignPayload, setAssignPayload] = useState(null); // payload to assign
-  const [classesForAssign, setClassesForAssign] = useState([]);
-  const [assigning, setAssigning] = useState(false);
-
   const loadLibrary = async (teacherId) => {
     try {
       setLibraryLoading(true);
@@ -143,16 +133,6 @@ export default function Generate() {
       try {
         const me = await quest.auth.me();
         setUser(me);
-        // Switch the customize panel to tutor-tuned defaults (5 MCQs, case
-        // study off, Middle grade) when the user is a tutor. Only applies on
-        // first load — if the user has already started tweaking, leave their
-        // choices alone.
-        setOptions((prev) => {
-          const stillDefault =
-            prev.count === DEFAULT_OPTIONS.count &&
-            prev.includeCaseStudy === DEFAULT_OPTIONS.includeCaseStudy;
-          return stillDefault ? { ...defaultOptionsForRole(getUserRole(me)) } : prev;
-        });
         loadLibrary(me.id);
       } catch (err) {
         console.error("Failed to load teacher context:", err);
@@ -570,83 +550,6 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
     }
   };
 
-  // Open the assign modal — loads teacher's classes and stashes the payload
-  // to assign. Called from the result-page action bar or from any library row.
-  const openAssignModal = async (payload, title) => {
-    setAssignPayload({ payload, title });
-    setAssignClasses([]);
-    setAssignDueDate("");
-    setAssignModalOpen(true);
-    try {
-      const me = user || (await quest.auth.me());
-      const cls = await quest.entities.Class.filter({ teacher_id: me.id });
-      setClassesForAssign(cls || []);
-    } catch (err) {
-      console.error("Could not load classes:", err);
-      setClassesForAssign([]);
-    }
-  };
-
-  const toggleAssignClass = (classId) => {
-    setAssignClasses((prev) =>
-      prev.includes(classId) ? prev.filter((id) => id !== classId) : [...prev, classId]
-    );
-  };
-
-  const handleAssignSubmit = async () => {
-    if (!assignPayload?.payload || assignClasses.length === 0) {
-      toast.error("Pick at least one class.");
-      return;
-    }
-    setAssigning(true);
-    try {
-      const me = user || (await quest.auth.me());
-      const payload = assignPayload.payload;
-      const title = assignPayload.title || payload?.video?.title || "Learning session";
-
-      // One lesson_bundles row + N lesson_bundle_assignments rows (one per
-      // class). Reusing the embedded jsonb payload so the student-side flow
-      // has everything without joining extra tables.
-      const { data: bundle, error: bErr } = await supabase
-        .from("lesson_bundles")
-        .insert({
-          teacher_id: me.id,
-          title,
-          source_type: tab === "pdf" ? "pdf" : "youtube",
-          source_url: payload?.video?.videoId
-            ? `https://www.youtube.com/watch?v=${payload.video.videoId}`
-            : payload?.video?.url || null,
-          grade_level: options.gradeLevel || null,
-          payload,
-        })
-        .select("id")
-        .single();
-      if (bErr) throw bErr;
-
-      const dueAt = assignDueDate ? new Date(assignDueDate).toISOString() : null;
-      const { error: aErr } = await supabase
-        .from("lesson_bundle_assignments")
-        .insert(
-          assignClasses.map((classId) => ({
-            bundle_id: bundle.id,
-            class_id: classId,
-            due_at: dueAt,
-          }))
-        );
-      if (aErr) throw aErr;
-
-      toast.success(
-        `Assigned to ${assignClasses.length} class${assignClasses.length === 1 ? "" : "es"}`
-      );
-      setAssignModalOpen(false);
-    } catch (err) {
-      console.error("Assign failed:", err);
-      toast.error(err?.message || "Could not assign.");
-    } finally {
-      setAssigning(false);
-    }
-  };
-
   const handleDownloadPDF = async () => {
     if (!result) return;
     try {
@@ -733,34 +636,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
             <div>
               <div className="text-sm font-semibold text-slate-900">Handout</div>
               <div className="text-[11.5px] text-slate-500 mt-0.5">
-                Print-ready PDF + editable Word. Save to library or assign later.
-              </div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("assign");
-              // Assigned learning sessions are done online (quiz + case
-              // study + inquiry). Attention checks are useful when there's
-              // a video; default both inquiry + attention on.
-              setOptions((o) => ({
-                ...o,
-                includeInquiry: true,
-                includeAttentionChecks: true,
-              }));
-            }}
-            className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
-              mode === "assign"
-                ? "bg-violet-50 border-2 border-violet-500"
-                : "border-2 border-transparent hover:bg-slate-50"
-            }`}
-          >
-            <Send className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "assign" ? "text-violet-600" : "text-slate-400"}`} />
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Assign learning session</div>
-              <div className="text-[11.5px] text-slate-500 mt-0.5">
-                Push to your class with a due date. Tracked alongside curriculum progress.
+                Print-ready PDF + editable Word.
               </div>
             </div>
           </button>
@@ -1046,13 +922,6 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
               <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                 <PlayCircle className="w-4 h-4" /> Use in live session
               </Button>
-              <Button
-                onClick={() => openAssignModal(result, result?.video?.title)}
-                disabled={saving}
-                className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
-              >
-                <Send className="w-4 h-4" /> Assign to class
-              </Button>
               <Button onClick={handleDownloadPDF} variant="outline" className="gap-2">
                 <Download className="w-4 h-4" /> PDF
               </Button>
@@ -1170,14 +1039,6 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => openAssignModal(row.payload, row.title)}
-                            className="h-8 px-3 text-xs gap-1.5"
-                          >
-                            <Send className="w-3.5 h-3.5" /> Assign
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
                             onClick={() => setResult(row.payload) || setStage("result")}
                             className="h-8 px-3 text-xs"
                           >
@@ -1239,105 +1100,6 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         </div>
       )}
 
-      {/* Assign-to-class modal */}
-      {assignModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-800 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3">
-              <Send className="w-3.5 h-3.5" /> Assign learning session
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              {assignPayload?.title || "New learning session"}
-            </h3>
-            <p className="text-sm text-slate-500 mb-4">
-              Pick the class(es) that should see this and (optionally) when it's due.
-            </p>
-
-            <div className="text-[12px] font-semibold tracking-wider uppercase text-slate-500 mb-2">
-              Classes
-            </div>
-            {classesForAssign.length === 0 ? (
-              <div className="text-sm text-slate-500 py-4 px-3 bg-slate-50 rounded-lg mb-3">
-                You don't have any classes yet.{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate(createPageUrl("TeacherClasses"))}
-                  className="text-violet-700 font-semibold underline"
-                >
-                  Create one
-                </button>
-                .
-              </div>
-            ) : (
-              <div className="max-h-48 overflow-y-auto space-y-1.5 mb-4">
-                {classesForAssign.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => toggleAssignClass(c.id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-colors ${
-                      assignClasses.includes(c.id)
-                        ? "border-violet-500 bg-violet-50"
-                        : "border-slate-200 hover:border-violet-300"
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
-                        assignClasses.includes(c.id)
-                          ? "bg-violet-600 text-white"
-                          : "bg-slate-100 text-slate-400"
-                      }`}
-                    >
-                      {assignClasses.includes(c.id) ? "✓" : ""}
-                    </div>
-                    <Users className="w-4 h-4 text-slate-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-slate-900">
-                        {c.class_name}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        Join code {c.join_code}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="text-[12px] font-semibold tracking-wider uppercase text-slate-500 mb-2 mt-2">
-              Due date (optional)
-            </div>
-            <Input
-              type="date"
-              value={assignDueDate}
-              onChange={(e) => setAssignDueDate(e.target.value)}
-              className="mb-5"
-            />
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setAssignModalOpen(false)}
-                disabled={assigning}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAssignSubmit}
-                disabled={assigning || assignClasses.length === 0}
-                className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
-              >
-                {assigning ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-                Assign
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </TeacherLayout>
   );
 }

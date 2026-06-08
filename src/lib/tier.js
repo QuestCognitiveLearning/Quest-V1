@@ -2,14 +2,14 @@
  * @file tier.js
  * @desc Single source of truth for tier capability checks. The legacy
  *       `subscription_tier` column ('free' | 'premium') is kept for
- *       backwards compatibility; the new `tier` column ('free' | 'classroom'
- *       | 'studio' | 'enterprise') is the authoritative one going forward.
+ *       backwards compatibility; the new `tier` column ('free' | 'classroom')
+ *       is the authoritative one going forward.
  *
  *       Helpers here accept a user object and return booleans so feature
  *       gates stay declarative at call sites (no enum branching scattered).
  */
 
-export const TIERS = ["free", "classroom", "studio", "enterprise"];
+export const TIERS = ["free", "classroom"];
 
 const INF = Number.POSITIVE_INFINITY;
 
@@ -20,9 +20,6 @@ export const TIER_LIMITS = {
     aiGenerationsPerMonth: 10,
     liveSessionsEnabled: false,
     pandaTutorEnabled: false,
-    brandingEnabled: false,
-    parentReportsEnabled: false,
-    enterpriseFeatures: false,
   },
   classroom: {
     maxClasses: INF,
@@ -30,62 +27,34 @@ export const TIER_LIMITS = {
     aiGenerationsPerMonth: INF,
     liveSessionsEnabled: true,
     pandaTutorEnabled: true,
-    brandingEnabled: false,
-    parentReportsEnabled: false,
-    enterpriseFeatures: false,
-  },
-  studio: {
-    maxClasses: INF,
-    maxStudents: INF,
-    aiGenerationsPerMonth: INF,
-    liveSessionsEnabled: true,
-    pandaTutorEnabled: true,
-    brandingEnabled: true,
-    parentReportsEnabled: true,
-    enterpriseFeatures: false,
-  },
-  enterprise: {
-    maxClasses: INF,
-    maxStudents: INF,
-    aiGenerationsPerMonth: INF,
-    liveSessionsEnabled: true,
-    pandaTutorEnabled: true,
-    brandingEnabled: true,
-    parentReportsEnabled: true,
-    enterpriseFeatures: true,
   },
 };
 
 // Reads the effective tier from a user record. Prefers the new `tier` column;
-// falls back to the legacy `subscription_tier` mapping for users whose row
-// has not yet been touched by Phase 3's webhook update.
-//
-// Tutor-fallback: a user tagged as a tutor (new_role='tutor') with a paid
-// subscription (subscription_tier='premium', including 'trial' status) is
-// treated as Studio tier even if the new `tier` column hasn't been written
-// yet. Without this, the syncStripeSubscription path — which historically
-// only set the legacy `subscription_tier` — leaves Studio buyers locked
-// out of Branding / Parent Reports / Booking pages until a separate sync
-// happens to write `tier='studio'`. The pages themselves still enforce
-// the real DB tier server-side via Edge Function checks, so this only
-// affects client-side UI gating.
+// falls back to the legacy `subscription_tier` mapping. Legacy Studio /
+// Enterprise tier values (from the old tutor build) collapse to 'classroom'
+// so existing subscribers retain teacher access while their Stripe
+// subscription remains active.
 export function getUserTier(user) {
   if (!user) return "free";
-  if (user.tier && TIER_LIMITS[user.tier]) return user.tier;
-  if (user.subscription_tier === "premium") {
-    if (user.new_role === "tutor") return "studio";
-    return "classroom";
-  }
+  if (user.tier === "classroom" || user.tier === "free") return user.tier;
+  if (user.tier === "studio" || user.tier === "enterprise") return "classroom";
+  if (user.subscription_tier === "premium") return "classroom";
   return "free";
-}
-
-export function getUserRole(user) {
-  if (!user) return "teacher";
-  return user.new_role || (user.role === "admin" ? "admin" : "teacher");
 }
 
 export function getLimits(user) {
   return TIER_LIMITS[getUserTier(user)] || TIER_LIMITS.free;
+}
+
+// Coarse role label used by i18n + tutor-vs-teacher UI gating. The DB has
+// account_type (student/teacher) and new_role (tutor) — tutor wins when
+// both are present so the Studio surface renders.
+export function getUserRole(user) {
+  if (!user) return "teacher";
+  if (user.new_role === "tutor") return "tutor";
+  if (user.account_type === "tutor") return "tutor";
+  return "teacher";
 }
 
 export function canCreateClass(user, currentClassCount) {
@@ -103,17 +72,12 @@ export function tierLabel(tier) {
     {
       free: "Free",
       classroom: "Classroom",
-      studio: "Studio",
-      enterprise: "Enterprise",
     }[tier] || tier
   );
 }
 
 export function upgradeMessageFor(featureKey) {
   switch (featureKey) {
-    case "brandingEnabled":
-    case "parentReportsEnabled":
-      return "Upgrade to Studio for branded packets and automated parent progress reports.";
     case "liveSessionsEnabled":
     case "pandaTutorEnabled":
       return "Upgrade to Classroom to run live sessions and turn on the AI Panda Tutor.";

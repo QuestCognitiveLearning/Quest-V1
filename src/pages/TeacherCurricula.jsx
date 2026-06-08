@@ -6,10 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import MindmapPreview from "../components/teacher/MindmapPreview";
-import { 
-  BookOpen, 
-  Plus, 
-  Trash2
+import {
+  BookOpen,
+  Plus,
+  Trash2,
+  GraduationCap,
+  Sparkles,
 } from "lucide-react";
 
 export default function TeacherCurricula() {
@@ -19,6 +21,11 @@ export default function TeacherCurricula() {
   const [curriculaData, setCurriculaData] = useState({});
 
   const [loading, setLoading] = useState(true);
+  // Modal asks which kind of content the teacher wants to build before
+  // routing them — full-year curriculum (multi-unit, multi-subunit) vs
+  // a single subunit-style learning session (one video → quiz/case study).
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const openCreateChooser = () => setChooserOpen(true);
 
   useEffect(() => {
     loadCurricula();
@@ -96,7 +103,7 @@ export default function TeacherCurricula() {
             <p className="text-sm text-gray-600">Create and manage your curriculum content</p>
           </div>
           <Button 
-            onClick={() => navigate(createPageUrl("CreateCurriculum"))}
+            onClick={openCreateChooser}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -114,7 +121,7 @@ export default function TeacherCurricula() {
                 <h3 className="text-2xl font-bold text-black mb-2">No curriculum yet</h3>
                 <p className="text-gray-600 mb-6 text-lg">Create your first curriculum to get started</p>
                 <Button 
-                  onClick={() => navigate(createPageUrl("CreateCurriculum"))}
+                  onClick={openCreateChooser}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -172,6 +179,67 @@ export default function TeacherCurricula() {
           </div>
         )}
       </div>
+
+      {chooserOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setChooserOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-7"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">What do you want to build?</h2>
+            <p className="text-sm text-slate-500 mb-6">
+              Pick one — you can always build more later.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setChooserOpen(false);
+                  navigate(createPageUrl("CreateCurriculum"));
+                }}
+                className="text-left p-5 rounded-xl border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 mb-1">Full year curriculum</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Multi-unit course. Quest generates units, subunits, and content for the whole arc.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setChooserOpen(false);
+                  // /Generate is the one-shot subunit-style flow: paste a
+                  // video or PDF, get a quiz + case study + inquiry + checks.
+                  navigate(createPageUrl("Generate"));
+                }}
+                className="text-left p-5 rounded-xl border-2 border-slate-200 hover:border-violet-500 hover:bg-violet-50/40 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 mb-1">One subunit</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Single learning session from a video or PDF — quiz, case study, inquiry hook, attention checks.
+                </p>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setChooserOpen(false)}
+              className="mt-5 text-xs text-slate-400 hover:text-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </TeacherLayout>
   );
 }
