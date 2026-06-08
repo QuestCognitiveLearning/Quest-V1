@@ -19,6 +19,7 @@ import {
   Clock,
   Calendar,
   CheckCircle2,
+  Sparkles,
   User as UserIcon,
   Users
 } from "lucide-react";
@@ -51,6 +52,7 @@ export default function LearningHub() {
   const [dayStreak, setDayStreak] = useState(0);
   const [learnedTopics, setLearnedTopics] = useState(0);
   const [assignments, setAssignments] = useState([]);
+  const [assignedBundles, setAssignedBundles] = useState([]);
   const [todayLearningSessions, setTodayLearningSessions] = useState([]);
   const [allCompletedSessions, setAllCompletedSessions] = useState([]);
   const { notification, showError, closeNotification } = useNotification();
@@ -128,6 +130,38 @@ export default function LearningHub() {
         // Load assignments for this class
         const classAssignments = await quest.entities.Assignment.filter({ class_id: selectedClassId });
         setAssignments(classAssignments);
+
+        // Load lesson-bundle assignments (Generated learning sessions a
+        // teacher pushed to this class). Reads require migration 0029's
+        // student SELECT policy on lesson_bundle_assignments + lesson_bundles.
+        // Default SDK orderBy is "-created_date" which doesn't exist on
+        // these tables — pass the real column to avoid a silent 400.
+        try {
+          const bundleAssns = await quest.entities.LearningSessionAssignment.filter(
+            { class_id: selectedClassId },
+            "-assigned_at"
+          );
+          const bundleIds = [...new Set((bundleAssns || []).map(a => a.bundle_id))];
+          if (bundleIds.length > 0) {
+            const bundles = await quest.entities.LearningSession.filter(
+              { id: bundleIds },
+              "-created_at"
+            );
+            const bundleMap = new Map((bundles || []).map(b => [b.id, b]));
+            setAssignedBundles(
+              (bundleAssns || []).map(a => ({
+                ...a,
+                bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
+                source_type: bundleMap.get(a.bundle_id)?.source_type || null,
+              }))
+            );
+          } else {
+            setAssignedBundles([]);
+          }
+        } catch (err) {
+          console.warn("Could not load assigned bundles:", err);
+          setAssignedBundles([]);
+        }
 
         // Calculate learned topics (subunits with new session completed in this class)
         const classSubunitIds = relevantSubunits.map(s => s.id);
@@ -492,7 +526,51 @@ export default function LearningHub() {
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-6">
+              {assignedBundles.length > 0 && (
+                <Card className="border border-violet-200">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Sparkles className="w-5 h-5 text-violet-600" />
+                        <h2 className="text-lg font-semibold text-black">Assigned by your teacher</h2>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">{assignedBundles.length}</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {assignedBundles.map((a) => {
+                        const overdue = a.due_at && new Date(a.due_at) < new Date();
+                        return (
+                          <div
+                            key={a.id}
+                            onClick={() => navigate(createPageUrl(`AssignedSessionPlay?assignment_id=${a.id}`))}
+                            className={`flex items-center justify-between p-4 border rounded-lg hover:border-violet-400 transition-all cursor-pointer ${overdue ? "border-red-200 bg-red-50" : "border-violet-100 bg-violet-50"}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${overdue ? "bg-red-100" : "bg-violet-100"}`}>
+                                <Sparkles className={`w-5 h-5 ${overdue ? "text-red-600" : "text-violet-600"}`} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-black text-sm">{a.bundle_title}</h3>
+                                  {overdue && <Badge className="text-xs bg-red-100 text-red-700">Overdue</Badge>}
+                                </div>
+                                <p className={`text-xs ${overdue ? "text-red-600" : "text-gray-500"}`}>
+                                  {a.due_at
+                                    ? `Due ${new Date(a.due_at).toLocaleDateString()}`
+                                    : "No due date"}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card className="border border-gray-200">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-6">
