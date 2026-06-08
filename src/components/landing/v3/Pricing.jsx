@@ -3,41 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { Check, Sparkles } from "lucide-react";
 import ContactSalesModal from "@/components/shared/ContactSalesModal";
 
-// Homepage pricing section. 3-tier model: Student / Classroom / Enterprise.
-// Students pay $9/mo for solo self-paced access; teachers pay for the
-// classroom tooling; districts contact sales.
-const buildTiers = (navigate, openContact) => [
-  {
-    id: "student",
-    name: "Student",
-    desc: "For learners studying on their own.",
-    price: "$9",
-    standardPrice: null,
-    per: "/ month",
-    cta: "Start learning",
-    popular: false,
-    features: [
-      "AI Panda Tutor — your 1-on-1 coach",
-      "Unlimited practice sessions",
-      "Personal knowledge map + progress",
-      "Self-paced quizzes and case studies",
-      "Cancel anytime",
-    ],
-    action: () => {
-      try { sessionStorage.setItem("signupRole", "student"); } catch {}
-      try { sessionStorage.setItem("nextUrl", "/Pricing"); } catch {}
-      navigate("/SignIn?mode=signup&next=/Pricing&intent=student");
-    },
-  },
+// Homepage pricing section. 3-tier model: Classroom / Student / Enterprise,
+// with Student in the middle as the popular plan. Annual toggle saves ~18%
+// on Student and ~28% on Classroom (founding-member pricing).
+const buildTiers = (navigate, openContact, billing) => [
   {
     id: "classroom",
     name: "Classroom",
     desc: "For teachers ready to ditch lesson-plan Sundays.",
-    price: "$29",
-    standardPrice: "$49",
-    per: "/ month",
+    price: billing === "annual" ? "$250" : "$29",
+    standardPrice: billing === "annual" ? "$399" : "$49",
+    per: billing === "annual" ? "/ year" : "/ month",
     cta: "Start 7-day free trial",
-    popular: true,
+    popular: false,
     features: [
       "Unlimited classes and students",
       "Unlimited AI quiz + case study generation",
@@ -49,7 +27,29 @@ const buildTiers = (navigate, openContact) => [
     action: () => {
       try { sessionStorage.setItem("signupRole", "teacher"); } catch {}
       try { sessionStorage.setItem("nextUrl", "/Pricing"); } catch {}
-      navigate("/SignIn?mode=signup&next=/Pricing&intent=classroom");
+      navigate(`/SignIn?mode=signup&next=/Pricing&intent=classroom&billing=${billing}`);
+    },
+  },
+  {
+    id: "student",
+    name: "Student",
+    desc: "For learners studying on their own.",
+    price: billing === "annual" ? "$89" : "$9",
+    standardPrice: billing === "annual" ? "$108" : null,
+    per: billing === "annual" ? "/ year" : "/ month",
+    cta: billing === "annual" ? "Start learning — save $19" : "Start learning",
+    popular: true,
+    features: [
+      "AI Panda Tutor — your 1-on-1 coach",
+      "Unlimited practice sessions",
+      "Personal knowledge map + progress",
+      "Self-paced quizzes and case studies",
+      "Cancel anytime",
+    ],
+    action: () => {
+      try { sessionStorage.setItem("signupRole", "student"); } catch {}
+      try { sessionStorage.setItem("nextUrl", "/Pricing"); } catch {}
+      navigate(`/SignIn?mode=signup&next=/Pricing&intent=student&billing=${billing}`);
     },
   },
   {
@@ -75,7 +75,8 @@ const buildTiers = (navigate, openContact) => [
 export default function Pricing() {
   const navigate = useNavigate();
   const [contactOpen, setContactOpen] = useState(false);
-  const TIERS = buildTiers(navigate, () => setContactOpen(true));
+  const [billing, setBilling] = useState("monthly");
+  const TIERS = buildTiers(navigate, () => setContactOpen(true), billing);
   return (
     <section id="pricing" className="bg-[#EEF3FB]" style={{ padding: "72px 0" }}>
       <div className="lp-v3-container">
@@ -98,6 +99,40 @@ export default function Pricing() {
             tooling. Students invited by a teacher join free with a class
             code.
           </p>
+
+          <div className="inline-flex items-center bg-white rounded-full p-1 mt-6 border border-[#E2E8F0]">
+            <button
+              type="button"
+              onClick={() => setBilling("monthly")}
+              className={`px-4 h-9 rounded-full text-sm font-semibold transition-colors ${
+                billing === "monthly"
+                  ? "bg-[#2563EB] text-white"
+                  : "text-[#64748B] hover:text-[#0F172A]"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBilling("annual")}
+              className={`px-4 h-9 rounded-full text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                billing === "annual"
+                  ? "bg-[#2563EB] text-white"
+                  : "text-[#64748B] hover:text-[#0F172A]"
+              }`}
+            >
+              Annual
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                  billing === "annual"
+                    ? "bg-white text-[#2563EB]"
+                    : "bg-[#DCFCE7] text-[#15803D]"
+                }`}
+              >
+                Save 18%
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-3 max-w-5xl mx-auto gap-4 lg:gap-5 items-stretch pt-3">
@@ -154,7 +189,7 @@ export default function Pricing() {
                   </div>
                   {t.standardPrice && (
                     <div className="mt-2 inline-flex items-center gap-1.5 bg-[#DCFCE7] text-[#15803D] font-bold text-[11px] tracking-[0.06em] uppercase px-2.5 py-1 rounded-full">
-                      Founding member
+                      {billing === "annual" ? "Save vs monthly" : "Founding member"}
                     </div>
                   )}
                 </div>

@@ -7,10 +7,11 @@ export type Tier = 'free' | 'student' | 'classroom';
 export function mapPriceIdToTier(priceId: string | null | undefined): Tier {
   if (!priceId) return 'free';
   const studentMonthly   = Deno.env.get('STRIPE_PRICE_STUDENT_MONTHLY');
+  const studentAnnual    = Deno.env.get('STRIPE_PRICE_STUDENT_ANNUAL');
   const classroomMonthly = Deno.env.get('STRIPE_PRICE_CLASSROOM_MONTHLY');
   const classroomAnnual  = Deno.env.get('STRIPE_PRICE_CLASSROOM_ANNUAL');
 
-  if (priceId === studentMonthly) return 'student';
+  if (priceId === studentMonthly || priceId === studentAnnual) return 'student';
   if (priceId === classroomMonthly || priceId === classroomAnnual) return 'classroom';
   // Unknown / legacy price → treat as classroom so existing premium
   // subscribers keep their full feature set.

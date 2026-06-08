@@ -36,10 +36,13 @@ const FONT = "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
 
 const STANDARD_PRICES = {
   classroom: { monthly: 49, annual: 399 },
+  // Student standard = $9 * 12 = $108/yr; annual locks in $89.
+  student:   { monthly: 9,  annual: 108 },
 };
 
 const FOUNDING_PRICES = {
   classroom: { monthly: 29, annual: 250 },
+  student:   { monthly: 9,  annual: 89 },
 };
 
 export default function Pricing() {
@@ -92,7 +95,10 @@ export default function Pricing() {
 
     let priceId;
     if (tier === "student") {
-      priceId = priceIds?.tiers?.student?.monthly;
+      priceId =
+        billing === "annual"
+          ? priceIds?.tiers?.student?.annual
+          : priceIds?.tiers?.student?.monthly;
     } else {
       priceId =
         billing === "annual"
@@ -128,27 +134,9 @@ export default function Pricing() {
 
   const TIERS = [
     {
-      id: "student",
-      name: "Student",
-      desc: "For students who want to study smarter on their own.",
-      price: "$9",
-      per: "/ month",
-      standardPrice: null,
-      cta: "Upgrade — $9/mo",
-      popular: true,
-      features: [
-        "Unlimited AI-generated learning sessions",
-        "Flashcards from any YouTube video or PDF",
-        "AI-graded case studies + quizzes",
-        "Save sessions to your library, replay anytime",
-        "Cancel anytime from the billing portal",
-      ],
-      action: () => checkout("student"),
-    },
-    {
       id: "classroom",
       name: "Classroom",
-      desc: "For individual teachers ready to ditch lesson-plan Sundays.",
+      desc: "For teachers ready to ditch lesson-plan Sundays.",
       price:
         billing === "annual"
           ? `$${FOUNDING_PRICES.classroom.annual}`
@@ -170,6 +158,33 @@ export default function Pricing() {
         "Priority email support",
       ],
       action: () => checkout("classroom"),
+    },
+    {
+      id: "student",
+      name: "Student",
+      desc: "For students who want to study smarter on their own.",
+      price:
+        billing === "annual"
+          ? `$${FOUNDING_PRICES.student.annual}`
+          : `$${FOUNDING_PRICES.student.monthly}`,
+      per: billing === "annual" ? "/ year" : "/ month",
+      standardPrice:
+        billing === "annual"
+          ? `$${STANDARD_PRICES.student.annual}`
+          : null,
+      cta:
+        billing === "annual"
+          ? `Upgrade — $${FOUNDING_PRICES.student.annual}/yr`
+          : `Upgrade — $${FOUNDING_PRICES.student.monthly}/mo`,
+      popular: true,
+      features: [
+        "Unlimited AI-generated learning sessions",
+        "Flashcards from any YouTube video or PDF",
+        "AI-graded case studies + quizzes",
+        "Save sessions to your library, replay anytime",
+        "Cancel anytime from the billing portal",
+      ],
+      action: () => checkout("student"),
     },
     {
       id: "enterprise",

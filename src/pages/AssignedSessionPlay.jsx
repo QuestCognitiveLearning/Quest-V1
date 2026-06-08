@@ -501,6 +501,26 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
       const csScore = csResult?.score ?? null;
       const csMax = csResult?.max ?? null;
 
+      // Spaced repetition schedule — match the SM2-style cadence used by
+      // student_progress for subunits. First completion → 1 day; high
+      // scores stretch faster, low scores compress.
+      const now = new Date();
+      const interval = quizPct === null
+        ? 2
+        : quizPct >= 85
+          ? 3
+          : quizPct >= 60
+            ? 2
+            : 1; // days
+      const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
+      const urgency = quizPct === null
+        ? "Medium"
+        : quizPct >= 75
+          ? "Low"
+          : quizPct >= 50
+            ? "Medium"
+            : "Critical";
+
       const row = {
         student_id: user.id,
         assignment_id: assignment.id,
@@ -514,7 +534,11 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
         case_study_responses: csResult?.responses || null,
         case_study_score: csScore,
         case_study_max: csMax,
-        completed_at: new Date().toISOString(),
+        completed_at: now.toISOString(),
+        next_review_date: nextReview.toISOString(),
+        last_review_date: now.toISOString(),
+        review_count: 0,
+        urgency_status: urgency,
       };
 
       const { data, error: upErr } = await supabase

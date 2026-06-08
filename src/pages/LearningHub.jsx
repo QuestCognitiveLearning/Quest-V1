@@ -353,7 +353,7 @@ export default function LearningHub() {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const reviews = studentProgress
+    const subunitReviews = studentProgress
       .filter(p => p.new_session_completed && p.next_review_date)
       .map(p => {
         const subunit = subunits.find(s => s.id === p.subunit_id);
@@ -373,14 +373,39 @@ export default function LearningHub() {
           dueDate: p.next_review_date,
           status: daysLate > 0 ? "overdue" : (dueDate.getTime() === today.getTime() ? "due" : "upcoming"),
           subunitId: subunit.id,
-          nextReviewDate: dueDate
+          nextReviewDate: dueDate,
+          source: "subunit",
         };
       })
-      .filter(Boolean)
+      .filter(Boolean);
+
+    // Bundle-based reviews — assigned learning sessions written by the
+    // chooser modal. student_bundle_completion gets next_review_date set
+    // on first save (see AssignedSessionPlay), so reviews work the same
+    // way as subunit-anchored ones.
+    const bundleReviews = (assignedBundles || [])
+      .filter(b => b.completion?.next_review_date)
+      .map(b => {
+        const nextReview = new Date(b.completion.next_review_date);
+        const dueDate = new Date(nextReview.getFullYear(), nextReview.getMonth(), nextReview.getDate());
+        const daysLate = Math.max(0, Math.floor((today - dueDate) / (1000 * 60 * 60 * 24)));
+        return {
+          id: `bundle_${b.id}`,
+          topic: b.bundle_title,
+          unit: "Assigned session",
+          reviewNumber: (b.completion.review_count || 0) + 1,
+          daysLate,
+          dueDate: b.completion.next_review_date,
+          status: daysLate > 0 ? "overdue" : (dueDate.getTime() === today.getTime() ? "due" : "upcoming"),
+          assignmentId: b.id,
+          nextReviewDate: dueDate,
+          source: "bundle",
+        };
+      });
+
+    return [...subunitReviews, ...bundleReviews]
       .filter(r => r.status === "overdue" || r.status === "due")
       .sort((a, b) => b.daysLate - a.daysLate || a.nextReviewDate - b.nextReviewDate);
-
-    return reviews;
   };
 
   const getUpcomingSessions = () => {
@@ -525,6 +550,12 @@ export default function LearningHub() {
   };
 
   const handleReviewSessionClick = (session) => {
+    // Bundle-based reviews → replay the assigned session via AssignedSessionPlay.
+    // Subunit-based reviews → PracticeSession with the SM2 review counter.
+    if (session.source === "bundle" && session.assignmentId) {
+      navigate(createPageUrl("AssignedSessionPlay") + `?assignment_id=${session.assignmentId}&review=${session.reviewNumber}`);
+      return;
+    }
     const subunitId = session.subunitId || session.id;
     navigate(createPageUrl("PracticeSession") + `?topic=${encodeURIComponent(subunitId)}&review=${session.reviewNumber}`);
   };

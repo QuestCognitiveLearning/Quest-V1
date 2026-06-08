@@ -39,6 +39,10 @@ export default function TeacherClassDetail() {
   const [liveSessionData, setLiveSessionData] = useState({});
   const [questionResponses, setQuestionResponses] = useState([]);
   const [sessionFeedbacks, setSessionFeedbacks] = useState([]);
+  // Assigned learning sessions for this class + per-student completion rows.
+  // Loaded alongside curriculum data so the teacher sees both axes (subunit
+  // progress and one-off assigned sessions) on a single page.
+  const [assignedBundles, setAssignedBundles] = useState([]); // [{ id, bundle_title, due_at, completions: [...] }]
 
   useEffect(() => {
     loadClassData();
@@ -154,6 +158,42 @@ export default function TeacherClassDetail() {
         const studentIds = enrollmentsData.map(e => e.student_id);
         const relevantProgress = allProgress.filter(p => studentIds.includes(p.student_id));
         setProgressData(relevantProgress);
+      }
+
+      // Assigned learning sessions for this class + per-student completions.
+      // RLS scopes student_bundle_completion to assignments the teacher owns.
+      try {
+        const bundleAssns = await quest.entities.LearningSessionAssignment.filter(
+          { class_id: classId },
+          "-assigned_at"
+        );
+        const bundleIds = [...new Set((bundleAssns || []).map(a => a.bundle_id))];
+        if (bundleIds.length > 0) {
+          const [bundles, completions] = await Promise.all([
+            quest.entities.LessonBundle.filter({ id: bundleIds }, "-created_at"),
+            quest.entities.StudentBundleCompletion.filter({
+              assignment_id: (bundleAssns || []).map(a => a.id),
+            }).catch(() => []),
+          ]);
+          const bundleMap = new Map((bundles || []).map(b => [b.id, b]));
+          const byAssignment = new Map();
+          for (const c of (completions || [])) {
+            if (!byAssignment.has(c.assignment_id)) byAssignment.set(c.assignment_id, []);
+            byAssignment.get(c.assignment_id).push(c);
+          }
+          setAssignedBundles(
+            (bundleAssns || []).map(a => ({
+              ...a,
+              bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
+              completions: byAssignment.get(a.id) || [],
+            }))
+          );
+        } else {
+          setAssignedBundles([]);
+        }
+      } catch (err) {
+        console.warn("Could not load assigned bundles for class:", err);
+        setAssignedBundles([]);
       }
 
       setLoading(false);
