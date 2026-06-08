@@ -1,67 +1,107 @@
 /**
- * AssignedSessionPlay — student-facing phased player for a teacher-assigned
- * learning session bundle. Walks the bundle in distinct phases like the
- * LiveSessionPlay UX (one screen at a time, Continue advances), but with
- * no live-session participant/leaderboard machinery.
+ * AssignedSessionPlay — student player for a teacher-assigned learning
+ * session bundle. Designed to feel exactly like LiveSessionPlay (gradient
+ * background, Plus Jakarta type, rounded-3xl card chrome, indigo/emerald
+ * accents) minus the points + leaderboard, plus AI-graded case study
+ * free responses like the regular learning sessions.
  *
- * Phase order: inquiry → video → quiz → case study → results.
- * Each phase is included only if the payload has the matching content.
- * Quiz phase walks one question at a time; the answer auto-reveals on
- * pick and "Next question" advances. The results phase computes the
- * final score and writes a row to student_bundle_completion.
+ * Phase order (only included if payload has the content):
+ *   inquiry → video (YT IFrame + attention checks) → quiz → case_study → results
  *
- * If the student already submitted before, we re-hydrate the saved
- * answers and jump straight to the results phase with a "Try again"
- * button that wipes the completion row and resets to phase 0.
+ * Persists to student_bundle_completion (one row per student+assignment):
+ *   - quiz_total, quiz_correct, quiz_score_pct, quiz_responses
+ *   - attention_check_total/correct/responses
+ *   - case_study_score, case_study_max, case_study_responses
  *
- * RLS requirements:
- *   - 0029 + 0030: students SELECT lesson_bundle_assignments + lesson_bundles
- *   - 0031: students manage their own student_bundle_completion rows
+ * If a completion row already exists we re-hydrate the answers and jump
+ * to the results screen with a "Try again" button.
+ *
+ * RLS deps: 0029 + 0030 (student SELECT on bundles/assignments),
+ *           0031 (manage own completion), 0032 (extra columns).
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { invokeLLM } from "@/components/utils/openai";
+import { LLM_MODELS } from "@/lib/llmModels";
 import {
   ArrowLeft,
-  ArrowRight,
   Loader2,
-  PlayCircle,
-  HelpCircle,
   Sparkles,
-  CheckCircle2,
+  CheckCircle,
   XCircle,
   Trophy,
   RotateCcw,
-  BookOpen,
+  MessageCircle,
   Send,
+  HelpCircle,
 } from "lucide-react";
 
-const LETTERS = ["a", "b", "c", "d"];
+const LETTERS = ["A", "B", "C", "D"];
+
+// Pull the 11-char YouTube ID out of whatever the payload has.
+function extractVideoId(input) {
+  if (!input) return null;
+  if (typeof input === "string" && /^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+  const url = typeof input === "string" ? input : "";
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
 
 export default function AssignedSessionPlay() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const assignmentId = searchParams.get("assignment_id");
 
+  // ---- Load state ----
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState(null);
   const [assignment, setAssignment] = useState(null);
   const [bundle, setBundle] = useState(null);
-
-  // Walk state
-  const [phaseIdx, setPhaseIdx] = useState(0);
-  const [qIdx, setQIdx] = useState(0);
-  const [selected, setSelected] = useState({}); // { [qIdx]: 'a' }
-  const [revealed, setRevealed] = useState({}); // { [qIdx]: true }
-
-  // Completion row (if student already submitted)
   const [completion, setCompletion] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // ---- Walk state ----
+  const [phaseIdx, setPhaseIdx] = useState(0);
+  const [qIdx, setQIdx] = useState(0);
+  const [quizSelected, setQuizSelected] = useState(null); // 0..3 for current q
+  const [quizSubmitted, setQuizSubmitted] = useState({}); // { [qIdx]: true }
+  const [quizFeedback, setQuizFeedback] = useState(null); // { correct }
+  const [quizResponsesAcc, setQuizResponsesAcc] = useState({}); // { [qIdx]: { picked, is_correct, correct } }
+
+  // Video / attention checks
+  const [ytPlayer, setYtPlayer] = useState(null);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [actualDuration, setActualDuration] = useState(0);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [activeCheck, setActiveCheck] = useState(null);
+  const [checkIdx, setCheckIdx] = useState(0);
+  const [checksDone, setChecksDone] = useState([]);
+  const [checkSelected, setCheckSelected] = useState(null);
+  const [checkFeedback, setCheckFeedback] = useState(null);
+  const [acAcc, setAcAcc] = useState([]); // accumulated attention_check responses
+  const lastTimeRef = useRef(0);
+
+  // Case study chat
+  const [csMessages, setCsMessages] = useState([]); // [{role, content}]
+  const [csInput, setCsInput] = useState("");
+  const [csQIdx, setCsQIdx] = useState(0);
+  const [csAnswers, setCsAnswers] = useState([]);
+  const [csGrading, setCsGrading] = useState(false);
+  const [csResult, setCsResult] = useState(null); // { responses[], score, max }
+  const csEndRef = useRef(null);
 
   useEffect(() => {
     if (!assignmentId) {
@@ -95,7 +135,6 @@ export default function AssignedSessionPlay() {
       if (bErr) throw bErr;
       setBundle(bRow);
 
-      // Existing completion? Re-hydrate answers and jump to results.
       const { data: cRow } = await supabase
         .from("student_bundle_completion")
         .select("*")
@@ -104,16 +143,6 @@ export default function AssignedSessionPlay() {
         .maybeSingle();
       if (cRow) {
         setCompletion(cRow);
-        const sel = {};
-        const rev = {};
-        for (const r of cRow.quiz_responses || []) {
-          if (typeof r.q_index === "number") {
-            if (r.picked) sel[r.q_index] = r.picked;
-            rev[r.q_index] = true;
-          }
-        }
-        setSelected(sel);
-        setRevealed(rev);
       }
     } catch (err) {
       console.error("Failed to load assigned session:", err);
@@ -123,101 +152,378 @@ export default function AssignedSessionPlay() {
     }
   };
 
+  // ---- Derived payload ----
   const payload = bundle?.payload || {};
   const video = payload.video || {};
   const inquiry = payload.inquiry_session || null;
   const caseStudy = payload.case_study || null;
   const quiz = Array.isArray(payload.quiz) ? payload.quiz : [];
-
-  const videoEmbedSrc = useMemo(() => {
-    if (video.videoId) {
-      return `https://www.youtube.com/embed/${video.videoId}?rel=0`;
-    }
-    return null;
-  }, [video.videoId]);
+  const attentionChecks = Array.isArray(payload.attention_checks) ? payload.attention_checks : [];
+  const videoId = extractVideoId(video.videoId || video.url || bundle?.source_url);
 
   const phases = useMemo(() => {
     const out = [];
     if (inquiry?.hook_question) out.push("inquiry");
-    if (videoEmbedSrc || bundle?.source_url) out.push("video");
+    if (videoId) out.push("video");
     if (quiz.length > 0) out.push("quiz");
-    if (caseStudy?.scenario) out.push("case_study");
+    if (caseStudy?.scenario && Array.isArray(caseStudy?.discussion_questions) && caseStudy.discussion_questions.length > 0) {
+      out.push("case_study");
+    }
     out.push("results");
     return out;
-  }, [inquiry, videoEmbedSrc, bundle?.source_url, quiz.length, caseStudy]);
+  }, [inquiry, videoId, quiz.length, caseStudy]);
 
-  // If they've already submitted, jump straight to results on first render.
+  const phase = phases[phaseIdx] || "results";
+
+  // If already completed, land on results.
   useEffect(() => {
     if (completion && phases.length > 0) {
       setPhaseIdx(phases.length - 1);
     }
   }, [completion, phases.length]);
 
-  const currentPhase = phases[phaseIdx];
-
-  const goNext = () => {
+  // ---- Phase advance ----
+  const goNextPhase = () => {
     setPhaseIdx((i) => Math.min(i + 1, phases.length - 1));
+    setQIdx(0);
+    setQuizSelected(null);
+    setQuizFeedback(null);
   };
 
-  const goPrev = () => {
-    setPhaseIdx((i) => Math.max(i - 1, 0));
+  // ============== YouTube player + attention checks ==============
+  useEffect(() => {
+    if (phase !== "video" || !videoId || ytPlayer) return;
+    if (!window.YT) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.body.appendChild(tag);
+    }
+    const init = () => {
+      const el = document.getElementById("asn-yt-player");
+      if (!el) return setTimeout(init, 150);
+      if (!window.YT || !window.YT.Player) return setTimeout(init, 200);
+      try {
+        new window.YT.Player("asn-yt-player", {
+          height: "100%",
+          width: "100%",
+          videoId,
+          playerVars: { controls: 1, modestbranding: 1, rel: 0, autoplay: 1, enablejsapi: 1 },
+          events: {
+            onReady: (e) => {
+              setYtPlayer(e.target);
+              const d = e.target.getDuration();
+              if (d) setActualDuration(Math.floor(d));
+            },
+            onStateChange: (e) => {
+              if (e.data === 0) setVideoEnded(true);
+            },
+          },
+        });
+      } catch (err) {
+        console.error("YT init failed:", err);
+      }
+    };
+    setTimeout(init, 400);
+  }, [phase, videoId, ytPlayer]);
+
+  useEffect(() => {
+    if (phase !== "video" || !ytPlayer) return;
+    const id = setInterval(() => {
+      if (!ytPlayer.getCurrentTime || !ytPlayer.getPlayerState) return;
+      const state = ytPlayer.getPlayerState();
+      const t = ytPlayer.getCurrentTime();
+
+      if (activeCheck) {
+        if (state === 1) ytPlayer.pauseVideo();
+        return;
+      }
+      // Block forward seeks past current point so students can't skip checks.
+      if (t > lastTimeRef.current + 2) {
+        ytPlayer.seekTo(lastTimeRef.current, true);
+        return;
+      }
+      if (state === 1) {
+        setVideoProgress(Math.floor(t));
+        lastTimeRef.current = t;
+
+        const next = attentionChecks[checkIdx];
+        if (next && Math.abs(t - next.timestamp) <= 1 && !checksDone.includes(checkIdx)) {
+          ytPlayer.pauseVideo();
+          setActiveCheck(next);
+          setCheckSelected(null);
+          setCheckFeedback(null);
+        }
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [phase, ytPlayer, activeCheck, checkIdx, checksDone, attentionChecks]);
+
+  const submitAttentionCheck = () => {
+    if (!activeCheck || !checkSelected) return;
+    const correctLetter = String(activeCheck.correct_choice || "A").toUpperCase();
+    const isCorrect = checkSelected === correctLetter;
+    setCheckFeedback({ correct: isCorrect });
+    setAcAcc((prev) => [
+      ...prev,
+      {
+        q_index: checkIdx,
+        picked: checkSelected,
+        correct: correctLetter,
+        is_correct: isCorrect,
+      },
+    ]);
+    setTimeout(() => {
+      setChecksDone((prev) => [...prev, checkIdx]);
+      setActiveCheck(null);
+      setCheckSelected(null);
+      setCheckFeedback(null);
+      setCheckIdx((i) => i + 1);
+      if (ytPlayer) ytPlayer.playVideo();
+    }, 1200);
   };
 
-  // ---- Quiz interaction ----
-  const choose = (letter) => {
-    if (revealed[qIdx] || completion) return;
-    setSelected((prev) => ({ ...prev, [qIdx]: letter }));
-    setRevealed((prev) => ({ ...prev, [qIdx]: true }));
+  const videoCanProceed = () => {
+    const dur = actualDuration || 0;
+    const watchedEnough = videoEnded || (dur > 0 && videoProgress >= dur - 3);
+    return watchedEnough && checksDone.length === attentionChecks.length;
   };
 
-  const nextQuestion = () => {
+  // ============== Quiz handlers ==============
+  const submitQuizAnswer = (choiceIndex) => {
+    if (quizSubmitted[qIdx]) return;
+    setQuizSelected(choiceIndex);
+    const q = quiz[qIdx];
+    const correctLetter = String(q.correct_choice || "A").toUpperCase();
+    const pickedLetter = LETTERS[choiceIndex];
+    const isCorrect = pickedLetter === correctLetter;
+    setQuizFeedback({ correct: isCorrect });
+    setQuizSubmitted((prev) => ({ ...prev, [qIdx]: true }));
+    setQuizResponsesAcc((prev) => ({
+      ...prev,
+      [qIdx]: {
+        q_index: qIdx,
+        picked: pickedLetter.toLowerCase(),
+        correct: correctLetter.toLowerCase(),
+        is_correct: isCorrect,
+      },
+    }));
+  };
+
+  const nextQuizQuestion = () => {
     if (qIdx + 1 < quiz.length) {
-      setQIdx((i) => i + 1);
+      setQIdx(qIdx + 1);
+      setQuizSelected(null);
+      setQuizFeedback(null);
     } else {
-      goNext();
+      goNextPhase();
     }
   };
 
-  // ---- Submit + retry ----
-  const computeResponses = () =>
-    quiz.map((q, i) => {
-      const picked = selected[i] || null;
-      const correct = (q.correct_choice || "").toLowerCase() || null;
-      return {
-        q_index: i,
-        picked,
-        correct,
-        is_correct: !!picked && !!correct && picked === correct,
-      };
+  // ============== Case study chat ==============
+  useEffect(() => {
+    // Seed the chat when entering the phase. Show scenario + first question.
+    if (phase !== "case_study") return;
+    if (csMessages.length > 0) return;
+    if (!caseStudy?.scenario) return;
+    setCsMessages([
+      { role: "assistant", content: `**Scenario:**\n${caseStudy.scenario}` },
+      { role: "assistant", content: `**Q1.** ${caseStudy.discussion_questions[0]}` },
+    ]);
+  }, [phase, caseStudy, csMessages.length]);
+
+  useEffect(() => {
+    csEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [csMessages.length, csGrading]);
+
+  const sendCaseStudyAnswer = async () => {
+    const text = csInput.trim();
+    if (!text || csGrading) return;
+    setCsInput("");
+    const newAnswers = [...csAnswers, text];
+    setCsAnswers(newAnswers);
+    setCsMessages((prev) => [...prev, { role: "user", content: text }]);
+
+    const next = csQIdx + 1;
+    if (next < caseStudy.discussion_questions.length) {
+      setCsQIdx(next);
+      setCsMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `**Q${next + 1}.** ${caseStudy.discussion_questions[next]}`,
+        },
+      ]);
+      return;
+    }
+
+    // All answered — grade.
+    setCsGrading(true);
+    setCsMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "**Grading your responses...** 📝" },
+    ]);
+    try {
+      const graded = await gradeCaseStudy(newAnswers);
+      setCsResult(graded);
+      const feedbackBlocks = graded.responses
+        .map(
+          (r) =>
+            `**Q${r.q_index + 1}** — ${r.score}/${r.max}\n${r.feedback || ""}`,
+        )
+        .join("\n\n");
+      setCsMessages((prev) => [
+        ...prev.slice(0, -1),
+        {
+          role: "assistant",
+          content: `**Case study score: ${graded.score}/${graded.max}** 🌟\n\n${feedbackBlocks}`,
+        },
+      ]);
+    } catch (err) {
+      console.error("CS grading failed:", err);
+      setCsMessages((prev) => [
+        ...prev.slice(0, -1),
+        {
+          role: "assistant",
+          content:
+            "Couldn't grade automatically right now — partial credit applied. You can continue.",
+        },
+      ]);
+      setCsResult({
+        responses: newAnswers.map((a, i) => ({
+          q_index: i,
+          question: caseStudy.discussion_questions[i],
+          answer: a,
+          score: 0.5,
+          max: 1,
+          feedback: "",
+        })),
+        score: newAnswers.length * 0.5,
+        max: newAnswers.length,
+      });
+    } finally {
+      setCsGrading(false);
+    }
+  };
+
+  const gradeCaseStudy = async (answers) => {
+    const questions = caseStudy.discussion_questions || [];
+    const promptBody = questions
+      .map(
+        (q, i) =>
+          `Q${i + 1}: ${q}\nSTUDENT ANSWER ${i + 1}: ${answers[i] || "SKIPPED"}`,
+      )
+      .join("\n\n");
+
+    const schema = {
+      type: "object",
+      properties: {
+        scores: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              q_index: { type: "integer" },
+              score: { type: "number" },
+              feedback: { type: "string" },
+            },
+            required: ["q_index", "score", "feedback"],
+          },
+        },
+        total_score: { type: "number" },
+      },
+      required: ["scores", "total_score"],
+    };
+
+    const result = await invokeLLM({
+      model: LLM_MODELS.CASE_STUDY_GRADING,
+      prompt: `You are grading a student's free-response answers to a case study about "${bundle?.title || video?.title || "this topic"}".
+
+Case study scenario:
+${caseStudy.scenario}
+
+Grade each answer on a 0 / 0.5 / 1 scale:
+- 0 = skipped, blank, incoherent, or completely misses the key concepts
+- 0.5 = partial credit (some key concepts present but incomplete or partially correct)
+- 1 = full credit (captures the main concepts, even if worded differently)
+
+Empty answers, "idk", "skip", or just whitespace = 0.
+Exact wording is not required — focus on conceptual accuracy.
+
+Provide a short feedback string (one to two sentences) for each question explaining what they got right or what was missing. Address the student directly ("you...").
+
+Questions and student answers:
+${promptBody}
+
+Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
+      response_json_schema: schema,
     });
 
-  const handleSubmit = async () => {
+    const max = questions.length;
+    const responses = questions.map((q, i) => {
+      const s = (result?.scores || []).find((x) => x.q_index === i) || {};
+      return {
+        q_index: i,
+        question: q,
+        answer: answers[i] || "",
+        score: typeof s.score === "number" ? s.score : 0,
+        max: 1,
+        feedback: s.feedback || "",
+      };
+    });
+    const score =
+      typeof result?.total_score === "number"
+        ? result.total_score
+        : responses.reduce((sum, r) => sum + (r.score || 0), 0);
+    return { responses, score, max };
+  };
+
+  // ============== Submit + retry ==============
+  const handleFinish = async () => {
     if (!user || !assignment || submitting) return;
     setSubmitting(true);
     try {
-      const responses = computeResponses();
-      const total = quiz.length;
-      const correct = responses.filter((r) => r.is_correct).length;
-      const pct = total > 0 ? Math.round((correct / total) * 100) : null;
+      const quizResponses = quiz.map((q, i) => {
+        const acc = quizResponsesAcc[i];
+        const correctLetter = String(q.correct_choice || "A").toLowerCase();
+        return {
+          q_index: i,
+          picked: acc?.picked || null,
+          correct: correctLetter,
+          is_correct: !!acc?.is_correct,
+        };
+      });
+      const quizCorrect = quizResponses.filter((r) => r.is_correct).length;
+      const quizPct = quiz.length > 0 ? Math.round((quizCorrect / quiz.length) * 100) : null;
 
-      const { data: row, error: upErr } = await supabase
+      const acTotal = attentionChecks.length;
+      const acCorrect = acAcc.filter((r) => r.is_correct).length;
+
+      const csScore = csResult?.score ?? null;
+      const csMax = csResult?.max ?? null;
+
+      const row = {
+        student_id: user.id,
+        assignment_id: assignment.id,
+        quiz_total: quiz.length || null,
+        quiz_correct: quiz.length > 0 ? quizCorrect : null,
+        quiz_score_pct: quizPct,
+        quiz_responses: quizResponses,
+        attention_check_total: acTotal || null,
+        attention_check_correct: acTotal > 0 ? acCorrect : null,
+        attention_check_responses: acAcc.length > 0 ? acAcc : null,
+        case_study_responses: csResult?.responses || null,
+        case_study_score: csScore,
+        case_study_max: csMax,
+        completed_at: new Date().toISOString(),
+      };
+
+      const { data, error: upErr } = await supabase
         .from("student_bundle_completion")
-        .upsert(
-          {
-            student_id: user.id,
-            assignment_id: assignment.id,
-            quiz_total: total || null,
-            quiz_correct: total > 0 ? correct : null,
-            quiz_score_pct: pct,
-            quiz_responses: responses,
-            completed_at: new Date().toISOString(),
-          },
-          { onConflict: "student_id,assignment_id" }
-        )
+        .upsert(row, { onConflict: "student_id,assignment_id" })
         .select("*")
         .single();
       if (upErr) throw upErr;
-      setCompletion(row);
+      setCompletion(data);
     } catch (err) {
       console.error("Failed to save completion:", err);
       setError(err?.message || "Could not save. Try again.");
@@ -236,10 +542,27 @@ export default function AssignedSessionPlay() {
         .eq("student_id", user.id)
         .eq("assignment_id", assignment.id);
       setCompletion(null);
-      setSelected({});
-      setRevealed({});
-      setQIdx(0);
       setPhaseIdx(0);
+      setQIdx(0);
+      setQuizSelected(null);
+      setQuizSubmitted({});
+      setQuizFeedback(null);
+      setQuizResponsesAcc({});
+      setVideoEnded(false);
+      setVideoProgress(0);
+      setActualDuration(0);
+      setActiveCheck(null);
+      setCheckIdx(0);
+      setChecksDone([]);
+      setCheckSelected(null);
+      setCheckFeedback(null);
+      setAcAcc([]);
+      setYtPlayer(null);
+      setCsMessages([]);
+      setCsInput("");
+      setCsQIdx(0);
+      setCsAnswers([]);
+      setCsResult(null);
     } catch (err) {
       console.error("Retry failed:", err);
     } finally {
@@ -247,208 +570,187 @@ export default function AssignedSessionPlay() {
     }
   };
 
+  // ============== Render ==============
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
   }
 
   if (error && !bundle) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-6 text-center">
-            <XCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Can't load this session</h2>
-            <p className="text-sm text-slate-600 mb-4">{error}</p>
-            <Button onClick={() => navigate(createPageUrl("LearningHub"))} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back to Learning Hub
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <Wrapper title={bundle?.title} phaseIdx={0} phases={["results"]} due={null} onBack={() => navigate(createPageUrl("LearningHub"))}>
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center">
+          <XCircle className="w-10 h-10 text-red-500 mx-auto mb-2" />
+          <p className="text-red-600">{error}</p>
+        </div>
+      </Wrapper>
     );
   }
 
-  // Live computation for results phase (also used to derive sidebar
-  // progress badge during the walk).
-  const liveResponses = computeResponses();
-  const liveCorrect = liveResponses.filter((r) => r.is_correct).length;
-  const livePct = quiz.length > 0 ? Math.round((liveCorrect / quiz.length) * 100) : null;
+  return (
+    <Wrapper
+      title={bundle?.title || video?.title || "Learning session"}
+      phaseIdx={phaseIdx}
+      phases={phases}
+      due={assignment?.due_at}
+      onBack={() => navigate(createPageUrl("LearningHub"))}
+    >
+      {phase === "inquiry" && (
+        <InquiryView inquiry={inquiry} onContinue={goNextPhase} />
+      )}
 
+      {phase === "video" && (
+        <VideoView
+          videoId={videoId}
+          activeCheck={activeCheck}
+          checkSelected={checkSelected}
+          checkFeedback={checkFeedback}
+          setCheckSelected={setCheckSelected}
+          submitCheck={submitAttentionCheck}
+          progress={videoProgress}
+          duration={actualDuration}
+          checksDone={checksDone.length}
+          totalChecks={attentionChecks.length}
+          canProceed={videoCanProceed()}
+          onContinue={goNextPhase}
+        />
+      )}
+
+      {phase === "quiz" && quiz[qIdx] && (
+        <QuizView
+          q={quiz[qIdx]}
+          index={qIdx}
+          total={quiz.length}
+          selected={quizSelected}
+          submitted={!!quizSubmitted[qIdx]}
+          feedback={quizFeedback}
+          onSelect={submitQuizAnswer}
+          onNext={nextQuizQuestion}
+        />
+      )}
+
+      {phase === "case_study" && caseStudy && (
+        <CaseStudyView
+          messages={csMessages}
+          input={csInput}
+          setInput={setCsInput}
+          onSend={sendCaseStudyAnswer}
+          grading={csGrading}
+          done={!!csResult}
+          onContinue={goNextPhase}
+          endRef={csEndRef}
+        />
+      )}
+
+      {phase === "results" && (
+        <ResultsView
+          quiz={quiz}
+          quizResponses={
+            completion?.quiz_responses ||
+            quiz.map((q, i) => ({
+              q_index: i,
+              picked: quizResponsesAcc[i]?.picked || null,
+              correct: String(q.correct_choice || "A").toLowerCase(),
+              is_correct: !!quizResponsesAcc[i]?.is_correct,
+            }))
+          }
+          quizPct={
+            completion?.quiz_score_pct ??
+            (quiz.length > 0
+              ? Math.round(
+                  (Object.values(quizResponsesAcc).filter((r) => r.is_correct).length /
+                    quiz.length) *
+                    100,
+                )
+              : null)
+          }
+          quizCorrect={
+            completion?.quiz_correct ??
+            Object.values(quizResponsesAcc).filter((r) => r.is_correct).length
+          }
+          quizTotal={completion?.quiz_total ?? quiz.length}
+          acTotal={completion?.attention_check_total ?? attentionChecks.length}
+          acCorrect={
+            completion?.attention_check_correct ??
+            acAcc.filter((r) => r.is_correct).length
+          }
+          csScore={completion?.case_study_score ?? csResult?.score ?? null}
+          csMax={completion?.case_study_max ?? csResult?.max ?? null}
+          csResponses={completion?.case_study_responses || csResult?.responses || []}
+          submitted={!!completion}
+          submitting={submitting}
+          submittedAt={completion?.completed_at}
+          onSubmit={handleFinish}
+          onRetry={handleRetry}
+          onHome={() => navigate(createPageUrl("LearningHub"))}
+        />
+      )}
+    </Wrapper>
+  );
+}
+
+// =============================== Chrome ===================================
+function Wrapper({ title, phaseIdx, phases, due, onBack, children }) {
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen px-4 py-6 sm:px-6 sm:py-8"
       style={{
         background: "linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 50%, #FAF5FF 100%)",
-        fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
+        fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
       }}
     >
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+      />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Top bar: back + phase progress */}
-        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <button
-            onClick={() => navigate(createPageUrl("LearningHub"))}
-            className="text-sm text-slate-600 hover:text-slate-900 inline-flex items-center gap-1.5"
+            onClick={onBack}
+            className="bg-white border border-slate-200 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm inline-flex items-center gap-1.5 hover:bg-slate-50"
           >
-            <ArrowLeft className="w-4 h-4" /> Learning Hub
+            <ArrowLeft className="w-3.5 h-3.5" /> Learning Hub
           </button>
           <PhaseDots phases={phases} current={phaseIdx} />
         </div>
 
-        {/* Title */}
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5" /> Assigned learning session
+        <div className="mb-4">
+          <div className="inline-flex items-center gap-1.5 bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2">
+            <Sparkles className="w-3 h-3" /> Assigned session
           </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-1">
-            {bundle?.title || video.title || "Learning session"}
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
+            {title}
           </h1>
-          {assignment?.due_at && (
-            <p className="text-sm text-slate-500">
-              Due {new Date(assignment.due_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          {due && (
+            <p className="text-xs text-slate-500 mt-1">
+              Due {new Date(due).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
             </p>
           )}
         </div>
 
-        {/* Phase body */}
-        {currentPhase === "inquiry" && (
-          <PhaseCard
-            icon={<HelpCircle className="w-5 h-5 text-amber-600" />}
-            title="Think first"
-          >
-            <p className="text-slate-800 leading-relaxed text-lg">{inquiry.hook_question}</p>
-            {inquiry.tutor_first_message && (
-              <p className="text-sm text-slate-500 mt-4 italic">{inquiry.tutor_first_message}</p>
-            )}
-            <PhaseFooter onContinue={goNext} continueLabel="I've thought about it" />
-          </PhaseCard>
-        )}
-
-        {currentPhase === "video" && (
-          <PhaseCard
-            icon={<PlayCircle className="w-5 h-5 text-blue-600" />}
-            title={video.title || "Watch"}
-          >
-            {videoEmbedSrc ? (
-              <div className="aspect-video bg-black rounded-xl overflow-hidden">
-                <iframe
-                  src={videoEmbedSrc}
-                  title={video.title || "Video"}
-                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="w-full h-full border-0"
-                />
-              </div>
-            ) : bundle?.source_url ? (
-              <div className="border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3">
-                <div className="text-sm text-slate-700 min-w-0">
-                  <p className="font-medium">Source material</p>
-                  <p className="text-xs text-slate-500 truncate">{bundle.source_url}</p>
-                </div>
-                <a
-                  href={bundle.source_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 shrink-0"
-                >
-                  Open ↗
-                </a>
-              </div>
-            ) : null}
-            <PhaseFooter onContinue={goNext} continueLabel="I've watched it" onBack={phaseIdx > 0 ? goPrev : null} />
-          </PhaseCard>
-        )}
-
-        {currentPhase === "quiz" && quiz[qIdx] && (
-          <PhaseCard
-            icon={<BookOpen className="w-5 h-5 text-violet-600" />}
-            title={`Quiz · question ${qIdx + 1} of ${quiz.length}`}
-          >
-            <QuizQuestion
-              q={quiz[qIdx]}
-              picked={selected[qIdx] || null}
-              revealed={!!revealed[qIdx]}
-              locked={!!completion}
-              onPick={choose}
-            />
-            <PhaseFooter
-              onContinue={revealed[qIdx] || completion ? nextQuestion : null}
-              continueLabel={
-                qIdx + 1 < quiz.length
-                  ? "Next question"
-                  : "Finish quiz"
-              }
-              onBack={qIdx > 0 ? () => setQIdx((i) => i - 1) : (phaseIdx > 0 ? goPrev : null)}
-              hint={!revealed[qIdx] && !completion ? "Pick an answer to continue" : null}
-            />
-          </PhaseCard>
-        )}
-
-        {currentPhase === "case_study" && (
-          <PhaseCard
-            icon={<Sparkles className="w-5 h-5 text-violet-600" />}
-            title="Case study"
-          >
-            <p className="text-slate-800 leading-relaxed whitespace-pre-line">{caseStudy.scenario}</p>
-            {Array.isArray(caseStudy.discussion_questions) && caseStudy.discussion_questions.length > 0 && (
-              <>
-                <h3 className="text-sm font-semibold text-slate-900 mt-5 mb-2">Discussion questions</h3>
-                <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700">
-                  {caseStudy.discussion_questions.map((q, i) => (
-                    <li key={i}>{q}</li>
-                  ))}
-                </ol>
-              </>
-            )}
-            <PhaseFooter onContinue={goNext} continueLabel="Continue" onBack={phaseIdx > 0 ? goPrev : null} />
-          </PhaseCard>
-        )}
-
-        {currentPhase === "results" && (
-          <ResultsCard
-            quiz={quiz}
-            responses={completion?.quiz_responses || liveResponses}
-            score={completion ? completion.quiz_score_pct : livePct}
-            correct={completion ? completion.quiz_correct : liveCorrect}
-            total={completion ? completion.quiz_total : quiz.length}
-            submittedAt={completion?.completed_at}
-            submitted={!!completion}
-            submitting={submitting}
-            onSubmit={handleSubmit}
-            onRetry={handleRetry}
-            onBack={phaseIdx > 0 ? goPrev : null}
-            onHome={() => navigate(createPageUrl("LearningHub"))}
-          />
-        )}
-
-        {error && bundle && (
-          <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mt-4">{error}</p>
-        )}
+        {children}
       </div>
     </div>
   );
 }
 
-// ===================== Subcomponents =====================
-
 function PhaseDots({ phases, current }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm">
       {phases.map((p, i) => (
         <span
           key={i}
           className={`h-1.5 rounded-full transition-all ${
             i === current
-              ? "w-6 bg-blue-600"
+              ? "w-6 bg-indigo-600"
               : i < current
-              ? "w-3 bg-blue-400"
+              ? "w-3 bg-indigo-400"
               : "w-3 bg-slate-200"
           }`}
           title={p}
@@ -458,241 +760,558 @@ function PhaseDots({ phases, current }) {
   );
 }
 
-function PhaseCard({ icon, title, children }) {
-  return (
-    <Card className="border border-slate-200 shadow-sm">
-      <CardContent className="p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-4">
-          {icon}
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-        </div>
-        {children}
-      </CardContent>
-    </Card>
-  );
-}
+// =============================== Views ====================================
 
-function PhaseFooter({ onContinue, continueLabel = "Continue", onBack, hint }) {
+function InquiryView({ inquiry, onContinue }) {
   return (
-    <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-      <div className="flex items-center gap-2">
-        {onBack && (
-          <Button variant="ghost" onClick={onBack} className="text-slate-500">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back
-          </Button>
-        )}
-        {hint && <span className="text-xs text-slate-500">{hint}</span>}
+    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-md">
+      <div className="inline-flex items-center gap-1.5 bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3">
+        <Sparkles className="w-3 h-3" /> Think first
       </div>
+      {inquiry?.hook_image_url && (
+        <img
+          src={inquiry.hook_image_url}
+          alt=""
+          className="w-full rounded-xl border border-slate-200 mb-4"
+        />
+      )}
+      <h2 className="text-xl font-bold text-slate-900 mb-3">
+        {inquiry?.hook_question}
+      </h2>
+      {inquiry?.tutor_first_message && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-5">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-indigo-600 mb-1">
+            🐼 Panda
+          </div>
+          <p className="text-slate-800 leading-relaxed">{inquiry.tutor_first_message}</p>
+        </div>
+      )}
       <Button
         onClick={onContinue}
-        disabled={!onContinue}
-        className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
+        className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-semibold"
       >
-        {continueLabel} <ArrowRight className="w-4 h-4 ml-1.5" />
+        I've thought about it
       </Button>
     </div>
   );
 }
 
-function QuizQuestion({ q, picked, revealed, locked, onPick }) {
-  const correctLetter = (q.correct_choice || "").toLowerCase();
+function VideoView({
+  videoId,
+  activeCheck,
+  checkSelected,
+  checkFeedback,
+  setCheckSelected,
+  submitCheck,
+  progress,
+  duration,
+  checksDone,
+  totalChecks,
+  canProceed,
+  onContinue,
+}) {
+  if (!videoId) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 text-center shadow-md">
+        <p className="text-slate-500">Video unavailable.</p>
+        <Button onClick={onContinue} variant="outline" className="mt-3">
+          Skip
+        </Button>
+      </div>
+    );
+  }
+  const pct = duration > 0 ? Math.min(100, Math.floor((progress / duration) * 100)) : 0;
   return (
-    <>
-      <p className="text-lg font-medium text-slate-900 mb-4">{q.question}</p>
-      <ul className="space-y-2">
-        {LETTERS.map((letter) => {
-          const text = q[`choice_${letter}`];
-          if (!text) return null;
-          const isPicked = picked === letter;
-          const isCorrect = revealed && correctLetter === letter;
-          const isWrongPick = revealed && isPicked && correctLetter !== letter;
-          const disabled = locked || revealed;
+    <div className="bg-white border border-slate-200 rounded-3xl shadow-md overflow-hidden">
+      <div className="aspect-video bg-black">
+        <div id="asn-yt-player" className="w-full h-full" />
+      </div>
+      <div className="p-5">
+        {activeCheck && (
+          <div className="mb-4 border-2 border-indigo-300 bg-indigo-50 rounded-2xl p-4">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 mb-2">
+              Attention check
+            </div>
+            <p className="font-semibold text-slate-900 mb-3">{activeCheck.question}</p>
+            <div className="space-y-2">
+              {["a", "b", "c", "d"].map((k) => {
+                const letter = k.toUpperCase();
+                const text = activeCheck[`choice_${k}`];
+                if (!text) return null;
+                const isSel = checkSelected === letter;
+                const showResult = !!checkFeedback;
+                const isCorrect = letter === String(activeCheck.correct_choice || "A").toUpperCase();
+                let cls = "border-slate-200 bg-white";
+                if (showResult && isCorrect) cls = "border-emerald-500 bg-emerald-50";
+                else if (showResult && isSel && !isCorrect) cls = "border-red-400 bg-red-50";
+                else if (isSel) cls = "border-indigo-500 bg-indigo-50";
+                return (
+                  <button
+                    key={k}
+                    disabled={showResult}
+                    onClick={() => setCheckSelected(letter)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${cls}`}
+                  >
+                    <span className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-bold">
+                      {letter}
+                    </span>
+                    <span className="flex-1 text-slate-900 text-sm">{text}</span>
+                    {showResult && isCorrect && <CheckCircle className="w-5 h-5 text-emerald-600" />}
+                  </button>
+                );
+              })}
+            </div>
+            {!checkFeedback && (
+              <Button
+                onClick={submitCheck}
+                disabled={!checkSelected}
+                className="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                Submit
+              </Button>
+            )}
+            {checkFeedback && (
+              <p className={`text-sm font-semibold mt-3 ${checkFeedback.correct ? "text-emerald-700" : "text-amber-700"}`}>
+                {checkFeedback.correct ? "Nice — correct." : "Not quite. Keep watching."}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <span>Watch progress: {pct}%</span>
+          <span>Checks: {checksDone}/{totalChecks}</span>
+        </div>
+        <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mb-4">
+          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+        </div>
+
+        <Button
+          onClick={onContinue}
+          disabled={!canProceed}
+          className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+        >
+          {canProceed ? "Continue" : "Finish the video first"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function QuizView({ q, index, total, selected, submitted, feedback, onSelect, onNext }) {
+  const choices = ["choice_a", "choice_b", "choice_c", "choice_d"]
+    .map((k) => q[k])
+    .filter(Boolean);
+  const correctLetter = String(q.correct_choice || "A").toUpperCase();
+  const correctIdx = LETTERS.indexOf(correctLetter);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-md">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+        Question {index + 1} of {total}
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 mb-5">{q.question}</h2>
+
+      <div className="space-y-2.5">
+        {choices.map((c, i) => {
+          const isSel = selected === i;
+          const isCorrect = i === correctIdx;
+          let cls = "border-slate-200 bg-white hover:border-indigo-300 cursor-pointer";
+          if (submitted) {
+            if (isCorrect) cls = "border-emerald-500 bg-emerald-50";
+            else if (isSel) cls = "border-red-400 bg-red-50";
+            else cls = "border-slate-200 bg-slate-50 opacity-70";
+          } else if (isSel) {
+            cls = "border-indigo-500 bg-indigo-50";
+          }
           return (
-            <li key={letter}>
-              <button
-                onClick={() => onPick(letter)}
-                disabled={disabled}
-                className={`w-full text-left px-4 py-3 rounded-xl border text-sm transition-all flex items-center gap-3 ${
-                  isCorrect
-                    ? "border-green-400 bg-green-50 text-green-900"
-                    : isWrongPick
-                    ? "border-red-400 bg-red-50 text-red-900"
-                    : isPicked
-                    ? "border-blue-500 bg-blue-50 text-blue-900"
-                    : `border-slate-200 text-slate-800 ${disabled ? "" : "hover:border-slate-300 hover:bg-slate-50"}`
+            <button
+              key={i}
+              disabled={submitted}
+              onClick={() => onSelect(i)}
+              className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-colors ${cls}`}
+            >
+              <span
+                className={`w-9 h-9 rounded-md flex items-center justify-center font-bold ${
+                  submitted && isCorrect
+                    ? "bg-emerald-600 text-white"
+                    : isSel
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 text-slate-700"
                 }`}
               >
-                <span className="font-semibold w-6">{letter.toUpperCase()}.</span>
-                <span className="flex-1">{text}</span>
-                {isCorrect && <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />}
-                {isWrongPick && <XCircle className="w-5 h-5 text-red-600 shrink-0" />}
-              </button>
-            </li>
+                {LETTERS[i]}
+              </span>
+              <span className="flex-1 text-slate-900">{c}</span>
+              {submitted && isCorrect && <CheckCircle className="w-5 h-5 text-emerald-600" />}
+            </button>
           );
         })}
-      </ul>
-      {revealed && (
-        <div className={`mt-4 px-4 py-3 rounded-xl text-sm ${picked === correctLetter ? "bg-green-50 border border-green-200 text-green-900" : "bg-amber-50 border border-amber-200 text-amber-900"}`}>
-          <p className="font-semibold mb-1">
-            {picked === correctLetter
-              ? "Correct!"
-              : `The correct answer is ${correctLetter.toUpperCase()}.`}
+      </div>
+
+      {feedback && (
+        <div
+          className={`mt-5 rounded-xl p-4 ${
+            feedback.correct ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200"
+          }`}
+        >
+          <p
+            className={`font-bold ${
+              feedback.correct ? "text-emerald-800" : "text-amber-800"
+            }`}
+          >
+            {feedback.correct ? "Correct!" : `The answer was ${correctLetter}.`}
           </p>
-          {q.explanation && <p className="text-slate-700">{q.explanation}</p>}
+          {q.explanation && (
+            <p className="text-sm text-slate-700 mt-1">{q.explanation}</p>
+          )}
         </div>
       )}
+
+      {submitted && (
+        <Button onClick={onNext} className="w-full mt-4 h-11 bg-indigo-600 hover:bg-indigo-700 text-white">
+          {index + 1 < total ? "Next question" : "Finish quiz"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function CaseStudyView({ messages, input, setInput, onSend, grading, done, onContinue, endRef }) {
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  };
+  return (
+    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-md">
+      <div className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3">
+        <MessageCircle className="w-3 h-3" /> Case study
+      </div>
+
+      <div className="border border-slate-200 rounded-2xl bg-slate-50 p-3 max-h-[420px] overflow-y-auto mb-3 space-y-2">
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <div
+              className={`max-w-[88%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+                m.role === "user"
+                  ? "bg-indigo-600 text-white rounded-br-md"
+                  : "bg-white border border-slate-200 text-slate-800 rounded-bl-md"
+              }`}
+            >
+              {m.role === "assistant" && (
+                <div className="text-[10px] uppercase tracking-wider font-bold text-indigo-600 mb-0.5">
+                  🐼 Panda
+                </div>
+              )}
+              <RichText text={m.content} />
+            </div>
+          </div>
+        ))}
+        {grading && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-3.5 py-2 text-sm text-slate-500 inline-flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Grading your answers…
+            </div>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {!done ? (
+        <div className="flex items-end gap-2">
+          <Textarea
+            rows={3}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={grading}
+            placeholder="Type your answer…"
+            className="resize-none flex-1"
+          />
+          <Button
+            onClick={onSend}
+            disabled={!input.trim() || grading}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white h-[72px] px-4"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </div>
+      ) : (
+        <Button
+          onClick={onContinue}
+          className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white text-base font-semibold"
+        >
+          Continue to results
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// Render **bold** segments inline.
+function RichText({ text }) {
+  const parts = (text || "").split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (p.startsWith("**") && p.endsWith("**")) {
+          return <strong key={i}>{p.slice(2, -2)}</strong>;
+        }
+        return <React.Fragment key={i}>{p}</React.Fragment>;
+      })}
     </>
   );
 }
 
-function ResultsCard({
+function ResultsView({
   quiz,
-  responses,
-  score,
-  correct,
-  total,
-  submittedAt,
+  quizResponses,
+  quizPct,
+  quizCorrect,
+  quizTotal,
+  acTotal,
+  acCorrect,
+  csScore,
+  csMax,
+  csResponses,
   submitted,
   submitting,
+  submittedAt,
   onSubmit,
   onRetry,
-  onBack,
   onHome,
 }) {
-  const hasQuiz = (total || 0) > 0;
-  const passed = hasQuiz && score >= 70;
+  const hasQuiz = (quizTotal || 0) > 0;
+  const hasAC = (acTotal || 0) > 0;
+  const hasCS = (csMax || 0) > 0;
+
+  // Overall: weighted average of available components
+  const components = [];
+  if (hasQuiz) components.push(quizPct);
+  if (hasAC) components.push(Math.round((acCorrect / acTotal) * 100));
+  if (hasCS) components.push(Math.round((csScore / csMax) * 100));
+  const overall = components.length
+    ? Math.round(components.reduce((a, b) => a + b, 0) / components.length)
+    : null;
+  const passed = overall !== null && overall >= 70;
 
   return (
-    <Card className="border border-slate-200 shadow-sm">
-      <CardContent className="p-6 sm:p-8">
-        <div className="text-center mb-6">
-          <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-md">
+      <div className="text-center mb-6">
+        <div
+          className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${
+            !submitted
+              ? "bg-indigo-100"
+              : passed
+              ? "bg-emerald-100"
+              : "bg-amber-100"
+          }`}
+        >
+          <Trophy
+            className={`w-8 h-8 ${
               !submitted
-                ? "bg-blue-100"
+                ? "text-indigo-600"
                 : passed
-                ? "bg-emerald-100"
-                : "bg-amber-100"
+                ? "text-emerald-700"
+                : "text-amber-700"
             }`}
-          >
-            <Trophy
-              className={`w-8 h-8 ${
-                !submitted ? "text-blue-600" : passed ? "text-emerald-700" : "text-amber-700"
-              }`}
-            />
-          </div>
-          <h2 className="text-2xl font-semibold text-slate-900 mb-1">
-            {submitted ? "Session complete" : "Ready to submit?"}
-          </h2>
-          {hasQuiz ? (
-            <>
-              <p className="text-4xl font-bold mt-3 mb-1 tabular-nums">
-                <span className={passed ? "text-emerald-700" : submitted ? "text-amber-700" : "text-slate-900"}>
-                  {score}%
-                </span>
-              </p>
-              <p className="text-sm text-slate-600">
-                {correct} of {total} correct
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-slate-600">
-              {submitted ? "Marked complete." : "Mark this session complete when you're ready."}
-            </p>
-          )}
-          {submitted && submittedAt && (
-            <p className="text-xs text-slate-400 mt-2">
-              Submitted {new Date(submittedAt).toLocaleString()}
-            </p>
-          )}
+          />
         </div>
-
-        {hasQuiz && (
-          <div className="border-t border-slate-100 pt-5">
-            <h3 className="text-sm font-semibold text-slate-900 mb-3">Question review</h3>
-            <ol className="space-y-2">
-              {quiz.map((q, i) => {
-                const r = responses[i] || {};
-                return (
-                  <li
-                    key={i}
-                    className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${
-                      r.is_correct
-                        ? "border-green-200 bg-green-50"
-                        : r.picked
-                        ? "border-red-200 bg-red-50"
-                        : "border-slate-200 bg-slate-50"
-                    }`}
-                  >
-                    {r.is_correct ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-900 text-sm line-clamp-2">
-                        {i + 1}. {q.question}
-                      </p>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        Your answer: <span className="font-semibold">{r.picked ? r.picked.toUpperCase() : "—"}</span>
-                        {!r.is_correct && r.correct && (
-                          <>
-                            {" "}· Correct: <span className="font-semibold text-green-700">{r.correct.toUpperCase()}</span>
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          {submitted ? "Session complete" : "Ready to submit?"}
+        </h2>
+        {overall !== null && (
+          <p className="text-5xl font-extrabold mt-3 tabular-nums">
+            <span
+              className={
+                passed
+                  ? "text-emerald-700"
+                  : submitted
+                  ? "text-amber-700"
+                  : "text-slate-900"
+              }
+            >
+              {overall}%
+            </span>
+          </p>
         )}
+        {submitted && submittedAt && (
+          <p className="text-xs text-slate-400 mt-1">
+            Submitted {new Date(submittedAt).toLocaleString()}
+          </p>
+        )}
+      </div>
 
-        <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-          {!submitted ? (
-            <>
-              {onBack && (
-                <Button variant="ghost" onClick={onBack} className="text-slate-500">
-                  <ArrowLeft className="w-4 h-4 mr-1" /> Back
-                </Button>
-              )}
-              <Button
-                onClick={onSubmit}
-                disabled={submitting}
-                className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
+      <div className="space-y-2 mb-6">
+        {hasQuiz && (
+          <ScoreRow
+            label="Quiz"
+            score={`${quizCorrect}/${quizTotal}`}
+            pct={quizPct}
+            color="indigo"
+          />
+        )}
+        {hasAC && (
+          <ScoreRow
+            label="Attention checks"
+            score={`${acCorrect}/${acTotal}`}
+            pct={Math.round((acCorrect / acTotal) * 100)}
+            color="emerald"
+          />
+        )}
+        {hasCS && (
+          <ScoreRow
+            label="Case study (AI-graded)"
+            score={`${csScore}/${csMax}`}
+            pct={Math.round((csScore / csMax) * 100)}
+            color="amber"
+          />
+        )}
+      </div>
+
+      {hasQuiz && quizResponses.length > 0 && (
+        <details className="mb-4 border border-slate-200 rounded-2xl">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-900">
+            Quiz review · {quizCorrect}/{quizTotal}
+          </summary>
+          <ol className="px-4 pb-4 space-y-2">
+            {quiz.map((q, i) => {
+              const r = quizResponses[i] || {};
+              return (
+                <li
+                  key={i}
+                  className={`flex items-start gap-2 p-3 rounded-lg border text-sm ${
+                    r.is_correct
+                      ? "border-emerald-200 bg-emerald-50"
+                      : r.picked
+                      ? "border-red-200 bg-red-50"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  {r.is_correct ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-900 text-sm">
+                      {i + 1}. {q.question}
+                    </p>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Your answer:{" "}
+                      <span className="font-semibold">
+                        {r.picked ? r.picked.toUpperCase() : "—"}
+                      </span>
+                      {!r.is_correct && r.correct && (
+                        <>
+                          {" "}
+                          · Correct:{" "}
+                          <span className="font-semibold text-emerald-700">
+                            {r.correct.toUpperCase()}
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </details>
+      )}
+
+      {hasCS && csResponses.length > 0 && (
+        <details className="mb-4 border border-slate-200 rounded-2xl">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-900">
+            Case study feedback · {csScore}/{csMax}
+          </summary>
+          <ol className="px-4 pb-4 space-y-3">
+            {csResponses.map((r, i) => (
+              <li
+                key={i}
+                className={`p-3 rounded-lg border text-sm ${
+                  r.score === r.max
+                    ? "border-emerald-200 bg-emerald-50"
+                    : r.score > 0
+                    ? "border-amber-200 bg-amber-50"
+                    : "border-red-200 bg-red-50"
+                }`}
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-1.5" /> {hasQuiz ? "Submit & finish" : "Mark complete"}
-                  </>
+                <p className="font-medium text-slate-900 mb-1">
+                  Q{(r.q_index ?? i) + 1}. {r.question}
+                </p>
+                <p className="text-xs text-slate-700 mb-1.5">
+                  <span className="font-semibold">Your answer:</span> {r.answer || "—"}
+                </p>
+                <p className="text-xs text-slate-700 mb-1">
+                  <span className="font-semibold">Score:</span> {r.score}/{r.max}
+                </p>
+                {r.feedback && (
+                  <p className="text-xs text-slate-700 italic">{r.feedback}</p>
                 )}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                onClick={onRetry}
-                disabled={submitting}
-                className="border-slate-300"
-              >
-                <RotateCcw className="w-4 h-4 mr-1.5" /> Try again
-              </Button>
-              <Button
-                onClick={onHome}
-                className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
-              >
-                Back to Learning Hub <ArrowRight className="w-4 h-4 ml-1.5" />
-              </Button>
-            </>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+
+      <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+        {!submitted ? (
+          <Button
+            onClick={onSubmit}
+            disabled={submitting}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 text-base font-semibold"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-1.5" /> Submit & finish
+              </>
+            )}
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              onClick={onRetry}
+              disabled={submitting}
+              className="border-slate-300"
+            >
+              <RotateCcw className="w-4 h-4 mr-1.5" /> Try again
+            </Button>
+            <Button
+              onClick={onHome}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white ml-auto"
+            >
+              Back to Learning Hub
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScoreRow({ label, score, pct, color }) {
+  const palette = {
+    indigo: "bg-indigo-50 text-indigo-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+  }[color] || "bg-slate-50 text-slate-700";
+  return (
+    <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${palette}`}>
+      <span className="font-semibold text-sm">{label}</span>
+      <span className="text-sm font-bold tabular-nums">
+        {score} · {pct}%
+      </span>
+    </div>
   );
 }
