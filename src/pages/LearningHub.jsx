@@ -114,7 +114,53 @@ export default function LearningHub() {
       const selectedClass = classes.find(c => c.id === selectedClassId);
       if (!selectedClass) return;
 
-      const curriculumData = await quest.entities.Curriculum.filter({ id: selectedClass.curriculum_id });
+      // Lesson-bundle assignments are class-scoped (no curriculum
+      // required), so fetch them BEFORE the curriculum gate below.
+      // Otherwise classes with curriculum_id = null (e.g. tutor / Generate-
+      // only classes) silently skip the bundle list. The orderBy column
+      // must be a real column on the table — the SDK default
+      // "-created_date" 400s and the catch zeroes the list.
+      try {
+        const bundleAssns = await quest.entities.LearningSessionAssignment.filter(
+          { class_id: selectedClassId },
+          "-assigned_at"
+        );
+        const bundleIds = [...new Set((bundleAssns || []).map(a => a.bundle_id))];
+        if (bundleIds.length > 0) {
+          const bundles = await quest.entities.LessonBundle.filter(
+            { id: bundleIds },
+            "-created_at"
+          );
+          const bundleMap = new Map((bundles || []).map(b => [b.id, b]));
+
+          // Completion rows for these assignments — one query for the
+          // whole list. RLS scopes the result to the current student.
+          const assignmentIds = (bundleAssns || []).map(a => a.id);
+          const completions = await quest.entities.StudentBundleCompletion.filter(
+            { student_id: user.id, assignment_id: assignmentIds },
+            "-completed_at"
+          ).catch(() => []);
+          const completionMap = new Map((completions || []).map(c => [c.assignment_id, c]));
+
+          setAssignedBundles(
+            (bundleAssns || []).map(a => ({
+              ...a,
+              bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
+              source_type: bundleMap.get(a.bundle_id)?.source_type || null,
+              completion: completionMap.get(a.id) || null,
+            }))
+          );
+        } else {
+          setAssignedBundles([]);
+        }
+      } catch (err) {
+        console.warn("Could not load assigned bundles:", err);
+        setAssignedBundles([]);
+      }
+
+      const curriculumData = selectedClass.curriculum_id
+        ? await quest.entities.Curriculum.filter({ id: selectedClass.curriculum_id })
+        : [];
       if (curriculumData.length > 0) {
         setCurriculum(curriculumData[0]);
 
@@ -130,49 +176,6 @@ export default function LearningHub() {
         // Load assignments for this class
         const classAssignments = await quest.entities.Assignment.filter({ class_id: selectedClassId });
         setAssignments(classAssignments);
-
-        // Load lesson-bundle assignments (Generated learning sessions a
-        // teacher pushed to this class). Reads require migration 0029's
-        // student SELECT policy on lesson_bundle_assignments + lesson_bundles.
-        // Default SDK orderBy is "-created_date" which doesn't exist on
-        // these tables — pass the real column to avoid a silent 400.
-        try {
-          const bundleAssns = await quest.entities.LearningSessionAssignment.filter(
-            { class_id: selectedClassId },
-            "-assigned_at"
-          );
-          const bundleIds = [...new Set((bundleAssns || []).map(a => a.bundle_id))];
-          if (bundleIds.length > 0) {
-            const bundles = await quest.entities.LessonBundle.filter(
-              { id: bundleIds },
-              "-created_at"
-            );
-            const bundleMap = new Map((bundles || []).map(b => [b.id, b]));
-
-            // Completion rows for these assignments — one query for the
-            // whole list. RLS scopes the result to the current student.
-            const assignmentIds = (bundleAssns || []).map(a => a.id);
-            const completions = await quest.entities.StudentBundleCompletion.filter(
-              { student_id: user.id, assignment_id: assignmentIds },
-              "-completed_at"
-            ).catch(() => []);
-            const completionMap = new Map((completions || []).map(c => [c.assignment_id, c]));
-
-            setAssignedBundles(
-              (bundleAssns || []).map(a => ({
-                ...a,
-                bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
-                source_type: bundleMap.get(a.bundle_id)?.source_type || null,
-                completion: completionMap.get(a.id) || null,
-              }))
-            );
-          } else {
-            setAssignedBundles([]);
-          }
-        } catch (err) {
-          console.warn("Could not load assigned bundles:", err);
-          setAssignedBundles([]);
-        }
 
         // Calculate learned topics (subunits with new session completed in this class)
         const classSubunitIds = relevantSubunits.map(s => s.id);
