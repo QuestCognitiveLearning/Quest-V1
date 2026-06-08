@@ -151,11 +151,7 @@ export default function TeacherSettings() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Account Type</p>
-              <p className="text-base font-medium text-black capitalize">
-                {teacher?.new_role === "tutor"
-                  ? "Tutor"
-                  : teacher?.account_type}
-              </p>
+              <p className="text-base font-medium text-black capitalize">{teacher?.account_type}</p>
             </div>
           </CardContent>
         </Card>

@@ -6,7 +6,7 @@
  */
 
 import './App.css';
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
@@ -23,36 +23,6 @@ import {
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { getUserRole, getUserTier } from '@/lib/tier';
-
-// Pages a tutor/Studio user must never see — they have their own dashboard
-// at /TutorDashboard. Hitting any of these bounces to the Studio surface
-// BEFORE the page component mounts, so there's no flash of teacher chrome.
-//
-// Note: TeacherAnalytics, TeacherProgress, and TeacherLeaderboard are NOT
-// blocked — they're surfaced to tutors under the "Insights" label since
-// the analytics are useful for tracking per-student progress regardless of
-// whether the user runs a classroom or a 1-on-1 practice.
-const TEACHER_ONLY_PAGES = new Set([
-  'TeacherDashboard',
-  'TeacherCurricula',
-  'CreateCurriculum',
-  'ManageCurriculum',
-  'Curriculum',
-  'Classes',
-]);
-
-function isStudioUser(user) {
-  if (!user) return false;
-  if (getUserRole(user) === 'tutor') return true;
-  const tier = getUserTier(user);
-  return tier === 'studio' || tier === 'enterprise';
-}
-
-// /Book/:slug needs a dynamic path param, which the auto-route generation in
-// pages.config can't express. It's also public — no auth required to view a
-// tutor's booking page — so it lives outside the Pages map.
-const Book = lazy(() => import('./pages/Book'));
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -69,10 +39,8 @@ const PUBLIC_PAGES = [
   'SignIn',
   'ResetPassword',
   'try',
-  'Studio',
   'Classroom',
   'Enterprise',
-  'TutorSignup',
   'Join',
   'LiveSessionPlay',
 ];
@@ -110,23 +78,12 @@ function LayoutWrapper({ children, currentPageName }) {
  * children or redirect to /SignIn?next=... when the user isn't signed in.
  */
 function RequireAuth({ pageName, children }) {
-  const { isAuthenticated, isLoadingAuth, user } = useAuth();
+  const { isAuthenticated, isLoadingAuth } = useAuth();
   const location = useLocation();
   if (isLoadingAuth) return <FullPageSpinner />;
   if (!isAuthenticated && !PUBLIC_PAGES.includes(pageName)) {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/SignIn?next=${next}`} replace />;
-  }
-  // Hard tutor gate: tutors and Studio/Enterprise tier users have no business
-  // on the teacher-only pages. Bounce to /TutorDashboard before the page
-  // component is even mounted — eliminates the flash of teacher chrome.
-  if (TEACHER_ONLY_PAGES.has(pageName) && isStudioUser(user)) {
-    return (
-      <Navigate
-        to={`/TutorDashboard${location.search || ''}`}
-        replace
-      />
-    );
   }
   return children;
 }
@@ -172,7 +129,6 @@ function AuthenticatedApp() {
             re-matched the lowercase redirect, etc. */}
         <Route path="/quiz-from-video" element={<Navigate to="/try" replace />} />
         <Route path="/quiz-from-video/*" element={<Navigate to="/try" replace />} />
-        <Route path="/Book/:slug" element={<Book />} />
         {Object.entries(Pages).map(([path, Page]) => (
           <Route
             key={path}

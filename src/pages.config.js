@@ -45,8 +45,6 @@ export const PAGES = {
   "PracticeSession":      lazy(() => import('./pages/PracticeSession')),
   "Pricing":              lazy(() => import('./pages/Pricing')),
   "PricingInfo":          lazy(() => import('./pages/PricingInfo')),
-  "BrandingSettings":     lazy(() => import('./pages/BrandingSettings')),
-  "Studio":               lazy(() => import('./pages/Studio')),
   "Classroom":            lazy(() => import('./pages/Classroom')),
   "Enterprise":           lazy(() => import('./pages/Enterprise')),
   "Progress":             lazy(() => import('./pages/Progress')),
@@ -66,13 +64,7 @@ export const PAGES = {
   "TeacherSettings":      lazy(() => import('./pages/TeacherSettings')),
   "TeacherStudentDetail": lazy(() => import('./pages/TeacherStudentDetail')),
   "Generate":             lazy(() => import('./pages/Generate')),
-  "TutorSignup":          lazy(() => import('./pages/TutorSignup')),
-  "TutorDashboard":       lazy(() => import('./pages/TutorDashboard')),
-  "TutorStudents":        lazy(() => import('./pages/TutorStudents')),
-  "TutorBookings":        lazy(() => import('./pages/TutorBookings')),
   "Library":              lazy(() => import('./pages/Library')),
-  "ParentReports":        lazy(() => import('./pages/ParentReports')),
-  "BookingSettings":      lazy(() => import('./pages/BookingSettings')),
   "try":                  lazy(() => import('./pages/Try')),
 };
 

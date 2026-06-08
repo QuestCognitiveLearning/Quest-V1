@@ -84,40 +84,20 @@ export default function Layout({ children, currentPageName }) {
 
       // Teacher-specific routing
       if (user.account_type === "teacher") {
-        // Tutor-only surfaces. Always allowed for any user with
-        // account_type='teacher' regardless of subscription status — the
-        // pages themselves enforce tier gates (Studio/Enterprise) via
-        // isFeatureEnabled. Without this, a tutor visiting /TutorDashboard
-        // would race the App.jsx router-level Studio gate: Layout would
-        // bounce to /TeacherDashboard, the router would bounce back to
-        // /TutorDashboard, infinite loop, page never renders.
-        const tutorPages = [
-          "TutorDashboard",
-          "TutorSignup",
-          "TutorStudents",
-          "TutorBookings",
-          "ParentReports",
-          "BookingSettings",
-          "Library",
-        ];
         const allTeacherPages = [
           "Pricing", "LiveSessionBuilder", "LiveSessionHost",
           "TeacherDashboard", "TeacherClasses", "TeacherClassDetail",
           "TeacherCurricula", "CreateCurriculum", "ManageCurriculum",
           "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics",
           "TeacherStudentDetail", "TranscriptTester", "TeacherSettings",
-          "Generate", "BrandingSettings",
-          ...tutorPages,
+          "Generate", "Library",
         ];
 
         // Free teachers can still build / host live sessions and access
-        // Generate (the new hub) + Settings + Pricing. Tutor pages are
-        // allowed for new tutors whose subscription_status is 'free' until
-        // they buy Studio.
+        // Generate (the new hub) + Settings + Pricing.
         const freeTeacherPages = [
           "Generate", "LiveSessionBuilder", "LiveSessionHost",
-          "SocraticInquiry", "TeacherSettings", "Pricing",
-          ...tutorPages,
+          "SocraticInquiry", "TeacherSettings", "Pricing", "Library",
         ];
 
         // Determine allowed pages based on subscription
@@ -128,12 +108,7 @@ export default function Layout({ children, currentPageName }) {
           console.log("⚠️ [AUTH] Teacher on invalid page, redirecting");
           console.log("📋 [AUTH] Subscription Status:", user.subscription_status);
           console.log("📋 [AUTH] Allowed pages:", allowedPages);
-          // Redirect free teachers to /Generate (now the hub), paid teachers
-          // to dashboard; tutors always land on their own dashboard.
-          const isTutor = user.new_role === "tutor";
-          const redirectPage = isTutor
-            ? "TutorDashboard"
-            : (user.subscription_status === 'free' ? "Generate" : "TeacherDashboard");
+          const redirectPage = user.subscription_status === 'free' ? "Generate" : "TeacherDashboard";
           navigate(createPageUrl(redirectPage), { replace: true });
           return;
         }

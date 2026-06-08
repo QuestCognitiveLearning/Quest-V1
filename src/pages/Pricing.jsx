@@ -36,12 +36,10 @@ const FONT = "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
 
 const STANDARD_PRICES = {
   classroom: { monthly: 49, annual: 399 },
-  studio: { monthly: 99, annual: 799 },
 };
 
 const FOUNDING_PRICES = {
   classroom: { monthly: 29, annual: 250 },
-  studio: { monthly: 59, annual: 499 },
 };
 
 export default function Pricing() {
@@ -91,35 +89,21 @@ export default function Pricing() {
       return;
     }
     const priceId =
-      tier === "classroom"
-        ? billing === "annual"
-          ? priceIds?.tiers?.classroom?.annual
-          : priceIds?.tiers?.classroom?.monthly || priceIds?.premium_price_id
-        : billing === "annual"
-        ? priceIds?.tiers?.studio?.annual
-        : priceIds?.tiers?.studio?.monthly;
+      billing === "annual"
+        ? priceIds?.tiers?.classroom?.annual
+        : priceIds?.tiers?.classroom?.monthly || priceIds?.premium_price_id;
 
     if (!priceId) {
-      toast.error(
-        tier === "studio"
-          ? "Studio pricing is rolling out shortly. Contact our team to get early access."
-          : "Stripe products not configured. Please refresh."
-      );
-      if (tier === "studio") setContactOpen(true);
+      toast.error("Stripe products not configured. Please refresh.");
       return;
     }
     setLoading({ tier });
     try {
-      // Studio buyers land on the tutor-specific dashboard with a welcome
-      // banner; Classroom (and legacy premium) buyers continue to the
-      // existing TeacherDashboard. The tier determines the destination so a
-      // Studio account never starts on the classroom-curriculum view.
-      const destination = tier === "studio" ? "TutorDashboard" : "TeacherDashboard";
       const response = await quest.functions.invoke("createCheckout", {
         priceId,
         successUrl: `${window.location.origin}${createPageUrl(
-          destination
-        )}?checkout=success&welcome=1`,
+          "TeacherDashboard"
+        )}?checkout=success`,
         cancelUrl: window.location.href,
       });
       if (response.data?.url) window.location.href = response.data.url;
@@ -158,46 +142,19 @@ export default function Pricing() {
       action: () => checkout("classroom"),
     },
     {
-      id: "studio",
-      name: "Studio",
-      desc: "For tutors + tutoring businesses with paying parents.",
-      price:
-        billing === "annual"
-          ? `$${FOUNDING_PRICES.studio.annual}`
-          : `$${FOUNDING_PRICES.studio.monthly}`,
-      per: billing === "annual" ? "/ year" : "/ month",
-      standardPrice:
-        billing === "annual"
-          ? `$${STANDARD_PRICES.studio.annual}`
-          : `$${STANDARD_PRICES.studio.monthly}`,
-      cta: "Start 14-day free trial",
-      popular: true,
-      features: [
-        "Everything in Classroom",
-        "Unlimited classes + students",
-        "Your logo + brand colors on every PDF",
-        "Branded parent progress reports (weekly auto-send)",
-        "Multi-tutor seats ($29/mo each)",
-        "30-minute onboarding call with the founder",
-        "Priority support",
-      ],
-      action: () => checkout("studio"),
-    },
-    {
       id: "enterprise",
       name: "Enterprise",
-      desc: "For schools, districts, and tutoring chains.",
+      desc: "For schools and districts.",
       price: "Custom",
       per: "",
       standardPrice: null,
       cta: "Book a call",
       popular: false,
       features: [
-        "Everything in Studio",
-        "Unlimited tutor + admin seats",
+        "Everything in Classroom",
+        "Unlimited teacher + admin seats",
         "SSO (Google, Okta, ClassLink)",
         "Admin dashboard + audit log",
-        "White-label deployment",
         "Custom AI training on your content",
         "Dedicated account manager",
       ],
@@ -590,15 +547,15 @@ export default function Pricing() {
           <div style={{ display: "grid", gap: 12 }}>
             <FaqRow
               q="What does 'founding member' mean?"
-              a="The first 100 paid accounts lock in $29/mo Classroom or $59/mo Studio for the life of their subscription, even after standard pricing ($49 / $99) goes into effect."
+              a="The first 100 paid accounts lock in $29/mo Classroom for the life of their subscription, even after standard pricing ($49) goes into effect."
             />
             <FaqRow
               q="Is there a free trial?"
-              a="Yes — 7 days for Classroom, 14 days for Studio. No card required during the trial. Cancel anytime."
+              a="Yes — 7 days for Classroom. No card required during the trial. Cancel anytime."
             />
             <FaqRow
-              q="What's the difference between Classroom and Studio?"
-              a="Classroom is built for individual teachers running 1-3 classes inside a school. Studio is built for tutors and tutoring businesses who need branded PDFs and automated parent progress reports."
+              q="What's the difference between Classroom and Enterprise?"
+              a="Classroom is built for individual teachers. Enterprise is for schools and districts who need SSO, admin dashboards, and bulk seats."
             />
             <FaqRow
               q="Can I upgrade or downgrade later?"
@@ -606,7 +563,7 @@ export default function Pricing() {
             />
             <FaqRow
               q="What about students? Do they pay?"
-              a="No. Students join free with a class code. Only teachers and tutors pay."
+              a="No. Students join free with a class code. Only teachers pay."
             />
           </div>
         </div>
