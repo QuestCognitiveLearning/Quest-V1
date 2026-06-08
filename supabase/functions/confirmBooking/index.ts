@@ -163,7 +163,19 @@ Deno.serve(async (req) => {
   const endDate = new Date(
     startDate.getTime() + (booking.duration_minutes || 60) * 60000,
   );
-  const dateLine = startDate.toLocaleString();
+
+  // Render the human-readable date in the tutor's local time zone, not the
+  // Edge Function's UTC default. Without this, a 1pm ET booking renders as
+  // "6:00 PM" in the email body (UTC) and breaks the parent's expectation
+  // of seeing the same hour they clicked on the booking page.
+  const { data: availRow } = await db
+    .from('tutor_availability')
+    .select('time_zone')
+    .eq('tutor_id', booking.tutor_id)
+    .limit(1)
+    .maybeSingle();
+  const tutorTz = availRow?.time_zone || 'America/New_York';
+  const dateLine = formatInTz(startDate, tutorTz);
 
   const icsBody = buildIcs({
     uid: `${bookingId}@questlearning.co`,
@@ -262,6 +274,38 @@ async function sendResend(payload: {
   });
   if (!resp.ok) {
     console.error(`Resend ${resp.status}:`, await resp.text());
+  }
+}
+
+// Format a UTC instant in a specific IANA time zone for the email body.
+// Example: formatInTz(new Date('2026-06-08T18:00:00Z'), 'America/New_York')
+//   → "Mon, Jun 8, 2026 at 2:00 PM EDT"
+function formatInTz(d: Date, timeZone: string): string {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    });
+    const parts = fmt.formatToParts(d);
+    const pick = (t: string) => parts.find((p) => p.type === t)?.value || '';
+    const weekday = pick('weekday');
+    const month = pick('month');
+    const day = pick('day');
+    const year = pick('year');
+    const hour = pick('hour');
+    const minute = pick('minute');
+    const dayPeriod = pick('dayPeriod');
+    const tzName = pick('timeZoneName');
+    return `${weekday}, ${month} ${day}, ${year} at ${hour}:${minute} ${dayPeriod} ${tzName}`.trim();
+  } catch {
+    // Fall back to ISO if Intl rejects the time zone for any reason.
+    return d.toISOString();
   }
 }
 
