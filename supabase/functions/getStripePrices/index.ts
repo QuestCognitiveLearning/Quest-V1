@@ -17,6 +17,10 @@ import { handlePreflight, json } from '../_shared/cors.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 
 const LEGACY_PRICE_ID = 'price_1TY7vGK8xO8FkG1xd8ArliXn';
+// Student Pro — $9.99/mo recurring. Live Stripe price created via API
+// on 2026-06-08, product prod_UfU6wkeqKeabHK. Env var override available
+// via STRIPE_PRICE_STUDENT_MONTHLY.
+const STUDENT_MONTHLY_FALLBACK = 'price_1Tg98mK8xO8FkG1xHeohb4iU';
 
 Deno.serve((req) => {
   const pre = handlePreflight(req);
@@ -30,6 +34,7 @@ Deno.serve((req) => {
   const studioMonthly    = Deno.env.get('STRIPE_PRICE_STUDIO_MONTHLY')    || null;
   const studioAnnual     = Deno.env.get('STRIPE_PRICE_STUDIO_ANNUAL')     || null;
   const studioSeat       = Deno.env.get('STRIPE_PRICE_STUDIO_SEAT')       || null;
+  const studentMonthly   = Deno.env.get('STRIPE_PRICE_STUDENT_MONTHLY')   || STUDENT_MONTHLY_FALLBACK;
 
   return json({
     premium_price_id: classroomMonthly,
@@ -37,6 +42,7 @@ Deno.serve((req) => {
     tiers: {
       classroom: { monthly: classroomMonthly, annual: classroomAnnual },
       studio:    { monthly: studioMonthly,    annual: studioAnnual, seat: studioSeat },
+      student:   { monthly: studentMonthly },
     },
   });
 });

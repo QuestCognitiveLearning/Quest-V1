@@ -18,6 +18,10 @@ export const TIER_LIMITS = {
     maxClasses: 1,
     maxStudents: 30,
     aiGenerationsPerMonth: 10,
+    // Lifetime cap on student-account generations (no monthly reset).
+    // Hit at 5 → upgrade modal opens. classroom-tier students are
+    // unbounded (paid).
+    studentGenerationsTotal: 5,
     liveSessionsEnabled: false,
     pandaTutorEnabled: false,
   },
@@ -25,6 +29,7 @@ export const TIER_LIMITS = {
     maxClasses: INF,
     maxStudents: INF,
     aiGenerationsPerMonth: INF,
+    studentGenerationsTotal: INF,
     liveSessionsEnabled: true,
     pandaTutorEnabled: true,
   },
@@ -84,4 +89,16 @@ export function upgradeMessageFor(featureKey) {
     default:
       return "Upgrade your plan to unlock this feature.";
   }
+}
+
+// Student-specific helpers — usage cap on the free tier.
+export function studentGenerationsRemaining(user) {
+  const limit = getLimits(user).studentGenerationsTotal ?? 0;
+  const used = user?.student_generations_used ?? 0;
+  if (limit === INF) return INF;
+  return Math.max(0, limit - used);
+}
+
+export function canStudentGenerate(user) {
+  return studentGenerationsRemaining(user) > 0;
 }

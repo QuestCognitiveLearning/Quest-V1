@@ -36,8 +36,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import TeacherLayout from "../components/teacher/TeacherLayout";
+import StudentSidebar from "../components/shared/StudentSidebar";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
+import { studentGenerationsRemaining, canStudentGenerate, getLimits } from "@/lib/tier";
 import CustomizePanel, { DEFAULT_OPTIONS } from "@/components/try/CustomizePanel";
 import { generateTryPDF } from "@/lib/pdf/generatePDF";
 import { downloadTryWord } from "@/lib/pdf/generateWord";
@@ -110,6 +112,63 @@ export default function Generate() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Student-tier gating. Free students cap at 5 lifetime generations;
+  // paid student/teacher accounts (classroom tier) are unbounded.
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const isStudent = user?.account_type === "student";
+  const studentRemaining = studentGenerationsRemaining(user);
+  const studentLimit = getLimits(user).studentGenerationsTotal ?? 0;
+  const studentUsed = user?.student_generations_used ?? 0;
+  const studentBlocked = isStudent && !canStudentGenerate(user);
+
+  // Bumps the student counter AFTER a successful generation. Best-effort:
+  // a failed bump shouldn't break the user's generation result.
+  const incrementStudentGenerations = async () => {
+    if (!isStudent || !user) return;
+    try {
+      const nextCount = (user.student_generations_used ?? 0) + 1;
+      const { error: upErr } = await supabase
+        .from("users")
+        .update({ student_generations_used: nextCount })
+        .eq("id", user.id);
+      if (upErr) throw upErr;
+      setUser((prev) => prev && { ...prev, student_generations_used: nextCount });
+    } catch (err) {
+      console.warn("Student generation counter bump failed:", err);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    if (upgrading) return;
+    setUpgrading(true);
+    try {
+      const pricesResp = await quest.functions.invoke("getStripePrices", {});
+      const priceId =
+        pricesResp?.data?.tiers?.student?.monthly ||
+        pricesResp?.tiers?.student?.monthly;
+      if (!priceId) {
+        toast.error("Student plan isn't configured yet — try again shortly.");
+        return;
+      }
+      const successUrl = `${window.location.origin}/Generate?checkout=success`;
+      const cancelUrl = `${window.location.origin}/Generate?checkout=canceled`;
+      const resp = await quest.functions.invoke("createCheckout", {
+        priceId,
+        successUrl,
+        cancelUrl,
+      });
+      const url = resp?.data?.url || resp?.url;
+      if (!url) throw new Error("Checkout could not be started.");
+      window.location.href = url;
+    } catch (err) {
+      console.error("Upgrade failed:", err);
+      toast.error(err?.message || "Couldn't start checkout.");
+    } finally {
+      setUpgrading(false);
+    }
+  };
 
   const loadLibrary = async (teacherId) => {
     try {
@@ -350,6 +409,10 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
   };
 
   const runYoutubeGenerate = async (videoId) => {
+    if (isStudent && !canStudentGenerate(user)) {
+      setShowUpgrade(true);
+      return;
+    }
     setStage("generating");
     try {
       const { data, error: fnErr } = await supabase.functions.invoke(
@@ -360,6 +423,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       if (data?.error) throw new Error(data.error);
       if (!data?.quiz?.length) throw new Error("No quiz generated.");
       setResult(data);
+      incrementStudentGenerations();
       // Wait for inquiry hook + attention checks (when included) before
       // revealing the handout. Keeps the result page from flashing a
       // partial state.
@@ -373,6 +437,13 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 
   const handleGenerate = async () => {
     setError("");
+    // Free-tier students hit the cap → open upgrade modal instead of
+    // calling the LLM. canStudentGenerate is true for teachers and for
+    // classroom-tier (paid) students.
+    if (isStudent && !canStudentGenerate(user)) {
+      setShowUpgrade(true);
+      return;
+    }
     if (tab === "youtube") {
       const videoId = extractVideoId(url);
       if (!videoId) {
@@ -389,6 +460,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
         setResult(data);
+        incrementStudentGenerations();
         await enrichWithCurriculumGeneration(data, setResult);
         setStage("result");
       } catch (err) {
@@ -419,6 +491,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         if (data?.error) throw new Error(data.error);
         if (!data?.quiz?.length) throw new Error("No quiz generated.");
         setResult(data);
+        incrementStudentGenerations();
         await enrichWithCurriculumGeneration(data, setResult);
         setStage("result");
       } catch (err) {
@@ -573,19 +646,32 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
   };
 
   // ---- Render ------------------------------------------------------------
-  return (
-    <TeacherLayout activeNav="generate" user={user}>
+  // Choose chrome by account type. Students get the StudentSidebar; teachers
+  // (and anyone else) keep TeacherLayout. The page body is identical — only
+  // the wrapper changes.
+  const pageBody = (
+    <>
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
             <Sparkles className="w-7 h-7 text-[#2563EB]" />
-            Generate
+            {isStudent ? "Create" : "Generate"}
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Turn a YouTube video or a PDF into a print-ready quiz, case study,
-            and live session in 90 seconds.
+            {isStudent
+              ? "Turn any YouTube video or PDF into a personalized study session — quiz, case study, and more."
+              : "Turn a YouTube video or a PDF into a print-ready quiz, case study, and live session in 90 seconds."}
           </p>
         </div>
+
+        {isStudent && (
+          <StudentUsageBanner
+            used={studentUsed}
+            limit={studentLimit}
+            remaining={studentRemaining}
+            onUpgrade={() => setShowUpgrade(true)}
+          />
+        )}
 
         {/* Mode toggle — pick the outcome up front. */}
         <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
@@ -1099,8 +1185,136 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
           </button>
         </div>
       )}
+    </>
+  );
 
-    </TeacherLayout>
+  return (
+    <>
+      {isStudent ? (
+        <div className="flex h-screen bg-gray-50">
+          <StudentSidebar
+            activeNav="generate"
+            classes={[]}
+            selectedClassId={null}
+            onClassChange={() => {}}
+            user={user}
+          />
+          <div className="flex-1 overflow-auto bg-white" style={{ fontFamily: '"Inter", sans-serif' }}>
+            {pageBody}
+          </div>
+        </div>
+      ) : (
+        <TeacherLayout activeNav="generate" user={user}>
+          {pageBody}
+        </TeacherLayout>
+      )}
+
+      {showUpgrade && (
+        <UpgradeModal
+          used={studentUsed}
+          limit={studentLimit}
+          onCancel={() => setShowUpgrade(false)}
+          onUpgrade={handleUpgrade}
+          upgrading={upgrading}
+        />
+      )}
+    </>
+  );
+}
+
+// Banner shown above the Generate page for student accounts. Tracks
+// lifetime free generations against the cap. Clicking Upgrade opens the
+// modal which kicks off Stripe checkout for the $9.99/mo student plan.
+function StudentUsageBanner({ used, limit, remaining, onUpgrade }) {
+  const finite = Number.isFinite(limit);
+  if (!finite) return null;
+  const exhausted = remaining <= 0;
+  return (
+    <div
+      className={`mb-5 rounded-2xl border p-4 flex items-center justify-between gap-4 ${
+        exhausted
+          ? "border-amber-300 bg-amber-50"
+          : "border-blue-200 bg-blue-50"
+      }`}
+    >
+      <div>
+        <p className="text-sm font-semibold text-slate-900">
+          {exhausted
+            ? "You've used your 5 free generations"
+            : `${remaining} of ${limit} free generations left`}
+        </p>
+        <p className="text-xs text-slate-600 mt-0.5">
+          {exhausted
+            ? "Upgrade to Student Pro for unlimited generations — $9.99/mo, cancel anytime."
+            : `Used ${used}/${limit}. Upgrade for unlimited generations.`}
+        </p>
+      </div>
+      <Button
+        onClick={onUpgrade}
+        className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+      >
+        Upgrade — $9.99/mo
+      </Button>
+    </div>
+  );
+}
+
+// Blocking modal — shown when a free-tier student tries to generate but
+// has hit the cap, OR when they click Upgrade on the usage banner.
+function UpgradeModal({ used, limit, onCancel, onUpgrade, upgrading }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 max-w-md w-full">
+        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3">
+          <Sparkles className="w-6 h-6 text-blue-600" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-1">Upgrade to Student Pro</h2>
+        <p className="text-sm text-slate-600 mb-4">
+          You've used {used}/{limit} free generations. Go unlimited — generate
+          as many study sessions as you want.
+        </p>
+
+        <div className="border border-slate-200 rounded-xl p-4 mb-4 bg-slate-50">
+          <div className="flex items-baseline gap-1 mb-2">
+            <span className="text-3xl font-bold text-slate-900">$9.99</span>
+            <span className="text-sm text-slate-500">/ month</span>
+          </div>
+          <ul className="text-sm text-slate-700 space-y-1.5">
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+              Unlimited learning sessions from YouTube + PDFs
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+              AI-graded case studies + practice quizzes
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+              Cancel anytime from the billing portal
+            </li>
+          </ul>
+        </div>
+
+        <div className="flex items-center gap-2 justify-end">
+          <Button variant="ghost" onClick={onCancel} disabled={upgrading} className="text-slate-600">
+            Not now
+          </Button>
+          <Button
+            onClick={onUpgrade}
+            disabled={upgrading}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {upgrading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Starting checkout…
+              </>
+            ) : (
+              "Continue to checkout"
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
