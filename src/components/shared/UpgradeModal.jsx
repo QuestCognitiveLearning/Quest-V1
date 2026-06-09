@@ -18,7 +18,7 @@ const STUDIO_FEATURES = [
   "Unlimited classes",
   "Branded PDFs and parent emails",
   "Automated weekly parent progress reports",
-  "Multi-tutor seats",
+  "Multiple teacher seats",
   "Priority support",
 ];
 

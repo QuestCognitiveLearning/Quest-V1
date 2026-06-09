@@ -74,12 +74,6 @@ export default function RoleSelection() {
           });
         } catch { /* non-essential */ }
         navigate(createPageUrl("JoinClass"));
-      } else if (role === "tutor") {
-        // account_type stays 'teacher' to satisfy the legacy enum; the new
-        // role lives in `new_role` (Phase 3 column) and routes to /Pricing
-        // with Studio pre-selected.
-        await quest.auth.updateMe({ account_type: "teacher", new_role: "tutor" });
-        navigate(createPageUrl("Pricing") + "?intent=studio");
       } else {
         await quest.auth.updateMe({ account_type: "teacher", new_role: "teacher" });
         navigate(createPageUrl("Pricing") + "?intent=classroom");
@@ -196,8 +190,8 @@ export default function RoleSelection() {
           </p>
         </div>
 
-        {/* Three role cards */}
-        <div className="grid md:grid-cols-3 gap-5 w-full max-w-[1180px]">
+        {/* Role cards */}
+        <div className="grid md:grid-cols-2 gap-5 w-full max-w-[780px]">
           <RoleCard
             role="student"
             hover={hover}
@@ -212,10 +206,10 @@ export default function RoleSelection() {
             accentBorder="#b9d1ff"
             title="Student"
             tagline="Learn faster. Remember longer."
-            description="Adaptive lessons that meet you at your level, plus 5-minute warmups so what you learn actually sticks."
+            description="Lessons that match your level, with quick reviews so what you learn sticks."
             features={[
-              "Bite-sized quests tailored to you",
-              "Mastery-gated progress, not grades",
+              "Quests tailored to you",
+              "Progress by mastery, not grades",
               "Spaced review built in",
             ]}
             micro={<StudentMicro />}
@@ -257,10 +251,10 @@ export default function RoleSelection() {
             }
             title="Teacher"
             tagline="Get your weekends back."
-            description="Generate full units in minutes, run mastery-gated lessons, and watch retention bend — automatically."
+            description="Generate full units in minutes and run lessons that track every student."
             features={[
-              "AI drafts a unit in ~90 seconds",
-              "Live mastery & misconception alerts",
+              "AI drafts a unit in about 90 seconds",
+              "Live mastery and misconception alerts",
               "Spaced review queued for every student",
             ]}
             micro={<TeacherMicro />}
@@ -271,49 +265,6 @@ export default function RoleSelection() {
             hoverRing="rgba(168,85,247,.08)"
           />
 
-          <RoleCard
-            role="tutor"
-            hover={hover}
-            setHover={setHover}
-            savingRole={savingRole}
-            onClick={() => handleSelectRole("tutor")}
-            accentBg={GRAD_TEACHER_SOFT}
-            icon={<Sparkles className="w-8 h-8" strokeWidth={2} />}
-            iconGradient={"linear-gradient(135deg, #F97316, #FB923C)"}
-            iconGlow="rgba(249,115,22,.45)"
-            accentColor="#F97316"
-            accentBorder="#ffd5b3"
-            badge={
-              <span
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full"
-                style={{
-                  background: 'linear-gradient(135deg, #fff1e6, #fff)',
-                  border: '1px solid #ffd5b3',
-                  color: '#c2410c',
-                  fontFamily: FONT_MONO,
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  letterSpacing: '.06em',
-                }}
-              >
-                STUDIO
-              </span>
-            }
-            title="Tutor"
-            tagline="Look like a $200/hour tutor."
-            description="Branded session packets, automated parent progress reports, and AI session prep — the whole tutoring business in one tab."
-            features={[
-              "Your logo + brand on every PDF",
-              "Auto-sent parent progress reports",
-              "AI Socratic tutor between sessions",
-            ]}
-            micro={<TeacherMicro />}
-            cta="Continue as Tutor"
-            ctaGradient={"linear-gradient(135deg, #F97316, #FB923C)"}
-            ctaShadow="rgba(249,115,22,.55)"
-            hoverShadow="rgba(249,115,22,.30)"
-            hoverRing="rgba(251,146,60,.08)"
-          />
         </div>
 
         {/* Trust strip */}

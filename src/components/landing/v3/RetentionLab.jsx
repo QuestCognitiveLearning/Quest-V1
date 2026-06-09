@@ -140,7 +140,7 @@ export default function RetentionLab() {
             Drag The Reviews. Watch Them <em className="not-italic text-[#2563EB]">Remember.</em>
           </h2>
           <p className="text-[17px] text-[#64748B] max-w-2xl">
-            Spaced practice doubles retention. Drag the markers — the curve recalculates.
+            Spaced practice doubles retention. Drag the markers and the curve recalculates.
           </p>
         </div>
 

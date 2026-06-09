@@ -16,14 +16,14 @@ export default function StickyCta() {
       >
         <span className="text-[13.5px]">
           Free{" "}
-          <em className="not-italic text-[#F97316] font-bold">YouTube quiz tool</em>
+          <em className="not-italic text-[#F97316] font-bold">Curriculum Tool</em>
         </span>
         <button
           type="button"
           onClick={() => navigate("/try")}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-[13px] transition-colors"
         >
-          Try free YouTube quiz tool
+          Try Now
           <ArrowRight size={14} strokeWidth={2.2} />
         </button>
       </div>

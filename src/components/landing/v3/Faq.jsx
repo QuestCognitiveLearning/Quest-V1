@@ -7,15 +7,15 @@ const QUESTIONS = [
   },
   {
     q: "What subjects are supported?",
-    a: "All K–12 subjects are supported, including science, math, history, English, and electives. AI builds curriculum from any state standards you select. You can also upload your own materials and Quest will adapt to them.",
+    a: "All K-12 subjects are supported, including science, math, history, English, and electives. AI builds curriculum from any state standards you select. You can also upload your own materials and Quest will adapt to them.",
   },
   {
-    q: "Is this for K–12 or higher education?",
-    a: "Quest is built primarily for K–12 but works for higher-ed too. The same inquiry, recall, and spaced-repetition engine applies. Some college instructors use it for intro-level survey courses.",
+    q: "Is this for K-12 or higher education?",
+    a: "Quest is built primarily for K-12 but works for higher-ed too. The same inquiry, recall, and spaced-repetition engine applies. Some college instructors use it for intro-level survey courses.",
   },
   {
     q: "Can teachers use their own content?",
-    a: "Yes — drop in your own YouTube videos, slides, or notes and Quest builds quizzes, inquiry hooks, and case studies from them. The AI extracts learning objectives and aligns them to your standards. You can edit every question, prompt, and example before publishing.",
+    a: "Yes. Drop in your own YouTube videos, slides, or notes and Quest builds quizzes, inquiry hooks, and case studies from them. The AI extracts learning objectives and aligns them to your standards. You can edit every question, prompt, and example before publishing.",
   },
   {
     q: "How is student data protected?",

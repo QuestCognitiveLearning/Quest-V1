@@ -90,14 +90,14 @@ export default function Layout({ children, currentPageName }) {
           "TeacherCurricula", "CreateCurriculum", "ManageCurriculum",
           "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics",
           "TeacherStudentDetail", "TranscriptTester", "TeacherSettings",
-          "Generate", "Library",
+          "Generate",
         ];
 
         // Free teachers can still build / host live sessions and access
         // Generate (the new hub) + Settings + Pricing.
         const freeTeacherPages = [
           "Generate", "LiveSessionBuilder", "LiveSessionHost",
-          "SocraticInquiry", "TeacherSettings", "Pricing", "Library",
+          "SocraticInquiry", "TeacherSettings", "Pricing",
         ];
 
         // Determine allowed pages based on subscription
@@ -108,6 +108,8 @@ export default function Layout({ children, currentPageName }) {
           console.log("⚠️ [AUTH] Teacher on invalid page, redirecting");
           console.log("📋 [AUTH] Subscription Status:", user.subscription_status);
           console.log("📋 [AUTH] Allowed pages:", allowedPages);
+          // Redirect free teachers to /Generate (now the hub), paid teachers
+          // to dashboard.
           const redirectPage = user.subscription_status === 'free' ? "Generate" : "TeacherDashboard";
           navigate(createPageUrl(redirectPage), { replace: true });
           return;

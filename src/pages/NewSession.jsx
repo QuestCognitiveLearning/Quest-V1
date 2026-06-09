@@ -48,7 +48,6 @@ export default function NewSession() {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [adminSkip, setAdminSkip] = useState(false);
   const [youtubePlayer, setYoutubePlayer] = useState(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [sessionStartTime] = useState(new Date());
@@ -84,7 +83,7 @@ export default function NewSession() {
 
   // Initialize YouTube player
   useEffect(() => {
-    if (video?.video_url && step === "video" && !youtubePlayer && !adminSkip) {
+    if (video?.video_url && step === "video" && !youtubePlayer) {
       const videoId = getYouTubeVideoId(video.video_url);
       if (!videoId) return;
       
@@ -459,7 +458,7 @@ export default function NewSession() {
 
   // Track video progress and prevent seeking (matching live session logic)
   useEffect(() => {
-    if (step === "video" && !adminSkip && youtubePlayer) {
+    if (step === "video" && youtubePlayer) {
       const interval = setInterval(() => {
         if (youtubePlayer && typeof youtubePlayer.getCurrentTime === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
           const playerState = youtubePlayer.getPlayerState();
@@ -531,7 +530,7 @@ export default function NewSession() {
 
       return () => clearInterval(interval);
     }
-  }, [step, currentCheckIndex, checksCompleted, canProceed, currentCheck, youtubePlayer, adminSkip, videoTotalDuration, lastKnownTime, attentionChecks]);
+  }, [step, currentCheckIndex, checksCompleted, canProceed, currentCheck, youtubePlayer, videoTotalDuration, lastKnownTime, attentionChecks]);
 
   const handleCheckSubmit = async () => {
     if (!selectedCheckAnswer || !currentCheck) return;
@@ -608,31 +607,6 @@ export default function NewSession() {
       }
     }
     // Don't auto-advance, let the component show continue button
-  };
-
-  const handleAdminSkip = (phase) => {
-    const password = prompt("Enter admin password to skip:");
-    if (password === "admin123") {
-      if (phase === "video") {
-        setAdminSkip(true);
-        setCanProceed(true);
-        setVideoProgress(videoTotalDuration);
-        // Mark all checks as completed
-        const allCheckIndices = Array.from({ length: attentionChecks.length }, (_, i) => i);
-        setChecksCompleted(allCheckIndices);
-      } else if (phase === "inquiry") {
-        setStep("video");
-      } else if (phase === "quiz") {
-        // Set fake results for passing
-        const fakeResults = questions.map(() => ({ correct: true, selectedChoice: 0 }));
-        setResults(fakeResults);
-        setStep("article");
-      } else if (phase === "article") {
-        setStep("results");
-      }
-    } else if (password !== null) {
-      alert("Incorrect password");
-    }
   };
 
   const handleQuizComplete = () => {
@@ -1015,13 +989,6 @@ export default function NewSession() {
                   >
                     {canProceed ? "Continue to Quiz" : "Complete video to continue"}
                   </Button>
-                  <Button 
-                    onClick={() => handleAdminSkip("video")}
-                    variant="outline"
-                    className="px-6 py-3 text-xs rounded-full"
-                  >
-                    Admin Skip
-                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -1058,13 +1025,6 @@ export default function NewSession() {
                 >
                   Start Discussion with Panda 🐼
                 </Button>
-                <Button 
-                  onClick={() => handleAdminSkip("inquiry")}
-                  variant="outline"
-                  className="px-6 py-3 text-xs rounded-full"
-                >
-                  Admin Skip
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -1090,10 +1050,6 @@ export default function NewSession() {
             subunitId={subunitId}
             studentId={user?.id}
             onComplete={(score) => handleArticleComplete(score)}
-            onAdminSkip={() => {
-              setFrqScore(2);
-              handleAdminSkip("article");
-            }}
           />
         )}
 
@@ -1138,13 +1094,6 @@ export default function NewSession() {
                   className="flex-1 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full"
                 >
                   Submit Answer
-                </Button>
-                <Button 
-                  onClick={() => handleAdminSkip("quiz")}
-                  variant="outline"
-                  className="px-6 py-3 text-xs rounded-full"
-                >
-                  Admin Skip
                 </Button>
               </div>
             </CardContent>

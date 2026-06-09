@@ -94,7 +94,7 @@ function YouTubeModal({ open, onClose, videoId = "vOacrBHo0dE" }) {
         >
           <iframe
             src={src}
-            title="Quest Learning — 90-second demo"
+            title="Quest Learning 90-second demo"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             style={{
@@ -124,19 +124,14 @@ const FEED_POOL = [
 
 export default function Hero() {
   const navigate = useNavigate();
-  const [audience, setAudience] = useState("teacher");
   const [demoOpen, setDemoOpen] = useState(false);
 
-  const isStudent = audience === "student";
-  const eyebrow = isStudent
-    ? "Inquiry · Instruction · Recalling · Applying"
-    : "AI Curriculum · Live Sessions · Parent Reports";
-  const headlinePre = isStudent ? "Learn to" : "Teacher?";
-  const headlineEm = isStudent ? "remember." : "We save you time.";
-  const lede = isStudent
-    ? "Inquiry, instruction, recall, and applying — wired into every lesson. Your Knowledge Map shows what you've mastered and what's due."
-    : "Standards in, full curriculum out — quizzes, free-response, attention checks, and case studies. Edit anything, regenerate anything, then teach.";
-  const ctaLabel = isStudent ? "Join Your Class" : "Start Free Trial";
+  const eyebrow = "AI Curriculum · Live Sessions · Admin & Parent Reports";
+  const headlinePre = "Teacher or Admin?";
+  const headlineEm = "We save you time.";
+  const lede =
+    "Standards in, full curriculum out. Quizzes, free-response, attention checks, and case studies. Teachers build lessons in minutes; admins get clear rollups across every classroom.";
+  const ctaLabel = "Start Free Trial";
 
   // Duplicate pool so the carousel can loop seamlessly
   const carouselItems = [...FEED_POOL, ...FEED_POOL];
@@ -153,38 +148,10 @@ export default function Hero() {
           <div
             className="bg-white/95 backdrop-blur-md rounded-[28px] p-7 lg:p-8 border border-white/60 lp-v3-deep-shadow"
           >
-            {/* Audience tabs */}
-            <div
-              role="tablist"
-              aria-label="Audience"
-              className="inline-flex items-center gap-1 p-1 rounded-full bg-[#E5ECF7] mb-3"
-            >
-              <button
-                type="button"
-                role="tab"
-                onClick={() => setAudience("teacher")}
-                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  audience === "teacher"
-                    ? "bg-[#2563EB] text-white"
-                    : "text-[#475569] hover:text-[#0F172A]"
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${audience === "teacher" ? "bg-white" : "bg-[#94A3B8]"}`} />
-                For Educators
-              </button>
-              <button
-                type="button"
-                role="tab"
-                onClick={() => setAudience("student")}
-                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  audience === "student"
-                    ? "bg-[#2563EB] text-white"
-                    : "text-[#475569] hover:text-[#0F172A]"
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${audience === "student" ? "bg-white" : "bg-[#94A3B8]"}`} />
-                For Students
-              </button>
+            {/* Audience pill */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2563EB] text-white text-xs font-semibold mb-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              For Teachers &amp; Admins
             </div>
 
             <div

@@ -233,7 +233,7 @@ function StageCurriculum() {
 function StageVideo() {
   const [picked, setPicked] = useState(1);
   const recs = [
-    { ttl: "States of Matter — Solids, Liquids, Gases & Plasma", d: "12:46", desc: "Four states of matter explained: properties and particle behavior.", hue: "#1E3A8A" },
+    { ttl: "States of Matter: Solids, Liquids, Gases & Plasma", d: "12:46", desc: "Four states of matter explained: properties and particle behavior.", hue: "#1E3A8A" },
     { ttl: "Types of Matter: Elements, Compounds, Mixtures", d: "4:15", desc: "Definitions and distinctions, with worked examples.", hue: "#7C3AED" },
     { ttl: "General Chemistry in 19 Minutes", d: "18:49", desc: "Concise tour of atomic structure, reactions, stoichiometry.", hue: "#0F766E" },
   ];
@@ -515,7 +515,7 @@ function StageLaunch() {
             Class Created · Chemistry I · Period 3
           </div>
           <div className="text-[11.5px] text-white/85 font-medium">
-            Share the code below — students join instantly.
+            Share the code below. Students join instantly.
           </div>
         </div>
       </div>

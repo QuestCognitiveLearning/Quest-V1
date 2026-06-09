@@ -12,7 +12,7 @@ export const LEGAL_DOCS = {
       ],
       [
         "Information We Collect",
-        "We collect account information such as name, email, and role; learning data including progress, scores, and session history; and technical data such as IP address, browser type, and usage patterns. Payment information is processed by Stripe — we never store card details on our servers.",
+        "We collect account information such as name, email, and role; learning data including progress, scores, and session history; and technical data such as IP address, browser type, and usage patterns. Payment information is processed by Stripe, we never store card details on our servers.",
       ],
       [
         "How We Use It",
@@ -56,7 +56,7 @@ export const LEGAL_DOCS = {
       ],
       [
         "1. Our Role Under FERPA",
-        "When schools and districts use Quest Learning, we act as a 'school official' with a 'legitimate educational interest' under FERPA. We process student information solely on behalf of the school to provide curriculum, instruction, and analytics — never for our own commercial purposes.",
+        "When schools and districts use Quest Learning, we act as a 'school official' with a 'legitimate educational interest' under FERPA. We process student information solely on behalf of the school to provide curriculum, instruction, and analytics, never for our own commercial purposes.",
       ],
       [
         "2. What We Collect",
@@ -68,7 +68,7 @@ export const LEGAL_DOCS = {
       ],
       [
         "4. Parent and Student Rights",
-        "Parents of students under 18 and eligible students (18+ or in higher education) have the right to inspect their education records, request corrections, and consent to disclosures. To exercise these rights, contact your school directly — Quest Learning will work with the school to fulfill the request.",
+        "Parents of students under 18 and eligible students (18+ or in higher education) have the right to inspect their education records, request corrections, and consent to disclosures. To exercise these rights, contact your school directly, Quest Learning will work with the school to fulfill the request.",
       ],
       [
         "5. Data Retention and Deletion",

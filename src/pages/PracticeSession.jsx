@@ -26,7 +26,6 @@ export default function PracticeSession() {
   const [video, setVideo] = useState(null);
   const [videoProgress, setVideoProgress] = useState(0);
   const [canProceed, setCanProceed] = useState(false);
-  const [adminSkip, setAdminSkip] = useState(false);
   const [reflectionText, setReflectionText] = useState("");
   const [showExitModal, setShowExitModal] = useState(false);
   const [quiz, setQuiz] = useState(null);
@@ -224,35 +223,6 @@ export default function PracticeSession() {
   const handleVideoComplete = () => {
     setStep("quiz");
   };
-
-  const handleAdminSkip = () => {
-    const password = prompt("Enter admin password to skip:");
-    if (password === "admin123") {
-      setStep("quiz");
-    } else if (password !== null) {
-      alert("Incorrect password");
-    }
-  };
-
-  const handleQuizSkip = () => {
-    const password = prompt("Enter admin password to skip:");
-    if (password === "admin123") {
-      // Set perfect score for all questions and go to results
-      const perfectResults = questions.map((_, idx) => ({ 
-        question: idx, 
-        mcqCorrect: true, 
-        frqSubmitted: false, 
-        selectedChoice: 0 
-      }));
-      setResults(perfectResults);
-      setStep("results");
-    } else if (password !== null) {
-      alert("Incorrect password");
-    }
-  };
-
-
-
 
 
   const mcCorrect = results.filter(r => r.mcqCorrect).length;
@@ -483,13 +453,6 @@ export default function PracticeSession() {
                 >
                   {canProceed ? "Continue to Recall" : "Watch video to continue"}
                 </Button>
-                <Button 
-                  onClick={handleAdminSkip}
-                  variant="outline"
-                  className="px-6 py-3 text-xs rounded-full"
-                >
-                  Admin Skip
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -536,13 +499,6 @@ export default function PracticeSession() {
                   className="flex-1 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full"
                 >
                   Submit Answer
-                </Button>
-                <Button 
-                  onClick={handleQuizSkip}
-                  variant="outline"
-                  className="px-6 py-5 text-xs rounded-full"
-                >
-                  Admin Skip
                 </Button>
               </div>
             </CardContent>

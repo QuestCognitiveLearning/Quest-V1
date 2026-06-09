@@ -23,11 +23,18 @@ import {
   MessageCircle,
   PlayCircle,
   XCircle,
-  FastForward,
   Send,
 } from "lucide-react";
 
 const LETTERS = ["A", "B", "C", "D"];
+
+const PHASE_LABELS = {
+  inquiry: "Inquiry",
+  video: "Video",
+  quiz: "Quiz",
+  case_study: "Case Study",
+  completed: "Results",
+};
 
 function readJoinContext(code) {
   try {
@@ -75,6 +82,12 @@ export default function LiveSessionPlay() {
   const [selected, setSelected] = useState(null);
   const [feedback, setFeedback] = useState(null); // { correct, points }
   const [submittedQ, setSubmittedQ] = useState({}); // { [questionIndex]: true }
+
+  // Per-student tallies — drive the personal results breakdown shown at the
+  // end (mirrors the learn-session results screen) before the leaderboard.
+  const [quizCorrect, setQuizCorrect] = useState(0);
+  const [checkCorrect, setCheckCorrect] = useState(0);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Video state
   const [ytPlayer, setYtPlayer] = useState(null);
@@ -334,6 +347,7 @@ export default function LiveSessionPlay() {
     const points = isCorrect ? 100 : 0;
     setFeedback({ correct: isCorrect, points });
     setSubmittedQ((prev) => ({ ...prev, [qIdx]: true }));
+    if (isCorrect) setQuizCorrect((n) => n + 1);
 
     await recordResponse({
       question_index: qIdx,
@@ -363,6 +377,7 @@ export default function LiveSessionPlay() {
     const isCorrect = checkSelected === correctLetter;
     const points = isCorrect ? 50 : 0;
     setCheckFeedback({ correct: isCorrect, points });
+    if (isCorrect) setCheckCorrect((n) => n + 1);
     await recordResponse({
       question_index: checkIdx,
       question_type: "attention_check",
@@ -390,59 +405,6 @@ export default function LiveSessionPlay() {
     return watchedEnough && checksDone.length === total;
   };
 
-  // Admin skip — testing affordance. Password gate so a curious student
-  // can't click their way to the leaderboard. Skips whatever is currently
-  // blocking the student: clears an active attention check, fast-forwards
-  // the video, advances the current quiz question, or jumps to the next
-  // phase outright.
-  const handleAdminSkip = () => {
-    const pwd = window.prompt("Admin password to skip:");
-    if (pwd !== "admin123") {
-      if (pwd !== null) toast.error("Wrong password.");
-      return;
-    }
-    if (activeCheck) {
-      // Clear the open check without scoring and resume the video.
-      const skipIdx = checkIdx;
-      setChecksDone((prev) => (prev.includes(skipIdx) ? prev : [...prev, skipIdx]));
-      setActiveCheck(null);
-      setCheckSelected(null);
-      setCheckFeedback(null);
-      setCheckIdx(skipIdx + 1);
-      if (ytPlayer) ytPlayer.playVideo();
-      return;
-    }
-    if (phase === "video") {
-      // Mark every remaining check + the video itself as done.
-      const total = session?.attention_checks?.length || 0;
-      setChecksDone(Array.from({ length: total }, (_, i) => i));
-      setVideoEnded(true);
-      const dur = actualDuration || session?.video_duration || 0;
-      if (ytPlayer) {
-        try {
-          if (dur > 0) ytPlayer.seekTo(Math.max(dur - 1, 0), true);
-          ytPlayer.pauseVideo();
-        } catch { /* ignore */ }
-      }
-      setVideoProgress(dur);
-      return;
-    }
-    if (phase === "quiz") {
-      // Mark current question as submitted (no points), then advance.
-      setSubmittedQ((prev) => ({ ...prev, [qIdx]: true }));
-      if (qIdx + 1 < session.questions.length) {
-        setQIdx(qIdx + 1);
-        setSelected(null);
-        setFeedback(null);
-      } else {
-        goNextPhase();
-      }
-      return;
-    }
-    // inquiry / case_study / anything else — just advance.
-    goNextPhase();
-  };
-
   // ---- Render -----------------------------------------------------------
   if (loading || !session) {
     return (
@@ -464,32 +426,25 @@ export default function LiveSessionPlay() {
 
   if (session.status === "completed" || session.status === "ended") {
     return (
-      <>
-        <Wrapper code={code} joinCtx={joinCtx} participant={participant} onAdminSkip={handleAdminSkip}>
-          <LeaderboardView participants={leaderboard} you={participant} ended />
-        </Wrapper>
-        <FloatingAdminSkip onClick={handleAdminSkip} />
-      </>
+      <Wrapper code={code} joinCtx={joinCtx} participant={participant}>
+        <LeaderboardView participants={leaderboard} you={participant} ended />
+      </Wrapper>
     );
   }
 
   if (phases.length === 0) {
     return (
-      <>
-        <Wrapper code={code} joinCtx={joinCtx} participant={participant} onAdminSkip={handleAdminSkip}>
-          <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center">
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Nothing to do yet</h2>
-            <p className="text-slate-500">Your teacher hasn't added any content to this session.</p>
-          </div>
-        </Wrapper>
-        <FloatingAdminSkip onClick={handleAdminSkip} />
-      </>
+      <Wrapper code={code} joinCtx={joinCtx} participant={participant}>
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Nothing to do yet</h2>
+          <p className="text-slate-500">Your teacher hasn't added any content to this session.</p>
+        </div>
+      </Wrapper>
     );
   }
 
   return (
-    <>
-      <Wrapper code={code} joinCtx={joinCtx} participant={participant} progress={{ phaseIdx, total: phases.length }} onAdminSkip={handleAdminSkip}>
+    <Wrapper code={code} joinCtx={joinCtx} participant={participant} progress={{ phaseIdx, total: phases.length, label: PHASE_LABELS[phase] || "" }}>
         {phase === "inquiry" && (
           <InquiryView
             inquiry={session.inquiry_session}
@@ -529,22 +484,31 @@ export default function LiveSessionPlay() {
           <CaseStudyView cs={session.case_study} onDone={goNextPhase} />
         )}
         {phase === "completed" && (
-          <LeaderboardView participants={leaderboard} you={participant} />
+          showLeaderboard ? (
+            <LeaderboardView participants={leaderboard} you={participant} />
+          ) : (
+            <ResultsView
+              quizCorrect={quizCorrect}
+              quizTotal={session.questions?.length || 0}
+              checkCorrect={checkCorrect}
+              checkTotal={session.attention_checks?.length || 0}
+              points={participant?.total_points || 0}
+              onSeeLeaderboard={() => setShowLeaderboard(true)}
+            />
+          )
         )}
-      </Wrapper>
-      <FloatingAdminSkip onClick={handleAdminSkip} />
-    </>
+    </Wrapper>
   );
 }
 
 // ============================== Wrapper ===================================
-function Wrapper({ code, joinCtx, participant, progress, onAdminSkip, children }) {
+function Wrapper({ code, joinCtx, participant, progress, children }) {
   return (
     <div
       className="min-h-screen px-4 py-6 sm:px-6 sm:py-8"
       style={{
         background: "linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 50%, #FAF5FF 100%)",
-        fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
+        fontFamily: '"Inter", ui-sans-serif, system-ui, sans-serif',
       }}
     >
       <div className="max-w-2xl mx-auto">
@@ -555,43 +519,23 @@ function Wrapper({ code, joinCtx, participant, progress, onAdminSkip, children }
               {participant?.total_points || 0} pts
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            {onAdminSkip && (
-              <button
-                type="button"
-                onClick={onAdminSkip}
-                className="bg-amber-500 hover:bg-amber-600 text-white rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5 shadow-md ring-2 ring-amber-200"
-                title="Admin skip — testing only (password: admin123)"
-              >
-                <FastForward className="w-3.5 h-3.5" />
-                Admin skip
-              </button>
-            )}
-            <div className="bg-slate-900 text-white rounded-full px-4 py-1.5 text-xs font-bold tracking-[0.2em] font-mono uppercase">
-              {code}
-            </div>
+          <div className="bg-slate-900 text-white rounded-full px-4 py-1.5 text-xs font-bold tracking-[0.2em] font-mono uppercase">
+            {code}
           </div>
         </div>
-
-        {onAdminSkip && (
-          <div className="mb-4 -mt-1 flex justify-end">
-            <p className="text-[10px] text-amber-700 font-semibold">
-              ⏭ Tap "Admin skip" to advance past the current step (password: admin123)
-            </p>
-          </div>
-        )}
 
         {progress && (
           <div className="mb-4">
             <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
               <span>
-                Phase {Math.min(progress.phaseIdx + 1, progress.total)} of {progress.total}
+                {progress.label ? `${progress.label} · ` : ""}Step {Math.min(progress.phaseIdx + 1, progress.total)} of {progress.total}
               </span>
+              <span>{Math.round((Math.min(progress.phaseIdx + 1, progress.total) / progress.total) * 100)}%</span>
             </div>
             <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
               <div
-                className="h-full bg-indigo-500 transition-all"
-                style={{ width: `${((progress.phaseIdx + 1) / progress.total) * 100}%` }}
+                className="h-full bg-[#3B82F6] transition-all"
+                style={{ width: `${(Math.min(progress.phaseIdx + 1, progress.total) / progress.total) * 100}%` }}
               />
             </div>
           </div>
@@ -883,22 +827,6 @@ function InquiryView({ inquiry, topic, onContinue }) {
   );
 }
 
-// Fixed-position admin-skip button. Always visible bottom-right so the
-// tester never has to hunt for it.
-function FloatingAdminSkip({ onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="fixed bottom-4 right-4 z-50 bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-2xl px-4 py-3 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2 ring-4 ring-amber-200"
-      title="Admin skip — testing only (password: admin123)"
-    >
-      <FastForward className="w-4 h-4" />
-      Admin skip
-    </button>
-  );
-}
-
 function VideoView({
   videoId, activeCheck, checkSelected, checkFeedback, setCheckSelected, submitCheck,
   progress, duration, checksDone, totalChecks, canProceed, onContinue,
@@ -1078,6 +1006,90 @@ function CaseStudyView({ cs, onDone }) {
       )}
       <Button onClick={onDone} className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white">
         I'm done
+      </Button>
+    </div>
+  );
+}
+
+// Personal results breakdown — mirrors the learn-session results screen so a
+// live session ends with the same per-student feedback. Shown before the
+// class leaderboard (live sessions stay multiplayer).
+function ResultsView({ quizCorrect, quizTotal, checkCorrect, checkTotal, points, onSeeLeaderboard }) {
+  const totalGraded = quizTotal + checkTotal;
+  const totalCorrect = quizCorrect + checkCorrect;
+  const pct = totalGraded > 0 ? Math.round((totalCorrect / totalGraded) * 100) : 0;
+  const mcPct = quizTotal > 0 ? Math.round((quizCorrect / quizTotal) * 100) : 0;
+  const acPct = checkTotal > 0 ? Math.round((checkCorrect / checkTotal) * 100) : 0;
+  const strong = pct >= 70;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-md">
+      <div className="flex items-center gap-3 mb-6">
+        {strong ? (
+          <CheckCircle className="w-6 h-6 text-[#3B82F6]" />
+        ) : (
+          <Sparkles className="w-6 h-6 text-amber-500" />
+        )}
+        <h2 className="text-xl font-semibold text-[#1A1A1A]">
+          {strong ? "Nice work!" : "Session complete"}
+        </h2>
+      </div>
+
+      <div className="text-center mb-8">
+        <p className="text-6xl font-bold text-[#1A1A1A] mb-2">{pct}%</p>
+        <p className="text-sm text-[#1A1A1A]/70" style={{ fontWeight: 450 }}>
+          {strong
+            ? "Strong understanding across this session."
+            : "Good effort — review the topic and try again to lock it in."}
+        </p>
+        <div className="mt-4 h-2 bg-[#C4B5FD]/20 rounded-full overflow-hidden max-w-md mx-auto">
+          <div
+            className={`h-full rounded-full ${strong ? "bg-[#3B82F6]" : "bg-amber-500"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Score Breakdown */}
+      <div className="bg-gray-50 rounded-[20px] p-6 mb-6 space-y-4">
+        <h3 className="font-semibold text-[#1A1A1A] mb-4">Score Breakdown</h3>
+
+        {quizTotal > 0 && (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-[#1A1A1A]">Multiple Choice</p>
+              <p className="text-sm text-[#1A1A1A]/60">{quizCorrect} of {quizTotal} correct</p>
+            </div>
+            <p className={`text-2xl font-bold ${mcPct >= 70 ? "text-[#3B82F6]" : "text-orange-500"}`}>
+              {mcPct}%
+            </p>
+          </div>
+        )}
+
+        {checkTotal > 0 && (
+          <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+            <div>
+              <p className="font-medium text-[#1A1A1A]">Attention Checks</p>
+              <p className="text-sm text-[#1A1A1A]/60">{checkCorrect} of {checkTotal} correct</p>
+            </div>
+            <p className={`text-2xl font-bold ${acPct >= 70 ? "text-[#3B82F6]" : "text-orange-500"}`}>
+              {acPct}%
+            </p>
+          </div>
+        )}
+
+        <div className="border-t-2 border-[#1A1A1A]/20 pt-4 mt-4 flex items-center justify-between">
+          <p className="font-semibold text-[#1A1A1A]">Points Earned</p>
+          <p className="text-3xl font-bold text-emerald-600">{points}</p>
+        </div>
+      </div>
+
+      <Button
+        onClick={onSeeLeaderboard}
+        className="w-full h-12 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white text-base font-semibold rounded-full"
+      >
+        <Trophy className="w-5 h-5 mr-2" />
+        See class leaderboard
       </Button>
     </div>
   );

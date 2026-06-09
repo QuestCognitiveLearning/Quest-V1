@@ -21,9 +21,9 @@ const PERSONAS = [
       "Quest deployed across every school with custom branding, SSO, and district-wide reporting.",
   },
   {
-    head: "Tutoring chains",
+    head: "Multi-school networks",
     body:
-      "Multi-tutor seats, franchise-level branding, parent reports auto-sent on your domain.",
+      "District-level branding and reporting auto-sent on your domain across every campus.",
   },
   {
     head: "Test-prep companies",
@@ -33,8 +33,8 @@ const PERSONAS = [
 ];
 
 const FEATURES = [
-  "Everything in Studio",
-  "Unlimited tutor + admin seats",
+  "Everything in Classroom",
+  "Unlimited teacher + admin seats",
   "SSO (Google, Okta, ClassLink)",
   "Admin dashboard + audit log",
   "White-label deployment (your domain)",

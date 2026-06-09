@@ -9,7 +9,7 @@ import { LLM_MODELS } from "@/lib/llmModels";
 import MathRenderer from "@/components/utils/MathRenderer";
 import StudentMathInput from "@/components/shared/StudentMathInput";
 
-export default function CaseStudyChat({ subunitName, onComplete, onAdminSkip, subunitId, studentId }) {
+export default function CaseStudyChat({ subunitName, onComplete, subunitId, studentId }) {
   const [messages, setMessages] = useState([]);
   const [currentInput, setCurrentInput] = useState("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -393,18 +393,6 @@ Feel free to ask me questions about any of these answers before we continue!`;
               ) : (
                 <><Send className="w-5 h-5 mr-2" />Submit Answer</>
               )}
-            </Button>
-          </div>
-        )}
-
-        {onAdminSkip && (
-          <div className="mt-4 flex justify-end">
-            <Button 
-              onClick={onAdminSkip}
-              variant="outline"
-              className="px-6 py-2 text-xs rounded-full"
-            >
-              Admin Skip
             </Button>
           </div>
         )}

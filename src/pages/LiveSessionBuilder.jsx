@@ -94,6 +94,7 @@ export default function LiveSessionBuilder() {
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Builder state
   const [sessionName, setSessionName] = useState("");
@@ -508,21 +509,152 @@ export default function LiveSessionBuilder() {
                 <p className="font-bold text-slate-900">{sessionName || "Untitled live session"}</p>
               </div>
               <Button
-                onClick={handleCreate}
+                onClick={() => {
+                  if (!canCreate()) {
+                    toast.error("Fill in the included phases before launching.");
+                    return;
+                  }
+                  setReviewOpen(true);
+                }}
                 disabled={creating || !canCreate()}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 px-6 gap-2"
               >
-                {creating ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Rocket className="w-5 h-5" />
-                )}
-                Create &amp; launch lobby
+                <Eye className="w-5 h-5" />
+                Review &amp; launch
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {reviewOpen && (
+        <ReviewOverlay
+          sessionName={sessionName}
+          topic={topic}
+          includes={includes}
+          inquiry={inquiry}
+          videoUrl={videoUrl}
+          videoId={extractYouTubeId(videoUrl)}
+          attentionChecks={attentionChecks}
+          questions={questions}
+          caseStudy={caseStudy}
+          creating={creating}
+          onClose={() => setReviewOpen(false)}
+          onLaunch={handleCreate}
+        />
+      )}
     </TeacherLayout>
+  );
+}
+
+// Curriculum-style "review of created items" — a final read-through of exactly
+// what students will get, in the order they'll see it, before the session goes
+// live. Mirrors the curriculum content-review layout.
+function ReviewOverlay({
+  sessionName, topic, includes, inquiry, videoUrl, videoId, attentionChecks,
+  questions, caseStudy, creating, onClose, onLaunch,
+}) {
+  const items = [];
+  if (includes.inquiry) items.push("inquiry");
+  if (includes.video) items.push("video");
+  if (includes.quiz) items.push("quiz");
+  if (includes.case_study) items.push("case_study");
+
+  const SectionCard = ({ icon: Icon, color, label, step, children }) => (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
+          <Icon className="w-4 h-4" />
+        </div>
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Step {step}
+          </div>
+          <div className="font-bold text-slate-900 leading-tight">{label}</div>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+      <div className="bg-slate-50 rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-200 my-auto">
+        <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 rounded-t-3xl px-6 py-4 flex items-center justify-between z-10">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Review your live session</h2>
+            <p className="text-xs text-slate-500">
+              {sessionName || "Untitled"} · {items.length} step{items.length === 1 ? "" : "s"} · what students will see, in order
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-sm font-semibold">
+            Edit
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {items.length === 0 && (
+            <p className="text-center text-slate-500 py-8">No phases included yet.</p>
+          )}
+
+          {includes.inquiry && (
+            <SectionCard icon={Sparkles} color="bg-indigo-100 text-indigo-600" label="Inquiry hook" step={items.indexOf("inquiry") + 1}>
+              {inquiry.hook_image_url && (
+                <img src={inquiry.hook_image_url} alt="" className="w-full rounded-xl border border-slate-200 mb-3" />
+              )}
+              <p className="text-slate-800 font-medium">{inquiry.hook_question || "—"}</p>
+            </SectionCard>
+          )}
+
+          {includes.video && (
+            <SectionCard icon={PlayCircle} color="bg-blue-100 text-blue-600" label="Video" step={items.indexOf("video") + 1}>
+              {videoId && (
+                <div className="aspect-video rounded-xl overflow-hidden border border-slate-200 mb-3 bg-black">
+                  <img src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`} alt="" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <p className="text-sm text-slate-600 inline-flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5" />
+                {attentionChecks.length} attention check{attentionChecks.length === 1 ? "" : "s"} during playback
+              </p>
+            </SectionCard>
+          )}
+
+          {includes.quiz && (
+            <SectionCard icon={FileText} color="bg-violet-100 text-violet-600" label={`Quiz · ${questions.length} question${questions.length === 1 ? "" : "s"}`} step={items.indexOf("quiz") + 1}>
+              <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700">
+                {questions.slice(0, 10).map((q, i) => (
+                  <li key={i}>{q.question || q.question_text}</li>
+                ))}
+                {questions.length > 10 && (
+                  <li className="list-none text-slate-400">… and {questions.length - 10} more</li>
+                )}
+              </ol>
+            </SectionCard>
+          )}
+
+          {includes.case_study && (
+            <SectionCard icon={MessageCircle} color="bg-amber-100 text-amber-700" label="Case study" step={items.indexOf("case_study") + 1}>
+              <p className="text-sm text-slate-800 whitespace-pre-line mb-3">{caseStudy.scenario}</p>
+              {Array.isArray(caseStudy.discussion_questions) && caseStudy.discussion_questions.length > 0 && (
+                <ol className="list-decimal list-inside space-y-1 text-sm text-slate-600">
+                  {caseStudy.discussion_questions.map((q, i) => (<li key={i}>{q}</li>))}
+                </ol>
+              )}
+            </SectionCard>
+          )}
+        </div>
+
+        <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 rounded-b-3xl px-6 py-4 flex items-center justify-between gap-3">
+          <Button variant="outline" onClick={onClose} disabled={creating} className="gap-2">
+            <ArrowLeft className="w-4 h-4" /> Keep editing
+          </Button>
+          <Button onClick={onLaunch} disabled={creating} className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 px-6 gap-2">
+            {creating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket className="w-5 h-5" />}
+            Create &amp; launch lobby
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -526,34 +526,6 @@ export default function TeacherDashboard() {
             </Button>
           </div>
 
-        {/* Hero stat: Hours saved */}
-        <div
-          className="rounded-3xl p-7 mb-6 text-white relative overflow-hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, #2563EB 0%, #1D4ED8 50%, #1E40AF 100%)",
-          }}
-        >
-          <div className="absolute -right-10 -top-10 opacity-20">
-            <Clock className="w-40 h-40" />
-          </div>
-          <div className="relative">
-            <div className="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-3">
-              <TrendingUp className="w-3.5 h-3.5" />
-              Hours saved with Quest
-            </div>
-            <p className="text-6xl font-extrabold tracking-tight leading-none">
-              {hoursSaved.toLocaleString()}
-              <span className="text-2xl font-semibold opacity-80 ml-2">hrs</span>
-            </p>
-            <p className="text-sm text-white/80 mt-2 max-w-md">
-              Based on {totalResources.toLocaleString()} AI-generated resources across
-              your curricula, library, and live sessions. Rough math from teacher
-              interviews — actual mileage varies.
-            </p>
-          </div>
-        </div>
-
         {/* Stats row */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
@@ -576,7 +548,7 @@ export default function TeacherDashboard() {
             sublabel={`${resourceStats.quizzes} quizzes · ${resourceStats.caseStudies} case studies`}
           />
           <StatCard
-            label="Library handouts"
+            label="Handouts"
             value={resourceStats.generatedHandouts}
             icon={BookOpen}
             color="amber"

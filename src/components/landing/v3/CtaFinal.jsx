@@ -99,7 +99,7 @@ export default function CtaFinal() {
               Bring Quest to <em className="not-italic" style={{ color: "#F97316" }}>your school.</em>
             </h2>
             <p className="text-white/80 text-base mt-4 mb-7 max-w-[50ch]">
-              Tell us about your school — we'll get back within a day.
+              Tell us about your school and we'll get back within a day.
             </p>
 
             {state === "sent" ? (
@@ -112,7 +112,7 @@ export default function CtaFinal() {
                 </div>
                 <div>
                   <div className="font-bold text-white text-lg">
-                    Message sent — thank you.
+                    Message sent. Thank you.
                   </div>
                   <div className="text-white/80 text-sm mt-1.5 leading-relaxed">
                     We got your note and will reply to{" "}

@@ -5,11 +5,11 @@ function DemoInquiry() {
   const initialTurns = [
     { who: "panda", text: "Why do you think plants grow toward sunlight?" },
     { who: "student", text: "Because they need it to make food?" },
-    { who: "panda", text: "Right — and what part of the plant senses where the light is?" },
+    { who: "panda", text: "Right, and what part of the plant senses where the light is?" },
   ];
   const more = [
     { who: "student", text: "Maybe the leaves?" },
-    { who: "panda", text: "Close — try the part that grows. The tip. What's happening there with the cells on the dark side vs. the light side?" },
+    { who: "panda", text: "Close, try the part that grows. The tip. What's happening there with the cells on the dark side vs. the light side?" },
     { who: "student", text: "The dark side grows faster, so the plant bends toward the light?" },
     { who: "panda", text: "You just described phototropism. Notice we got there by asking, not by me telling you." },
   ];
@@ -201,7 +201,7 @@ function DemoRecall() {
           {pick !== null && (
             <div className="mt-1 text-[12.5px] text-[#475569] font-medium">
               {pick === correct
-                ? "✓ Correct — video resumes."
+                ? "✓ Correct, video resumes."
                 : "↻ Quest will replay the last 30 seconds."}
             </div>
           )}
@@ -269,7 +269,7 @@ const METHODS = [
   {
     id: "spaced",
     h: "Spaced Repetition",
-    p: "Reviews on day 1, 3, 7, 14, 21 — fixed cadence.",
+    p: "Reviews on day 1, 3, 7, 14, 21, fixed cadence.",
     Ic: RotateCw,
     Demo: DemoSpaced,
   },
@@ -296,7 +296,7 @@ export default function ForStudents() {
             Three Methods. <em className="not-italic text-[#2563EB]">One Quest.</em>
           </h2>
           <p className="text-[16px] text-[#64748B] whitespace-normal">
-            Inquiry-based learning, active recall, and spaced repetition — wired into every Quest lesson.
+            Inquiry-based learning, active recall, and spaced repetition, wired into every Quest lesson.
           </p>
         </div>
 

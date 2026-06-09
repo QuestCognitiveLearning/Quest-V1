@@ -11,7 +11,6 @@ import {
   ChevronLeft,
   TrendingUp,
   Sparkles,
-  Library as LibraryIcon,
   Settings as SettingsIcon
 } from "lucide-react";
 
@@ -101,10 +100,6 @@ export default function TeacherLayout({ children, activeNav, user, onSignOut, on
           <button onClick={() => paid && handleNavigation("classes", "TeacherClasses")} className={itemClass(activeNav === "classes")}>
             <Users className="w-4 h-4" />
             <span>Classes</span>
-          </button>
-          <button onClick={() => paid && handleNavigation("library", "Library")} className={itemClass(activeNav === "library")}>
-            <LibraryIcon className="w-4 h-4" />
-            <span>Library</span>
           </button>
           <button onClick={() => paid && handleNavigation("analytics", "TeacherAnalytics")} className={itemClass(activeNav === "analytics")}>
             <TrendingUp className="w-4 h-4" />
