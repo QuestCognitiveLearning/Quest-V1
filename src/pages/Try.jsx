@@ -48,7 +48,13 @@ export default function Try() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [genStatus, setGenStatus] = useState('running'); // running | done | error
-  const [options, setOptions] = useState(DEFAULT_OPTIONS);
+  // The free tool produces a handout (quiz + optional case study + key) — no
+  // inquiry hook or mid-video attention checks, so those stay off.
+  const [options, setOptions] = useState({
+    ...DEFAULT_OPTIONS,
+    includeInquiry: false,
+    includeAttentionChecks: false,
+  });
   const [quotaUsed, setQuotaUsed] = useState(getQuotaUsed());
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const inFlight = useRef(false);
@@ -215,7 +221,7 @@ export default function Try() {
               </div>
             </div>
             <div className="max-w-3xl mx-auto space-y-5">
-              <CustomizePanel options={options} onChange={setOptions} />
+              <CustomizePanel options={options} onChange={setOptions} mode="handout" />
               <VideoPicker onPicked={startGeneration} />
             </div>
           </>
