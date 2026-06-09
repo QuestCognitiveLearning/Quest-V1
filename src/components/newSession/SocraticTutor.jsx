@@ -53,7 +53,7 @@ export default function SocraticTutor({ inquirySession, studentGuess, subunit, u
       const firstMessage = await invokeLLM({
         model: LLM_MODELS.SOCRATIC_TUTOR,
         prompt: `You are Quest Panda. Respond in 1-2 sentences max.
-      Acknowledge "${studentGuess}" warmly, bold one word, then ask one short question (under 10 words).`
+      The student's guess was "${studentGuess}". If that guess is off-topic, gibberish, or says they're unsure (e.g. "idk", "i don't know", "not sure"), don't pretend it was a real guess — warmly reassure them it's okay not to know yet and invite them to guess anything. Otherwise acknowledge it warmly and bold one word. Either way, end with one short question (under 10 words).`
       });
 
       const initialMessages = [{ role: "assistant", content: firstMessage }];
@@ -238,7 +238,7 @@ export default function SocraticTutor({ inquirySession, studentGuess, subunit, u
     try {
       const response = await invokeLLM({
         model: LLM_MODELS.SOCRATIC_TUTOR,
-        prompt: `Final message. Praise "${frInput.trim()}" in 1-2 sentences, bold one insight. End with: "Brilliant! Now let's watch the video."`
+        prompt: `Final message (1-2 sentences). The student's answer was "${frInput.trim()}". If it's off-topic, evasive, or says they're unsure (e.g. "idk", "i don't know"), don't pretend they nailed it — gently acknowledge they're unsure, say that's okay, and hand them the one key insight yourself (bold it). Otherwise praise their answer and bold one insight. Either way, end with: "Brilliant! Now let's watch the video."`
       });
 
       addToMessages(newHistory, { role: "assistant", content: response });

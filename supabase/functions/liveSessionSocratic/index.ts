@@ -73,10 +73,16 @@ function buildPrompt(b: Body): { prompt: string; schema?: unknown } {
         prompt:
           `You are Quest Panda, a warm Socratic tutor. Topic: "${subunit}".\n` +
           `Student's observation of the image: "${s(b, 'observation')}"\n\n` +
-          `In 1–2 sentences, warmly acknowledge what they noticed — pick up on a ` +
-          `specific word they used (use **bold**).\n` +
-          `Do NOT ask a question. Just validate their thinking and say you'll ` +
-          `explore this together.`,
+          `First decide whether the student actually shared an observation. If their ` +
+          `message is off-topic, random/gibberish, blank, or says they're unsure ` +
+          `(e.g. "idk", "i don't know", "no idea", "not sure", "?"), do NOT pretend ` +
+          `they gave a real observation. Instead, in 1-2 sentences: warmly acknowledge ` +
+          `that they're not sure yet, reassure them that's completely okay, and gently ` +
+          `invite them to just guess or name anything they notice in the image.\n` +
+          `Otherwise, in 1-2 sentences warmly acknowledge what they noticed — pick up ` +
+          `on a specific word they used (use **bold**).\n` +
+          `Either way, do NOT ask a quiz question. Just respond supportively and say ` +
+          `you'll explore this together.`,
       };
 
     case 'q2_mc_generate':
@@ -173,11 +179,17 @@ function buildPrompt(b: Body): { prompt: string; schema?: unknown } {
           `You are Quest Panda. Topic: "${subunit}".\n` +
           `The inquiry question was: "${s(b, 'inquiryHookQuestion')}"\n` +
           `Student's answer: "${s(b, 'studentAnswer')}"\n\n` +
-          `This is the FINAL exchange. In 2 sentences:\n` +
-          `1. Affirm their answer with **bold** on their key insight — be specific.\n` +
-          `2. End exactly with: "Brilliant thinking! Now let's watch the video to ` +
-          `see the full picture."\n` +
-          `DO NOT ask another question.`,
+          `This is the FINAL exchange. First judge whether the student genuinely ` +
+          `engaged with the question. If their answer is off-topic, evasive, ` +
+          `gibberish, or says they're unsure (e.g. "idk", "i don't know", "not ` +
+          `sure"), do NOT pretend they nailed it. Instead, in 2 sentences: warmly ` +
+          `acknowledge that they're unsure and that it's okay, then hand them the ` +
+          `one key insight to "${subunit}" yourself in plain terms (use **bold** on ` +
+          `the key idea).\n` +
+          `If they did engage, in 2 sentences affirm their answer with **bold** on ` +
+          `their key insight — be specific.\n` +
+          `Either way, end exactly with: "Brilliant thinking! Now let's watch the ` +
+          `video to see the full picture." and DO NOT ask another question.`,
       };
 
     default:

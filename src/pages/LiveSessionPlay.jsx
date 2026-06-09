@@ -759,7 +759,13 @@ function InquiryView({ inquiry, topic, onContinue }) {
                   🐼 Panda
                 </div>
               )}
-              <div className="whitespace-pre-wrap">{m.content}</div>
+              <div className="whitespace-pre-wrap">
+                {String(m.content).split(/(\*\*.*?\*\*)/).map((part, idx) =>
+                  part.startsWith("**") && part.endsWith("**") && part.length > 4
+                    ? <strong key={idx}>{part.slice(2, -2)}</strong>
+                    : <React.Fragment key={idx}>{part}</React.Fragment>
+                )}
+              </div>
             </div>
           </div>
         ))}

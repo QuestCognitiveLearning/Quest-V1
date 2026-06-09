@@ -33,6 +33,7 @@ import {
   Rocket,
   CheckCircle2,
   Circle,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -578,18 +579,23 @@ function ReviewOverlay({
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="bg-slate-50 rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-200 my-auto">
-        <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 rounded-t-3xl px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Review your live session</h2>
-            <p className="text-xs text-slate-500">
-              {sessionName || "Untitled"} · {items.length} step{items.length === 1 ? "" : "s"} · what students will see, in order
-            </p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl">
+        <div
+          className="sticky top-0 z-10 text-white p-6"
+          style={{ background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)" }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Review your live session</h2>
+              <p className="text-blue-100 text-sm mt-0.5">
+                {sessionName || "Untitled"} · {items.length} step{items.length === 1 ? "" : "s"} · what students will see, in order
+              </p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors" aria-label="Close">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-sm font-semibold">
-            Edit
-          </button>
         </div>
 
         <div className="p-6 space-y-4">
@@ -643,16 +649,18 @@ function ReviewOverlay({
               )}
             </SectionCard>
           )}
-        </div>
 
-        <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 rounded-b-3xl px-6 py-4 flex items-center justify-between gap-3">
-          <Button variant="outline" onClick={onClose} disabled={creating} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Keep editing
-          </Button>
-          <Button onClick={onLaunch} disabled={creating} className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 px-6 gap-2">
-            {creating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket className="w-5 h-5" />}
-            Create &amp; launch lobby
-          </Button>
+          {/* Actions scroll with the content (matches the curriculum review),
+              so there's no stationary bar fighting the page as you scroll. */}
+          <div className="flex gap-4 pt-2">
+            <Button variant="outline" onClick={onClose} disabled={creating} className="flex-1 border-2 gap-2">
+              <ArrowLeft className="w-4 h-4" /> Keep editing
+            </Button>
+            <Button onClick={onLaunch} disabled={creating} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-base font-semibold gap-2">
+              {creating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket className="w-5 h-5" />}
+              Create &amp; launch lobby
+            </Button>
+          </div>
         </div>
       </div>
     </div>

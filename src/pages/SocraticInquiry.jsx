@@ -119,8 +119,9 @@ export default function SocraticInquiry() {
         prompt: `You are Quest Panda, a warm Socratic tutor. Topic: "${subunitName}".
 Student's observation of the image: "${observation}"
 
-In 1–2 sentences, warmly acknowledge what they noticed — pick up on a specific word they used (use **bold**). 
-Do NOT ask a question. Just validate their thinking and say you'll explore this together.`
+First decide whether they actually shared an observation. If their message is off-topic, gibberish, blank, or says they're unsure (e.g. "idk", "i don't know", "not sure", "?"), do NOT pretend they gave a real observation — in 1-2 sentences warmly acknowledge they're not sure yet, reassure them that's okay, and invite them to just guess or name anything they notice.
+Otherwise, in 1–2 sentences warmly acknowledge what they noticed — pick up on a specific word they used (use **bold**).
+Either way, do NOT ask a quiz question. Just respond supportively and say you'll explore this together.`
       });
 
       const withAck = addMessage(userHistory, { role: "assistant", content: ack });
@@ -335,10 +336,9 @@ Write a 1-2 sentence summary statement (NOT a question) that:
 The inquiry question was: "${inquirySession?.hook_question}"
 Student's answer: "${input}"
 
-This is the FINAL exchange. In 2 sentences:
-1. Affirm their answer with **bold** on their key insight — be specific.
-2. End exactly with: "Brilliant thinking! Now let's watch the video to see the full picture."
-DO NOT ask another question.`
+This is the FINAL exchange. First judge whether the student genuinely engaged. If their answer is off-topic, evasive, gibberish, or says they're unsure (e.g. "idk", "i don't know", "not sure"), do NOT pretend they nailed it — in 2 sentences warmly acknowledge they're unsure and that it's okay, then hand them the one key insight to "${subunitName}" yourself in plain terms (use **bold** on the key idea).
+If they did engage, in 2 sentences affirm their answer with **bold** on their key insight — be specific.
+Either way, end exactly with: "Brilliant thinking! Now let's watch the video to see the full picture." and DO NOT ask another question.`
       });
 
       addMessage(withUser, { role: "assistant", content: response });

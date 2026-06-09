@@ -8,7 +8,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, PlayCircle, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 
@@ -74,16 +74,20 @@ export default function Join() {
       className="min-h-screen flex items-center justify-center px-6 py-12"
       style={{
         background:
-          "linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 50%, #FAF5FF 100%)",
-        fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
+          "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 50%, #EEF2FF 100%)",
+        fontFamily: '"Inter", ui-sans-serif, system-ui, sans-serif',
       }}
     >
       <div className="bg-white border border-slate-200 rounded-3xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-100 mb-3">
-            <PlayCircle className="w-7 h-7 text-emerald-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Join the live session</h1>
+          <img
+            src="/quest-logo-on-white.png"
+            alt="Quest Learning"
+            width="64"
+            height="64"
+            className="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-sm"
+          />
+          <h1 className="text-2xl font-bold text-[#1E40AF]">Join the live session</h1>
           <p className="text-sm text-slate-500 mt-1">
             No account needed. Your teacher shared a 6-character code.
           </p>
@@ -131,7 +135,7 @@ export default function Join() {
           <Button
             type="submit"
             disabled={working}
-            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-base"
+            className="w-full h-12 bg-[#2563EB] hover:bg-[#1D4ED8] text-white gap-2 text-base"
           >
             {working ? (
               <>
