@@ -1,6 +1,6 @@
 import { handlePreflight, json } from '../_shared/cors.ts';
 import { getMe } from '../_shared/auth.ts';
-import { sendEmail } from '../_shared/email.ts';
+import { sendEmail, signOff, keepUsingQuestHtml } from '../_shared/email.ts';
 import { clientIp, rateLimitByIp, rateLimitByUser, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 
 function welcomeHtml(name: string): string {
@@ -18,7 +18,8 @@ function welcomeHtml(name: string): string {
     <li><strong>Get Feedback:</strong> Receive personalized guidance from our AI-powered tutor</li>
     <li><strong>Build Streaks:</strong> Stay consistent and earn achievements as you progress</li>
   </ul>
-  <p style="font-size: 15px; margin-top: 25px; color: #666;">Happy learning!<br><strong>The Quest Learning Team</strong></p>
+  ${keepUsingQuestHtml()}
+  <p style="font-size: 15px; margin-top: 25px; color: #666;">Happy learning!<br><strong>&mdash; ${signOff()}</strong></p>
 </div>`;
 }
 

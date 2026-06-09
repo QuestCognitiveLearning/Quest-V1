@@ -1,3 +1,5 @@
+import { signOff } from './email.ts';
+
 export type OverdueItem = { name: string; daysOverdue: number; type: 'review' | 'assignment' };
 
 function row(name: string, daysOverdue: number, type: OverdueItem['type']): string {
@@ -34,6 +36,6 @@ export function overdueHtml(studentName: string, items: OverdueItem[]): string {
       <p style="color: #1e40af; margin: 0; font-size: 14px;">⏰ The longer you wait, the harder it gets to remember. Complete your items today!</p>
     </div>
   </div>
-  <p style="color: #9ca3af; font-size: 13px; text-align: center; margin: 0;">Quest Learning</p>
+  <p style="color: #9ca3af; font-size: 13px; text-align: center; margin: 0;">&mdash; ${signOff()}</p>
 </div>`;
 }

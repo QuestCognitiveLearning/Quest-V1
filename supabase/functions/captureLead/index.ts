@@ -7,7 +7,7 @@
 
 import { handlePreflight, json } from '../_shared/cors.ts';
 import { adminClient } from '../_shared/client.ts';
-import { sendEmail } from '../_shared/email.ts';
+import { sendEmail, signOff } from '../_shared/email.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 import { validate } from '../_shared/validator.ts';
 import { fireEvent } from '../_shared/fireEvent.ts';
@@ -54,7 +54,7 @@ function dayZeroHtml(p: {
       personally and use it to improve the tool.
     </p>
     <p style="font-size: 13px; color: #64748B; margin-top: 8px;">
-      &mdash; Adam, Quest Learning
+      &mdash; ${signOff()}
     </p>
     <p style="font-size: 12px; color: #94A3B8; margin-top: 28px;">
       You're receiving this because you generated a free handout at questlearning.co.

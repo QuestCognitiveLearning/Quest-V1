@@ -2,6 +2,8 @@
 // Each function returns { subject, html }. Shared brand styling lives in
 // `wrap()` so future template additions stay consistent.
 
+import { signOff, keepUsingQuestHtml } from './email.ts';
+
 export type TemplateContext = {
   firstName?: string | null;
   remainingGens?: number;
@@ -35,18 +37,20 @@ const cta = (label: string, url: string): string => `
             font-weight:700;font-size:14px;">${escape(label)}</a>
 </p>`;
 
-const sig = `
+// Built per-email so the founder sign-off alternates (Adam / Samuel).
+const sig = (): string => `
 <p style="font-size:14px;line-height:1.55;color:#1A1A1A;margin-top:28px;">
   <strong>Got feedback?</strong> Just hit reply &mdash; I read every email
   personally and use it to shape what I build next.
 </p>
-<p style="font-size:13px;color:#475569;margin-top:6px;">&mdash; Adam, Quest Learning</p>`;
+<p style="font-size:13px;color:#475569;margin-top:6px;">&mdash; ${signOff()}</p>`;
 
 const wrap = (innerHtml: string, unsubscribeUrl: string): string => `
 <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;
             max-width:560px;margin:0 auto;color:#1A1A1A;line-height:1.55;">
   ${innerHtml}
-  ${sig}
+  ${keepUsingQuestHtml()}
+  ${sig()}
   <p style="font-size:12px;color:#94A3B8;margin-top:28px;border-top:1px solid #E2E8F0;padding-top:14px;">
     You're receiving this because you generated a free handout at questlearning.co.
     <a href="${unsubscribeUrl}" style="color:#94A3B8;">Unsubscribe in one click.</a>

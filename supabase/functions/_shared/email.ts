@@ -5,6 +5,29 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const FROM_ADDRESS = Deno.env.get('EMAIL_FROM') || 'Quest Learning <noreply@questlearning.co>';
 const REPLY_TO = Deno.env.get('EMAIL_REPLY_TO');
 
+// Human sign-off rotates between the two founders so platform email reads
+// personal rather than automated. Random per send.
+const SIGNERS = ['Adam', 'Samuel'];
+export function signerName(): string {
+  return SIGNERS[Math.floor(Math.random() * SIGNERS.length)];
+}
+// e.g. "Adam at Quest Learning" / "Samuel at Quest Learning"
+export function signOff(): string {
+  return `${signerName()} at Quest Learning`;
+}
+// Short re-engagement nudge appended to every platform email so each one
+// prompts continued use of Quest.
+export function keepUsingQuestHtml(
+  url = 'https://www.questlearning.co',
+): string {
+  return `
+<p style="font-size:13px;line-height:1.55;color:#475569;margin-top:18px;">
+  Keep your momentum going &mdash;
+  <a href="${url}" style="color:#2563EB;font-weight:600;">jump back into Quest</a>
+  and keep learning today.
+</p>`;
+}
+
 export type EmailAttachment = {
   filename: string;
   content: string;
