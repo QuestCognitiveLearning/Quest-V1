@@ -32,8 +32,8 @@ export default function Landing() {
         <Voices />
         <Pricing />
         <Faq />
-        <Compliance />
         <CtaFinal />
+        <Compliance />
       </main>
       <Footer />
       <StickyCta />

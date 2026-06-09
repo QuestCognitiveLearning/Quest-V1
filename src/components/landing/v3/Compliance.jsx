@@ -3,41 +3,45 @@ import { ShieldCheck, Lock, UserCheck, EyeOff } from "lucide-react";
 import LegalModal, { LEGAL_DOCS } from "./LegalModals";
 
 /**
- * Compliance band — a trust strip aimed at school and district admins
- * evaluating Quest. Placed just before the district CTA so it's seen while
- * "approaching the platform."
+ * Compliance strip — a compact, visual trust band aimed at school and district
+ * admins. Sits directly below the "Bring Quest to your school" contact section
+ * and above the footer, sharing the contact section's #EEF3FB background so the
+ * two read as one continuous block before the dark footer.
  *
  * IMPORTANT — these are honest compliance statements, NOT third-party
  * certification seals. FERPA has no certifying body, and COPPA "certified"
- * seals only come from FTC-approved Safe Harbor programs (kidSAFE, iKeepSafe,
- * PRIVO, …) we are not enrolled in. Each badge therefore says "Compliant"
- * (our own attested commitment) and links to the policy that backs it up,
- * rather than implying an external audit we don't hold.
+ * seals only come from FTC-approved Safe Harbor programs we are not enrolled
+ * in. Each badge says "Compliant" (our own attested commitment) and links to
+ * the policy that backs it up.
  */
 const BADGES = [
   {
     key: "ferpa",
     icon: ShieldCheck,
     label: "FERPA Compliant",
-    sub: "Student education records protected",
+    sub: "Education records protected",
+    tint: "#2563EB",
   },
   {
     key: "coppa",
     icon: UserCheck,
     label: "COPPA Compliant",
     sub: "Safe for learners under 13",
+    tint: "#16A34A",
   },
   {
     key: "security",
     icon: Lock,
     label: "Encrypted & Secure",
-    sub: "SSL/TLS in transit, encrypted at rest",
+    sub: "TLS in transit, encrypted at rest",
+    tint: "#7C3AED",
   },
   {
     key: "privacy",
     icon: EyeOff,
     label: "Never Sold, No Ad Tracking",
-    sub: "No third-party advertising trackers",
+    sub: "Zero advertising trackers",
+    tint: "#F97316",
   },
 ];
 
@@ -46,56 +50,54 @@ export default function Compliance() {
 
   return (
     <>
-      <section
-        id="compliance"
-        className="bg-[#F8FAFC] border-y border-[#E2E8F0]"
-        style={{ padding: "72px 0" }}
-      >
+      <section id="compliance" className="bg-[#EEF3FB]" style={{ padding: "8px 0 72px" }}>
         <div className="lp-v3-container">
-          <div className="text-center mb-9 max-w-[44ch] mx-auto">
-            <span className="inline-block text-[#2563EB] font-semibold text-[12.5px] tracking-[0.16em] uppercase">
+          <div className="text-center mb-8">
+            <span className="inline-flex items-center gap-2 text-[#2563EB] font-semibold text-[12.5px] tracking-[0.16em] uppercase">
+              <ShieldCheck size={15} strokeWidth={2.4} />
               Built for Student Privacy
             </span>
             <h2
-              className="font-bold text-[#0F172A] mt-3 mb-3"
-              style={{
-                fontSize: "clamp(30px, 3.6vw, 44px)",
-                lineHeight: "1.05",
-                letterSpacing: "-0.025em",
-              }}
+              className="font-bold text-[#0F172A] mt-2.5"
+              style={{ fontSize: "clamp(24px, 2.8vw, 32px)", letterSpacing: "-0.02em" }}
             >
-              Compliant by{" "}
-              <em className="not-italic text-[#2563EB]">design.</em>
+              Compliant by <em className="not-italic text-[#2563EB]">design.</em>
             </h2>
-            <p className="text-[#64748B] text-base">
-              Quest follows FERPA and COPPA for every account. We collect only
-              what a lesson needs, never sell student data, and run no
-              advertising trackers. Tap any badge to read the policy.
+            <p className="text-[#64748B] text-[14.5px] mt-2 max-w-[52ch] mx-auto">
+              Quest follows FERPA and COPPA for every account — we collect only
+              what a lesson needs, never sell student data, and run no ad
+              trackers. Tap any badge to read the policy.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {BADGES.map(({ key, icon: Icon, label, sub }) => (
+          <div className="flex flex-wrap justify-center gap-3">
+            {BADGES.map(({ key, icon: Icon, label, sub, tint }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setModal(key)}
-                className="group bg-white rounded-2xl border border-[#E2E8F0] p-6 text-left lp-v3-soft-shadow transition-all hover:border-[#2563EB] hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2"
+                className="group flex items-center gap-3.5 bg-white rounded-2xl border border-[#E2E8F0] pl-3.5 pr-5 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-16px_rgba(15,23,42,0.4)] focus:outline-none focus:ring-2 focus:ring-offset-2"
+                style={{ "--tint": tint }}
               >
-                <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-4 group-hover:bg-[#2563EB] group-hover:text-white transition-colors">
-                  <Icon size={24} strokeWidth={2} />
-                </div>
-                <div className="font-bold text-[#0F172A] text-[15.5px] tracking-tight">
-                  {label}
-                </div>
-                <div className="text-[12.5px] text-[#64748B] mt-1 leading-snug">
-                  {sub}
-                </div>
+                <span
+                  className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                  style={{ background: `${tint}14`, color: tint }}
+                >
+                  <Icon size={22} strokeWidth={2.1} />
+                </span>
+                <span>
+                  <span className="block font-bold text-[#0F172A] text-[14px] tracking-tight leading-tight">
+                    {label}
+                  </span>
+                  <span className="block text-[12px] text-[#64748B] leading-snug mt-0.5">
+                    {sub}
+                  </span>
+                </span>
               </button>
             ))}
           </div>
 
-          <p className="text-center text-[12px] text-[#94A3B8] mt-7 max-w-[60ch] mx-auto">
+          <p className="text-center text-[11.5px] text-[#94A3B8] mt-7 max-w-[64ch] mx-auto">
             Quest Learning attests to these practices; FERPA and COPPA are U.S.
             laws, not certification programs. Questions from administrators?{" "}
             <a
