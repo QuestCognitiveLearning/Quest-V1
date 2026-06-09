@@ -12,6 +12,7 @@ import ClassroomLive from "@/components/landing/v3/ClassroomLive";
 import Voices from "@/components/landing/v3/Voices";
 import Pricing from "@/components/landing/v3/Pricing";
 import Faq from "@/components/landing/v3/Faq";
+import Compliance from "@/components/landing/v3/Compliance";
 import CtaFinal from "@/components/landing/v3/CtaFinal";
 import Footer from "@/components/landing/v3/Footer";
 import StickyCta from "@/components/landing/v3/StickyCta";
@@ -31,6 +32,7 @@ export default function Landing() {
         <Voices />
         <Pricing />
         <Faq />
+        <Compliance />
         <CtaFinal />
       </main>
       <Footer />

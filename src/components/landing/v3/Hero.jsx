@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Play, X } from "lucide-react";
+import { ArrowRight, Play, X, ShieldCheck, UserCheck, Lock } from "lucide-react";
 import KnowledgeMap from "./KnowledgeMap";
 
 /**
@@ -194,6 +194,34 @@ export default function Hero() {
                 Watch 90-sec Demo
               </button>
             </div>
+
+            {/* Compliance trust row — visible on arrival so admins see Quest's
+                privacy posture up front. Scrolls to the full #compliance band
+                where each badge opens its policy. */}
+            <button
+              type="button"
+              onClick={() =>
+                document
+                  .getElementById("compliance")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+              className="group mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-left"
+              aria-label="View Quest Learning compliance details"
+            >
+              {[
+                { icon: ShieldCheck, label: "FERPA Compliant" },
+                { icon: UserCheck, label: "COPPA Compliant" },
+                { icon: Lock, label: "Encrypted & Secure" },
+              ].map(({ icon: Icon, label }) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#475569] group-hover:text-[#2563EB] transition-colors"
+                >
+                  <Icon size={15} strokeWidth={2.2} className="text-[#1F8A5B] group-hover:text-[#2563EB]" />
+                  {label}
+                </span>
+              ))}
+            </button>
           </div>
 
           {/* RIGHT: KnowledgeMap */}

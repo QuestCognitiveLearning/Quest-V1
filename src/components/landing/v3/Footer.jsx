@@ -89,6 +89,7 @@ export default function Footer() {
               <FooterLink onClick={openModal("terms")}>Terms</FooterLink>
               <FooterLink onClick={openModal("security")}>Security</FooterLink>
               <FooterLink onClick={openModal("ferpa")}>FERPA</FooterLink>
+              <FooterLink onClick={openModal("coppa")}>COPPA</FooterLink>
             </FooterCol>
           </div>
 

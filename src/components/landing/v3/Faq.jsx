@@ -19,7 +19,7 @@ const QUESTIONS = [
   },
   {
     q: "How is student data protected?",
-    a: "We use state-of-the-art database technology with industry-leading security practices including encryption, access controls, and regular security audits. Student data is never sold or shared with third parties.",
+    a: "Quest follows FERPA and COPPA for every account, including learners under 13. We collect only what a lesson needs, encrypt data in transit and at rest, run no third-party advertising trackers, and never sell student data. In schools, the district consents on students' behalf as a 'school official.' See the FERPA, COPPA, and Privacy policies linked in the footer and the compliance section.",
   },
 ];
 
