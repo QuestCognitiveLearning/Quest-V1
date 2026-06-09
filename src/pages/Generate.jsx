@@ -25,6 +25,7 @@ import {
   Trash2,
   CheckSquare,
   Square,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -914,7 +915,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
   // the wrapper changes.
   const pageBody = (
     <>
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-3xl mx-auto px-6 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
             <Sparkles className="w-7 h-7 text-[#2563EB]" />
@@ -937,8 +938,17 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         )}
 
         {/* Mode toggle — pick the outcome up front. Students choose
-            Flashcards vs Learning Session; teachers choose Live vs Handout. */}
-        {isStudent ? (
+            Flashcards vs Learning Session; teachers choose Live vs Handout.
+            Only shown while building (input stage) so the result/preview
+            views stay uncluttered. */}
+        {stage === "input" && (
+          <>
+            <StepHeader
+              n={1}
+              label="Choose what to create"
+              hint={isStudent ? "Flashcards or a full learning session." : "Run it live, or make a handout."}
+            />
+            {isStudent ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
             <button
               type="button"
@@ -1042,34 +1052,37 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
           </div>
         )}
 
-        {/* Tabs — students only Create from YouTube videos; PDF is a
-            teacher-only source today. */}
-        <div className="flex border-b border-slate-200 mb-6 gap-1">
-          {(isStudent
-            ? [{ id: "youtube", label: "From YouTube", icon: Youtube }]
-            : [
-                { id: "youtube", label: "From YouTube", icon: Youtube },
-                { id: "pdf", label: "From PDF", icon: FileText },
-              ]
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors ${
-                tab === t.id
-                  ? "bg-white text-[#2563EB] border-b-2 border-[#2563EB] -mb-px"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <t.icon className="w-4 h-4" />
-              {t.label}
-            </button>
-          ))}
-          <div className="flex-1 flex items-center justify-end px-3 text-xs text-slate-400">
-            More sources coming soon
-          </div>
-        </div>
+            <StepHeader
+              n={2}
+              label="Pick your source"
+              hint={isStudent ? "Turn a YouTube video into a session." : "Start from a YouTube video or a PDF."}
+            />
+            {/* Source picker — a clean segmented control. Students only have
+                YouTube today, so the toggle is hidden for them. */}
+            {!isStudent && (
+              <div className="inline-flex bg-slate-100 rounded-xl p-1 mb-5 gap-1">
+                {[
+                  { id: "youtube", label: "YouTube", icon: Youtube },
+                  { id: "pdf", label: "PDF", icon: FileText },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                      tab === t.id
+                        ? "bg-white text-[#2563EB] shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <t.icon className="w-4 h-4" />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
 
         {stage === "input" && (
           <div className="space-y-5">
@@ -1282,18 +1295,16 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
               </p>
             )}
 
-            <div className="flex justify-end">
-              <Button
-                onClick={handleGenerate}
-                disabled={
-                  (tab === "youtube" && !url.trim()) ||
-                  (tab === "pdf" && (!pdfMeta || extracting))
-                }
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-11 px-6 gap-2"
-              >
-                Generate <ArrowRight className="w-4 h-4" />
-              </Button>
-            </div>
+            <Button
+              onClick={handleGenerate}
+              disabled={
+                (tab === "youtube" && !url.trim()) ||
+                (tab === "pdf" && (!pdfMeta || extracting))
+              }
+              className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-12 gap-2 text-base font-semibold rounded-xl"
+            >
+              Generate <ArrowRight className="w-4 h-4" />
+            </Button>
           </div>
         )}
 
@@ -1532,10 +1543,16 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setResult(row.payload) || setStage("result")}
-                            className="h-8 px-3 text-xs"
+                            onClick={() =>
+                              window.open(
+                                createPageUrl("HandoutPreview") + `?id=${row.id}`,
+                                "_blank",
+                                "noopener,noreferrer"
+                              )
+                            }
+                            className="h-8 px-3 text-xs gap-1.5"
                           >
-                            Open
+                            <ExternalLink className="w-3.5 h-3.5" /> Open
                           </Button>
                           <button
                             type="button"
@@ -1632,6 +1649,27 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 // Banner shown above the Generate page for student accounts. Tracks
 // lifetime free generations against the cap. Clicking Upgrade opens the
 // modal which kicks off Stripe checkout for the $9/mo student plan.
+/**
+ * StepHeader — a small numbered section label used to give the Generate flow
+ * a clear, scannable 1-2-3 structure (matches the uppercase tag-badge vocab
+ * used in the student learn-session player and curriculum review).
+ */
+function StepHeader({ n, label, hint }) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <span className="w-7 h-7 rounded-full bg-[#2563EB] text-white text-xs font-bold flex items-center justify-center shrink-0">
+        {n}
+      </span>
+      <div>
+        <div className="text-[12px] font-bold uppercase tracking-wider text-slate-900">
+          {label}
+        </div>
+        {hint && <div className="text-[11.5px] text-slate-500 leading-tight">{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
 function StudentUsageBanner({ used, limit, remaining, onUpgrade }) {
   const finite = Number.isFinite(limit);
   if (!finite) return null;

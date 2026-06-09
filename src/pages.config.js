@@ -65,6 +65,7 @@ export const PAGES = {
   "TeacherSettings":      lazy(() => import('./pages/TeacherSettings')),
   "TeacherStudentDetail": lazy(() => import('./pages/TeacherStudentDetail')),
   "Generate":             lazy(() => import('./pages/Generate')),
+  "HandoutPreview":       lazy(() => import('./pages/HandoutPreview')),
   "try":                  lazy(() => import('./pages/Try')),
 };
 

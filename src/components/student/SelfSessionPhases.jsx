@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
+import { shuffleQuestionList } from "@/lib/shuffleChoices";
 import {
   CheckCircle,
   XCircle,
@@ -45,8 +46,17 @@ export default function SelfSessionPhases({
 }) {
   const summary = payload?.summary || null;        // { bullets: [...] } or null
   const video = payload?.video || {};
-  const attentionChecks = Array.isArray(payload?.attention_checks) ? payload.attention_checks : [];
-  const quiz = Array.isArray(payload?.quiz) ? payload.quiz : [];
+  // Shuffle answer choices (seeded, stable) so the correct answer isn't always
+  // the same letter. `correct_choice` is remapped in lockstep, so the pick/score
+  // logic below — which reads choice_* + correct_choice — stays correct.
+  const attentionChecks = useMemo(
+    () => (Array.isArray(payload?.attention_checks) ? shuffleQuestionList(payload.attention_checks) : []),
+    [payload]
+  );
+  const quiz = useMemo(
+    () => (Array.isArray(payload?.quiz) ? shuffleQuestionList(payload.quiz) : []),
+    [payload]
+  );
   const caseStudy = payload?.case_study || null;
   const videoId = video?.videoId || null;
   const videoEmbedSrc = videoId ? `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1` : null;

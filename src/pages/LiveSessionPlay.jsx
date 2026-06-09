@@ -9,7 +9,8 @@
  * in sessionStorage. If a visitor hits this URL cold, we bounce them back
  * to /Join with the code pre-filled.
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shuffleQuestionList } from "@/lib/shuffleChoices";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,20 @@ export default function LiveSessionPlay() {
   const code = (searchParams.get("code") || "").toUpperCase();
 
   const [joinCtx, setJoinCtx] = useState(null);
-  const [session, setSession] = useState(null);
+  const [rawSession, setSession] = useState(null);
+  // Shuffle each question's / attention-check's answer choices once per load so
+  // the correct answer isn't always the same letter. The shuffle is seeded by
+  // question content (stable across re-renders), and `correct_choice` is remapped
+  // in lockstep — so every downstream reader (render AND scoring) stays correct
+  // while reading the same `session.questions` / `session.attention_checks`.
+  const session = useMemo(() => {
+    if (!rawSession) return rawSession;
+    return {
+      ...rawSession,
+      questions: shuffleQuestionList(rawSession.questions),
+      attention_checks: shuffleQuestionList(rawSession.attention_checks),
+    };
+  }, [rawSession]);
   const [participant, setParticipant] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
