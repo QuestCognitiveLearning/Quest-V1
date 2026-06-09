@@ -3,21 +3,21 @@ import React from "react";
 const VOICES = [
   {
     q: "Quest Learning has transformed how I study. The spaced repetition system actually works, and I retain information much longer.",
-    nm: "FJ Felo Joseph",
+    nm: "Felo Joseph",
     rl: "Student",
     initials: "FJ",
     c: "#2563EB",
   },
   {
     q: "As an educator, I love seeing my students' progress in real-time. The analytics help me identify knowledge gaps before they become bigger problems.",
-    nm: "DW Drumwright",
+    nm: "Drumwright",
     rl: "Teacher",
     initials: "DW",
     c: "#F97316",
   },
   {
     q: "The Socratic inquiry feature effectively promotes higher-order thinking in students. It functions as a personalized tutoring experience that genuinely supports individual learning progression.",
-    nm: "EV Evelina",
+    nm: "Evelina",
     rl: "College Staff",
     initials: "EV",
     c: "#16A34A",
