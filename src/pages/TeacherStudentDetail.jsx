@@ -477,14 +477,12 @@ export default function TeacherStudentDetail() {
                                               <p className="text-sm text-gray-900 font-medium">
                                                 {check?.question || `Check ${idx + 1}`}
                                               </p>
-                                              {check && (
+                                              {check && !acResp.is_correct && (
                                                 <p className="text-xs text-gray-600 mt-1">
                                                   Selected: {choiceText(check, acResp.selected_choice)}
-                                                  {!acResp.is_correct && (
-                                                    <span className="text-green-600 ml-2">
-                                                      (Correct: {choiceText(check, check.correct_choice)})
-                                                    </span>
-                                                  )}
+                                                  <span className="text-green-600 ml-2">
+                                                    (Correct: {choiceText(check, check.correct_choice)})
+                                                  </span>
                                                 </p>
                                               )}
                                             </div>
@@ -546,14 +544,12 @@ export default function TeacherStudentDetail() {
                                               <p className="text-sm text-gray-900 font-medium">
                                                 {question?.question_text || `Question ${idx + 1}`}
                                               </p>
-                                              {question && (
+                                              {question && !response.is_correct && (
                                                 <p className="text-xs text-gray-600 mt-1">
                                                   Selected: {question[`choice_${response.selected_choice}`]}
-                                                  {!response.is_correct && (
-                                                    <span className="text-green-600 ml-2">
-                                                      (Correct: {question[`choice_${question.correct_choice}`]})
-                                                    </span>
-                                                  )}
+                                                  <span className="text-green-600 ml-2">
+                                                    (Correct: {question[`choice_${question.correct_choice}`]})
+                                                  </span>
                                                 </p>
                                               )}
                                             </div>

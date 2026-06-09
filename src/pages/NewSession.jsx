@@ -697,8 +697,9 @@ export default function NewSession() {
         });
       }
 
-      // Save learning session with time tracking
-      await quest.entities.LearningSession.create({
+      // One learn-session row per subunit — update on a redo so the teacher
+      // view shows the latest grade instead of stacking attempts.
+      const learnRow = {
         student_id: user.id,
         subunit_id: subunitId,
         session_type: "new_topic",
@@ -708,7 +709,30 @@ export default function NewSession() {
         completed: isCompleted,
         review_number: 0,
         score: scorePercent
+      };
+      const existingLearnSessions = await quest.entities.LearningSession.filter({
+        student_id: user.id, subunit_id: subunitId, session_type: "new_topic"
       });
+      const isRedo = existingLearnSessions.length > 0;
+      if (isRedo) {
+        await quest.entities.LearningSession.update(existingLearnSessions[0].id, learnRow);
+        // Remove any duplicate learn rows left by older attempts.
+        for (const extra of existingLearnSessions.slice(1)) {
+          try { await quest.entities.LearningSession.delete(extra.id); } catch { /* ignore */ }
+        }
+        // Redoing the learn session restarts spaced repetition — clear the old
+        // cycle's review grades so the teacher view shows a clean restart.
+        try {
+          const oldReviews = await quest.entities.LearningSession.filter({
+            student_id: user.id, subunit_id: subunitId, session_type: "review"
+          });
+          for (const rev of oldReviews) {
+            await quest.entities.LearningSession.delete(rev.id);
+          }
+        } catch { /* ignore */ }
+      } else {
+        await quest.entities.LearningSession.create(learnRow);
+      }
 
       // Update or create student progress
       const existingProgress = await quest.entities.StudentProgress.filter({ 

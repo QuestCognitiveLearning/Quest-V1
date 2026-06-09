@@ -11,6 +11,36 @@ import CaseStudyChat from "../components/newSession/CaseStudyChat";
 import SessionFeedbackModal from "../components/newSession/SessionFeedbackModal";
 import { loadResume, saveResume, clearResume } from "@/lib/sessionResume";
 
+// Spaced-repetition reviews get progressively harder: the further along the
+// review cycle, the more "hard" questions are pulled in. Always backfills from
+// other difficulties so a short bank still yields a full set.
+function selectReviewQuestions(allQuestions, reviewNumber, count = 10) {
+  const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+  const buckets = { easy: [], medium: [], hard: [] };
+  for (const q of allQuestions) {
+    const d = String(q.difficulty || "medium").toLowerCase();
+    (buckets[d] || buckets.medium).push(q);
+  }
+  const r = Math.max(1, reviewNumber || 1);
+  // Hard share climbs ~15% per review, capped at 70%.
+  const hardTarget = Math.min(count, Math.round(count * Math.min(0.7, 0.1 + 0.15 * r)));
+  const mediumTarget = Math.round((count - hardTarget) * 0.6);
+  const easyTarget = Math.max(0, count - hardTarget - mediumTarget);
+  const take = (pool, n) => shuffle(pool).slice(0, n);
+
+  let selected = [
+    ...take(buckets.hard, hardTarget),
+    ...take(buckets.medium, mediumTarget),
+    ...take(buckets.easy, easyTarget),
+  ];
+  if (selected.length < count) {
+    const chosen = new Set(selected.map((q) => q.id));
+    selected = selected.concat(
+      shuffle(allQuestions.filter((q) => !chosen.has(q.id))).slice(0, count - selected.length),
+    );
+  }
+  return shuffle(selected).slice(0, count);
+}
 
 export default function PracticeSession() {
   const navigate = useNavigate();
@@ -94,10 +124,10 @@ export default function PracticeSession() {
         if (quizData.length > 0) {
           setQuiz(quizData[0]);
           const questionsData = await quest.entities.Question.filter({ quiz_id: quizData[0].id }, "question_order");
-          // Get all questions and randomly select 10
+          // Pick 10 questions, weighting toward harder ones as the review
+          // cycle progresses (review 1 is gentlest, later reviews are hardest).
           if (questionsData.length > 0) {
-            const shuffled = questionsData.sort(() => Math.random() - 0.5);
-            setDbQuestions(shuffled.slice(0, Math.min(10, shuffled.length)));
+            setDbQuestions(selectReviewQuestions(questionsData, reviewNumber, 10));
           }
         }
       }
@@ -249,7 +279,7 @@ export default function PracticeSession() {
 
       const sessionEnd = new Date();
       const sessionStart = new Date(sessionEnd.getTime() - 10 * 60 * 1000);
-      await quest.entities.LearningSession.create({
+      const sessionRow = {
         student_id: user.id,
         subunit_id: subunitId,
         session_type: "review",
@@ -259,21 +289,35 @@ export default function PracticeSession() {
         completed: finalScore >= 70,
         review_number: reviewNumber,
         score: finalScore
+      };
+      // One row per review slot — update on a redo so the teacher view shows
+      // the latest grade instead of stacking up old attempts.
+      const existingReviewSessions = await quest.entities.LearningSession.filter({
+        student_id: user.id,
+        subunit_id: subunitId,
+        session_type: "review",
+        review_number: reviewNumber
       });
+      if (existingReviewSessions.length > 0) {
+        await quest.entities.LearningSession.update(existingReviewSessions[0].id, sessionRow);
+      } else {
+        await quest.entities.LearningSession.create(sessionRow);
+      }
 
-      const progress = await quest.entities.StudentProgress.filter({ 
-        student_id: user.id, 
-        subunit_id: subunitId 
+      const progress = await quest.entities.StudentProgress.filter({
+        student_id: user.id,
+        subunit_id: subunitId
       });
 
       const currentReviewCount = progress[0]?.review_count || 0;
 
       if (finalScore >= 70) {
+        // Passed — advance the spaced-repetition cycle.
         const reviewCount = currentReviewCount + 1;
         // Spaced repetition: 1, 3, 7, 14, 21, 30 days, then every 30 days
         const reviewIntervals = [1, 3, 7, 14, 21, 30];
-        const daysUntilNext = reviewCount < reviewIntervals.length 
-          ? reviewIntervals[reviewCount] 
+        const daysUntilNext = reviewCount < reviewIntervals.length
+          ? reviewIntervals[reviewCount]
           : 30; // Every 30 days after the 6th review
         const nextReviewDate = new Date(Date.now() + daysUntilNext * 24 * 60 * 60 * 1000);
 
@@ -287,8 +331,8 @@ export default function PracticeSession() {
             urgency_status: "Low"
           });
         }
-      } else {
-        // Failed review - retry in 1 day without incrementing review count
+      } else if (finalScore >= 50) {
+        // Borderline — retry THIS review tomorrow without advancing.
         const nextReviewDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
         if (progress.length > 0) {
           await quest.entities.StudentProgress.update(progress[0].id, {
@@ -298,14 +342,31 @@ export default function PracticeSession() {
             urgency_status: "Critical"
           });
         }
+      } else {
+        // Below 50% — the topic isn't retained. Send them back to the learn
+        // session and restart spaced repetition from scratch. The learn
+        // session clears the stale review grades when it's redone.
+        if (progress.length > 0) {
+          await quest.entities.StudentProgress.update(progress[0].id, {
+            new_session_completed: false,
+            learned_status: false,
+            last_review_date: new Date().toISOString(),
+            last_review_score: finalScore,
+            next_review_date: new Date().toISOString(), // due now
+            review_count: 0,
+            urgency_status: "Critical"
+          });
+        }
       }
+      const mustRedoLearn = finalScore < 50;
 
-      // Panda Points awarding removed.
       // Clear the resume snapshot — session is done.
       try { clearResume(user.id, subunitId, "review"); } catch { /* ignore */ }
-
-      // Navigate and force refresh
-      window.location.href = createPageUrl("LearningHub");
+      // Below 50%: send them straight into the learn session to relearn the
+      // topic; otherwise back to the hub. Force refresh either way.
+      window.location.href = mustRedoLearn
+        ? createPageUrl("NewSession") + `?topic=${encodeURIComponent(subunitId)}`
+        : createPageUrl("LearningHub");
     } catch (err) {
       console.error("Failed to save progress:", err);
       alert("Failed to save progress. Please try again.");
@@ -522,7 +583,9 @@ export default function PracticeSession() {
                 <p className="text-sm text-[#1A1A1A]/70" style={{fontWeight: 450}}>
                   {finalScore >= 70
                     ? "Great job! You've successfully completed this review"
-                    : "You need 70% or higher to pass this review"}
+                    : finalScore >= 50
+                    ? "Close — you need 70% to pass. You'll retry this review soon."
+                    : "Below 50% — let's relearn this topic from the start, then restart your reviews."}
                 </p>
                 <div className="mt-4 h-2 bg-[#C4B5FD]/20 rounded-full overflow-hidden max-w-md mx-auto">
                   <div className={`h-full rounded-full ${finalScore >= 70 ? 'bg-[#3B82F6]' : 'bg-red-500'}`} style={{ width: `${finalScore}%` }}></div>
@@ -546,7 +609,7 @@ export default function PracticeSession() {
               </div>
 
               <Button onClick={handleCompleteSession} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
-                Complete Review Session
+                {finalScore < 50 ? "Relearn this topic" : "Complete Review Session"}
               </Button>
             </CardContent>
           </Card>

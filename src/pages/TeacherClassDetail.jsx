@@ -285,7 +285,7 @@ export default function TeacherClassDetail() {
                     label={classData?.class_name}
                     size="md"
                   >
-                    Download workbook
+                    Download Workbook
                   </DownloadPDFButton>
                 ) : null}
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-lg px-4 py-2">
@@ -301,7 +301,7 @@ export default function TeacherClassDetail() {
           <Tabs defaultValue="mindmap" className="w-full">
             {/* 4 tabs distributed evenly across the full width. Was `grid-cols-6`
                 which left two empty columns on the right. */}
-            <TabsList className="grid w-full grid-cols-5 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
+            <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
               <TabsTrigger
                 value="mindmap"
                 className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
@@ -315,13 +315,6 @@ export default function TeacherClassDetail() {
               >
                 <Users className="w-4 h-4 mr-2" />
                 Students
-              </TabsTrigger>
-              <TabsTrigger
-                value="sessions"
-                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Sessions
               </TabsTrigger>
               <TabsTrigger
                 value="leaderboard"
@@ -355,13 +348,6 @@ export default function TeacherClassDetail() {
                 units={units}
                 progressData={progressData}
                 classId={classId}
-              />
-            </TabsContent>
-
-            <TabsContent value="sessions">
-              <AssignedSessionsTab
-                assignedBundles={assignedBundles}
-                students={students}
               />
             </TabsContent>
 
