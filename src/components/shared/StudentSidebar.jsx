@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
-import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio, Sparkles } from "lucide-react";
+import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -74,16 +74,6 @@ export default function StudentSidebar({
       }
 
       <nav className="flex-1 overflow-y-auto py-2 px-2">
-        <button
-          onClick={() => handleNavigation("generate", "Generate")}
-          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
-            activeNav === "generate" ? "bg-white/20" : "hover:bg-white/10"
-          }`}
-        >
-          <Sparkles className="w-4 h-4 flex-shrink-0" />
-          <span>Create</span>
-        </button>
-
         <button
           onClick={() => handleNavigation("knowledge-map", "KnowledgeMap")}
           className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${

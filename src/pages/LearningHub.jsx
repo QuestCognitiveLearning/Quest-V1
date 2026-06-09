@@ -596,18 +596,12 @@ export default function LearningHub() {
               </div>
               <h2 className="text-3xl font-bold text-[#1A1A1A] mb-3">Get started</h2>
               <p className="text-[#1A1A1A]/70 mb-8" style={{fontWeight: 450}}>
-                Join a class or create your own learning session from any video.
+                Join a class with the code your teacher shared.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
-                  onClick={() => navigate(createPageUrl("Generate"))}
-                  className="bg-[#2563EB] hover:bg-[#2563EB]/90 text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transition-all font-semibold"
-                >
-                  Create a session
-                </button>
-                <button
                   onClick={() => navigate(createPageUrl("JoinClass"))}
-                  className="bg-white border-2 border-[#2563EB] text-[#2563EB] hover:bg-blue-50 px-6 py-3 rounded-full shadow-md hover:shadow-lg transition-all font-semibold"
+                  className="bg-[#2563EB] hover:bg-[#2563EB]/90 text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transition-all font-semibold"
                 >
                   Join a class
                 </button>
