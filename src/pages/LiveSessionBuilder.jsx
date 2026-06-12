@@ -18,7 +18,6 @@ import { quest } from "@/api/questClient";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import TeacherLayout from "../components/teacher/TeacherLayout";
@@ -71,6 +70,49 @@ function mintCode() {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
+}
+
+// Whether a chosen phase actually has content to show students. Used only to
+// surface a readiness hint / count chip — content itself is edited on the
+// /Generate handout side, not here, so the builder stays a pure picker.
+function phaseReadiness(key, ctx) {
+  switch (key) {
+    case "inquiry": {
+      const ready = !!ctx.inquiry?.hook_question?.trim();
+      return {
+        ready,
+        summary: "Hook ready",
+        hint: "No hook yet — start from a saved handout above.",
+      };
+    }
+    case "video": {
+      const ready = !!ctx.videoId;
+      const n = ctx.attentionChecks?.length || 0;
+      return {
+        ready,
+        summary: n > 0 ? `Video · ${n} check${n === 1 ? "" : "s"}` : "Video ready",
+        hint: "No video yet — start from a saved handout above.",
+      };
+    }
+    case "quiz": {
+      const n = ctx.questions?.length || 0;
+      return {
+        ready: n > 0,
+        summary: `${n} question${n === 1 ? "" : "s"}`,
+        hint: "No quiz yet — start from a saved handout above.",
+      };
+    }
+    case "case_study": {
+      const ready = !!ctx.caseStudy?.scenario?.trim();
+      return {
+        ready,
+        summary: "Case study ready",
+        hint: "No case study yet — start from a saved handout above.",
+      };
+    }
+    default:
+      return { ready: false, summary: "", hint: "" };
+  }
 }
 
 function extractYouTubeId(url) {
@@ -323,12 +365,20 @@ export default function LiveSessionBuilder() {
 
         <h2 className="text-lg font-bold text-slate-900 mb-2">What's in this session?</h2>
         <p className="text-sm text-slate-500 mb-4">
-          Toggle the parts you want. Students will see them in this order: inquiry → video → quiz → case study.
+          Pick the parts to include. Students will see them in this order: inquiry → video → quiz → case study. You'll review exactly what they see in the next step.
         </p>
 
-        <div className="space-y-4 mb-6">
+        <div className="space-y-3 mb-6">
           {PHASES.map((phase) => {
             const on = includes[phase.key];
+            const readiness = phaseReadiness(phase.key, {
+              inquiry,
+              videoUrl,
+              videoId: extractYouTubeId(videoUrl),
+              attentionChecks,
+              questions,
+              caseStudy,
+            });
             return (
               <Card
                 key={phase.key}
@@ -336,7 +386,7 @@ export default function LiveSessionBuilder() {
                   on ? "border-indigo-400 bg-indigo-50/40" : "border-slate-200"
                 }`}
               >
-                <CardContent className="p-5">
+                <CardContent className="p-4">
                   <button
                     type="button"
                     onClick={() => toggleIncluded(phase.key)}
@@ -348,151 +398,23 @@ export default function LiveSessionBuilder() {
                       <Circle className="w-6 h-6 text-slate-300 mt-0.5 flex-shrink-0" />
                     )}
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <phase.Icon className="w-4 h-4 text-slate-600" />
                         <span className="font-bold text-slate-900">{phase.label}</span>
-                        {on && (
+                        {on && readiness.ready && (
                           <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-                            Included
+                            {readiness.summary}
                           </Badge>
                         )}
                       </div>
                       <p className="text-sm text-slate-500 mt-0.5">{phase.desc}</p>
-                    </div>
-                  </button>
-
-                  {on && phase.key === "inquiry" && (
-                    <div className="mt-4 pl-9 space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                          Hook question
-                        </label>
-                        <Input
-                          value={inquiry.hook_question}
-                          onChange={(e) => setInquiry({ ...inquiry, hook_question: e.target.value })}
-                          placeholder="A curiosity question students can guess at"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                          Hook image URL (optional)
-                        </label>
-                        <Input
-                          value={inquiry.hook_image_url}
-                          onChange={(e) => setInquiry({ ...inquiry, hook_image_url: e.target.value })}
-                          placeholder="https://..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                          Tutor's first message (optional)
-                        </label>
-                        <Textarea
-                          rows={2}
-                          value={inquiry.tutor_first_message}
-                          onChange={(e) => setInquiry({ ...inquiry, tutor_first_message: e.target.value })}
-                          placeholder="Welcome! Let's think about this together..."
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {on && phase.key === "video" && (
-                    <div className="mt-4 pl-9 space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                          YouTube video URL
-                        </label>
-                        <Input
-                          value={videoUrl}
-                          onChange={(e) => setVideoUrl(e.target.value)}
-                          placeholder="https://www.youtube.com/watch?v=..."
-                        />
-                        {videoUrl && !extractYouTubeId(videoUrl) && (
-                          <p className="text-xs text-red-600 mt-1">That doesn't look like a valid YouTube link.</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                          Video duration (seconds, optional)
-                        </label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={videoDuration}
-                          onChange={(e) => setVideoDuration(e.target.value)}
-                          placeholder="e.g. 360"
-                        />
-                      </div>
-                      <p className="text-xs text-slate-500 inline-flex items-center gap-1.5">
-                        <Eye className="w-3.5 h-3.5" />
-                        {attentionChecks.length} attention check{attentionChecks.length === 1 ? "" : "s"} carried over from the handout. Generate more in /Generate to add them.
-                      </p>
-                    </div>
-                  )}
-
-                  {on && phase.key === "quiz" && (
-                    <div className="mt-4 pl-9">
-                      <p className="text-sm text-slate-600">
-                        <strong>{questions.length}</strong> multiple-choice question
-                        {questions.length === 1 ? "" : "s"} ready.
-                        {questions.length === 0 && (
-                          <span className="text-amber-700">
-                            {" "}
-                            Seed from a saved handout above, or open /Generate to make a quiz.
-                          </span>
-                        )}
-                      </p>
-                      {questions.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-slate-500 cursor-pointer">Preview questions</summary>
-                          <ol className="mt-2 list-decimal list-inside space-y-1 text-sm text-slate-700">
-                            {questions.slice(0, 10).map((q, i) => (
-                              <li key={i} className="truncate">{q.question}</li>
-                            ))}
-                            {questions.length > 10 && (
-                              <li className="text-slate-400">… and {questions.length - 10} more</li>
-                            )}
-                          </ol>
-                        </details>
+                      {on && !readiness.ready && (
+                        <p className="text-xs text-amber-700 mt-1.5 font-medium">
+                          {readiness.hint}
+                        </p>
                       )}
                     </div>
-                  )}
-
-                  {on && phase.key === "case_study" && (
-                    <div className="mt-4 pl-9 space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                          Scenario
-                        </label>
-                        <Textarea
-                          rows={4}
-                          value={caseStudy.scenario}
-                          onChange={(e) => setCaseStudy({ ...caseStudy, scenario: e.target.value })}
-                          placeholder="A realistic scenario students reason through..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                          Discussion prompts (one per line, optional)
-                        </label>
-                        <Textarea
-                          rows={3}
-                          value={(caseStudy.discussion_questions || []).join("\n")}
-                          onChange={(e) =>
-                            setCaseStudy({
-                              ...caseStudy,
-                              discussion_questions: e.target.value
-                                .split("\n")
-                                .map((s) => s.trim())
-                                .filter(Boolean),
-                            })
-                          }
-                          placeholder={"What might explain X?\nWhat would happen if Y?"}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  </button>
                 </CardContent>
               </Card>
             );
