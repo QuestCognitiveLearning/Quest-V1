@@ -166,8 +166,9 @@ export default function Hero() {
                 letterSpacing: "-0.035em",
               }}
             >
-              {headlinePre}{" "}
-              <em className="not-italic text-[#2563EB]">{headlineEm}</em>
+              {headlinePre}
+              <br />
+              <em className="not-italic text-[#2563EB] whitespace-nowrap">{headlineEm}</em>
             </h1>
 
             <div className="flex flex-wrap items-center gap-2.5">
