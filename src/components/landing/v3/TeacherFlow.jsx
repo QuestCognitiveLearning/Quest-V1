@@ -569,7 +569,9 @@ export default function TeacherFlow() {
   // explicitly stop autoplay after one full pass so it doesn't loop forever.
   const inView = useInView(sectionRef, { once: true, margin: "-15% 0px" });
   const [active, setActive] = useState(0);
-  const [autoplay, setAutoplay] = useState(true);
+  // Rest on the first step by default; the walkthrough advances only when the
+  // visitor clicks a step, instead of autoplaying to and resting on step 5.
+  const [autoplay, setAutoplay] = useState(false);
   // Step 1 stays on screen for 3.5s (a touch longer to read its intro);
   // the remaining four steps move every 2.5s. Total walkthrough = 13.5s.
   // STEP_DURATIONS_MS[i] = how long step `i` is visible before advancing.

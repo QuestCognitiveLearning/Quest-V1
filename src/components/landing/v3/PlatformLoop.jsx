@@ -123,7 +123,9 @@ const PHASES = [
 
 export default function PlatformLoop() {
   const [active, setActive] = useState(0);
-  const [autoplay, setAutoplay] = useState(true);
+  // Start on the first box and leave it there; advancing happens only when the
+  // visitor clicks a step (no autoplay landing them on a middle one).
+  const [autoplay, setAutoplay] = useState(false);
 
   useEffect(() => {
     if (!autoplay) return;

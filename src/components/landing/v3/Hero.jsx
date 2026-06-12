@@ -129,8 +129,6 @@ export default function Hero() {
   const eyebrow = "AI Curriculum · Live Sessions · Admin & Parent Reports";
   const headlinePre = "Need a Lesson?";
   const headlineEm = "We save you time.";
-  const lede =
-    "Standards in, full curriculum out. Quizzes, free-response, attention checks, and case studies. Teachers build lessons in minutes; admins get clear rollups across every classroom.";
   const ctaLabel = "Start Free Trial";
 
   // Duplicate pool so the carousel can loop seamlessly
@@ -171,10 +169,6 @@ export default function Hero() {
               {headlinePre}{" "}
               <em className="not-italic text-[#2563EB]">{headlineEm}</em>
             </h1>
-
-            <p className="text-[15px] leading-relaxed text-[#475569] mb-4">
-              {lede}
-            </p>
 
             <div className="flex flex-wrap items-center gap-2.5">
               <button
