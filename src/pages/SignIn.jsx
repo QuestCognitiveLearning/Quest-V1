@@ -53,6 +53,14 @@ export default function SignIn() {
     }
   };
 
+  // "Continue with ClassLink" — hidden until VITE_CLASSLINK_SSO is enabled and
+  // the backend (edge function + secrets) is provisioned. Hitting the edge
+  // function with no `code` kicks off the OAuth authorization redirect.
+  const classlinkEnabled = import.meta.env.VITE_CLASSLINK_SSO === 'true';
+  const classlinkUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classlinkSso`;
+  // Surface SSO failures bounced back from the edge function (?sso_error=...).
+  const ssoError = new URLSearchParams(location.search).get('sso_error');
+
   const handleForgotPassword = async () => {
     setError(null);
     setInfo(null);
@@ -130,6 +138,21 @@ export default function SignIn() {
             {busy ? 'Redirecting…' : 'Continue with Google'}
           </span>
         </button>
+
+        {classlinkEnabled && (
+          <a
+            href={classlinkUrl}
+            className="mt-3 w-full flex items-center justify-center gap-3 h-11 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition"
+          >
+            <span className="text-sm font-medium text-slate-700">Continue with ClassLink</span>
+          </a>
+        )}
+
+        {ssoError && (
+          <p className="mt-4 text-sm text-red-600 text-center">
+            ClassLink sign-in didn't complete ({ssoError}). Please try again.
+          </p>
+        )}
 
         <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wider text-slate-400">
           <div className="flex-1 h-px bg-slate-200" />

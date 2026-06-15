@@ -37,6 +37,7 @@ const PUBLIC_PAGES = [
   'RoleSelection',
   'JoinClass',
   'SignIn',
+  'AuthCallback',
   'ResetPassword',
   'try',
   'Classroom',

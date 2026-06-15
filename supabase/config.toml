@@ -9,3 +9,15 @@ project_id = "lgymrkodypbqghyjocxg"
 #   supabase functions deploy stripeWebhook --no-verify-jwt
 #   supabase functions deploy checkDueReviews --no-verify-jwt
 #   supabase functions deploy contactForm --no-verify-jwt
+#   supabase functions deploy classlinkSso --no-verify-jwt
+#
+# classlinkSso (ClassLink OAuth2/OIDC SSO) — top-level browser redirects with
+# no JWT, so it MUST be deployed with --no-verify-jwt. Set these secrets first:
+#   supabase secrets set CLASSLINK_CLIENT_ID=...
+#   supabase secrets set CLASSLINK_CLIENT_SECRET=...
+#   supabase secrets set CLASSLINK_REDIRECT_URI=https://lgymrkodypbqghyjocxg.supabase.co/functions/v1/classlinkSso
+# Optional: CLASSLINK_SCOPES (default "profile"), CLASSLINK_SITE_URL,
+#           CLASSLINK_AUTH_URL, CLASSLINK_TOKEN_URL, CLASSLINK_INFO_URL.
+# Also add https://questlearning.co/AuthCallback to Supabase Auth → URL
+# Configuration → Redirect URLs, and set frontend VITE_CLASSLINK_SSO=true to
+# reveal the "Continue with ClassLink" button.

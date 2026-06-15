@@ -28,6 +28,7 @@ import __Layout from './Layout.jsx';
 
 // Each entry is React.lazy() — emits a separate chunk at build time.
 export const PAGES = {
+  "AuthCallback":         lazy(() => import('./pages/AuthCallback')),
   "Classes":              lazy(() => import('./pages/Classes')),
   "CreateCurriculum":     lazy(() => import('./pages/CreateCurriculum')),
   "Curriculum":           lazy(() => import('./pages/Curriculum')),
