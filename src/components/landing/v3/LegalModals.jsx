@@ -94,7 +94,7 @@ export const LEGAL_DOCS = {
       ],
       [
         "13. Governing Law and Dispute Resolution",
-        "These Terms are governed by the laws of the United States and the state in which Quest Learning is established, without regard to conflict-of-law principles. You agree that any dispute will be resolved in the state or federal courts located in that jurisdiction, and you consent to their personal jurisdiction.",
+        "These Terms are governed by the laws of the United States and the State of Tennessee, without regard to conflict-of-law principles. You agree that any dispute will be resolved exclusively in the state or federal courts located in Tennessee, and you consent to their personal jurisdiction.",
       ],
       [
         "14. Changes to These Terms",

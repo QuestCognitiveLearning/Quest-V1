@@ -142,9 +142,16 @@ export default function SignIn() {
         {classlinkEnabled && (
           <a
             href={classlinkUrl}
-            className="mt-3 w-full flex items-center justify-center gap-3 h-11 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition"
+            aria-label="Sign-in with ClassLink"
+            className="mt-3 w-full flex items-center justify-center rounded-lg hover:opacity-90 transition"
           >
-            <span className="text-sm font-medium text-slate-700">Continue with ClassLink</span>
+            {/* Official ClassLink-provided button asset (brand colors #0a4d7f /
+                #4e95cc). Displayed as-is per ClassLink branding guidelines. */}
+            <img
+              src="/classlink-signin-button.png"
+              alt="Sign-in with ClassLink"
+              className="h-11 w-auto"
+            />
           </a>
         )}
 
