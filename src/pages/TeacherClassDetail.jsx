@@ -301,7 +301,7 @@ export default function TeacherClassDetail() {
           <Tabs defaultValue="mindmap" className="w-full">
             {/* 4 tabs distributed evenly across the full width. Was `grid-cols-6`
                 which left two empty columns on the right. */}
-            <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
+            <TabsList className="grid w-full grid-cols-5 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
               <TabsTrigger
                 value="mindmap"
                 className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
@@ -329,6 +329,13 @@ export default function TeacherClassDetail() {
               >
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Feedback
+              </TabsTrigger>
+              <TabsTrigger
+                value="sessions"
+                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Sessions
               </TabsTrigger>
             </TabsList>
 
@@ -361,6 +368,10 @@ export default function TeacherClassDetail() {
 
             <TabsContent value="feedback">
               <ClassFeedbackTab feedbacks={sessionFeedbacks} />
+            </TabsContent>
+
+            <TabsContent value="sessions">
+              <AssignedSessionsTab assignedBundles={assignedBundles} students={students} />
             </TabsContent>
 
           </Tabs>
