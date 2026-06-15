@@ -37,24 +37,102 @@ export const LEGAL_DOCS = {
     ],
   },
   terms: {
-    title: "Terms of Use",
-    sub: "Last updated: January 2026",
+    title: "Terms of Service",
+    sub: "Last updated: June 2026",
     body: [
       [
         "",
-        "These Terms of Use govern your access to and use of the Quest Learning platform. By using the service, you agree to be bound by these terms. If you do not agree, please discontinue use immediately.",
+        "These Terms of Service (\"Terms\") govern your access to and use of the Quest Learning website, applications, and services (collectively, the \"Service\"). By accessing or using the Service, you agree to be bound by these Terms. If you are using the Service on behalf of a school, district, or other organization, you represent that you are authorized to bind that organization to these Terms. If you do not agree, please discontinue use of the Service.",
       ],
       [
-        "Accounts and Conduct",
-        "You are responsible for keeping your credentials secure and for any activity on your account. You agree not to scrape data, distribute copyrighted course materials, or use the platform for unauthorized or illegal purposes. We may suspend accounts that violate these terms.",
+        "1. Eligibility and Accounts",
+        "You must provide accurate registration information and keep it current. You are responsible for safeguarding your credentials and for all activity that occurs under your account. Children under 13 may use the Service only through a school or district that has provided the consent described in our COPPA Compliance notice, or with verifiable parental consent. Notify us promptly of any unauthorized use of your account.",
       ],
       [
-        "Intellectual Property",
-        "All platform content, software, and design are owned by Quest Learning or its licensors. Teachers retain ownership of curricula they create. You may not copy or redistribute platform content without permission.",
+        "2. Educational Use and Student Data",
+        "When a school or district uses the Service, Quest Learning acts as a \"school official\" with a legitimate educational interest under FERPA and processes student data solely to provide the Service on the school's behalf. Our handling of personal information, including student and children's data, is described in our Privacy Policy, FERPA Compliance, and COPPA Compliance notices, which are incorporated into these Terms by reference. We do not sell student data or use it for targeted advertising.",
       ],
       [
-        "Payments and Termination",
-        "Premium features require a subscription. You can cancel at any time from your account settings. Refunds are not provided for partial billing periods. We reserve the right to modify these terms; continued use after changes constitutes acceptance.",
+        "3. Acceptable Use",
+        "You agree not to: (a) access or scrape data by automated means except as we expressly permit; (b) upload unlawful, infringing, harassing, or harmful content; (c) attempt to breach, probe, or circumvent the security of the Service; (d) reverse engineer or copy the Service except as permitted by law; (e) resell, sublicense, or use the Service to build a competing product; or (f) use the Service for any unlawful purpose or in violation of these Terms. We may suspend or terminate accounts that violate this section.",
+      ],
+      [
+        "4. Intellectual Property",
+        "The Service, including its software, design, and content provided by Quest Learning, is owned by Quest Learning or its licensors and is protected by intellectual-property laws. We grant you a limited, non-exclusive, non-transferable, revocable license to use the Service for its intended educational purpose. All rights not expressly granted are reserved.",
+      ],
+      [
+        "5. Your Content",
+        "Teachers and users retain ownership of the curricula, materials, and other content they create or upload (\"User Content\"). You grant Quest Learning a worldwide, non-exclusive license to host, store, reproduce, and display User Content solely as needed to operate and improve the Service for you and your organization. You represent that you have the rights necessary to submit your User Content and that it does not violate the rights of others or any law.",
+      ],
+      [
+        "6. AI-Generated Content",
+        "The Service uses artificial intelligence to help generate quizzes, case studies, and other instructional materials. AI output may contain inaccuracies and is provided to assist, not replace, professional educator judgment. You are responsible for reviewing AI-generated materials for accuracy and appropriateness before instructional use.",
+      ],
+      [
+        "7. Third-Party Services",
+        "The Service integrates third-party providers (for example, hosting, payment processing, AI, email, single sign-on, and video). Your use of those features may be subject to the third party's terms, and we are not responsible for third-party content or services. Links to external sites are provided for convenience only.",
+      ],
+      [
+        "8. Subscriptions, Payments, and Refunds",
+        "Certain features require a paid subscription. Fees are billed in advance on a recurring basis through our payment processor and are stated at the time of purchase. You may cancel at any time from your account settings; cancellation stops future renewals but does not provide refunds for the current billing period unless required by law. We may change pricing on prospective notice.",
+      ],
+      [
+        "9. Term and Termination",
+        "These Terms remain in effect while you use the Service. You may stop using the Service at any time. We may suspend or terminate access if you violate these Terms, or to protect the Service or its users. Upon termination, the license granted to you ends; provisions that by their nature should survive (such as intellectual property, disclaimers, limitation of liability, and indemnification) will survive.",
+      ],
+      [
+        "10. Disclaimers",
+        "The Service is provided \"as is\" and \"as available\" without warranties of any kind, whether express or implied, including warranties of merchantability, fitness for a particular purpose, and non-infringement. We do not warrant that the Service will be uninterrupted, error-free, or secure, or that any content (including AI output) is accurate or complete.",
+      ],
+      [
+        "11. Limitation of Liability",
+        "To the maximum extent permitted by law, Quest Learning will not be liable for any indirect, incidental, special, consequential, or punitive damages, or for any loss of data, profits, or goodwill, arising from your use of the Service. Our total liability for any claim relating to the Service will not exceed the amount you paid us for the Service in the twelve months before the claim.",
+      ],
+      [
+        "12. Indemnification",
+        "You agree to indemnify and hold harmless Quest Learning and its officers, employees, and agents from any claims, damages, or expenses arising from your User Content, your use of the Service, or your violation of these Terms or of any law or third-party right.",
+      ],
+      [
+        "13. Governing Law and Dispute Resolution",
+        "These Terms are governed by the laws of the United States and the state in which Quest Learning is established, without regard to conflict-of-law principles. You agree that any dispute will be resolved in the state or federal courts located in that jurisdiction, and you consent to their personal jurisdiction.",
+      ],
+      [
+        "14. Changes to These Terms",
+        "We may update these Terms from time to time. When we do, we will revise the \"Last updated\" date above and, where appropriate, provide additional notice. Your continued use of the Service after changes take effect constitutes acceptance of the revised Terms.",
+      ],
+      [
+        "15. Contact",
+        "Questions about these Terms can be sent to admin@questlearning.co.",
+      ],
+    ],
+  },
+  data: {
+    title: "Data Sharing & Subprocessors",
+    sub: "Last updated: June 2026",
+    body: [
+      [
+        "",
+        "This notice describes how Quest Learning shares data and the subprocessors we rely on to operate the Service. It supplements our Privacy Policy, FERPA Compliance, and COPPA Compliance notices.",
+      ],
+      [
+        "Our Commitments",
+        "We do not sell personal information or student data. We do not use student data for targeted advertising or to build advertising or marketing profiles. We share data only as needed to operate the Service, with the vetted subprocessors listed below, each bound by confidentiality and prohibited from using student data for its own purposes.",
+      ],
+      [
+        "Subprocessors",
+        "Supabase (hosting, database, and authentication); Stripe (payment processing; PCI DSS Level 1); OpenAI (AI lesson and tutoring features); Resend (transactional email); Google (optional single sign-on); ClassLink (district single sign-on); and YouTube (teacher-selected video playback). Each subprocessor receives only the data necessary for its function.",
+      ],
+      [
+        "Single Sign-On Data",
+        "When a district authenticates users through ClassLink or Google, we receive basic identity information (such as name, email, and a login identifier) used solely to create or match the user's Quest account and assign the correct role. We do not ingest rostering data unless a district separately enables it.",
+      ],
+      [
+        "Data Retention & Deletion",
+        "We retain personal information only as long as needed for the educational purpose or the school's subscription, and we delete it within 30 days of a verified request. To make a request, email admin@questlearning.co.",
+      ],
+      [
+        "Contact",
+        "Questions about data sharing can be sent to admin@questlearning.co.",
       ],
     ],
   },

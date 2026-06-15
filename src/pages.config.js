@@ -29,6 +29,12 @@ import __Layout from './Layout.jsx';
 // Each entry is React.lazy() — emits a separate chunk at build time.
 export const PAGES = {
   "AuthCallback":         lazy(() => import('./pages/AuthCallback')),
+  "Privacy":              lazy(() => import('./pages/Privacy')),
+  "Terms":                lazy(() => import('./pages/Terms')),
+  "Security":             lazy(() => import('./pages/Security')),
+  "Ferpa":                lazy(() => import('./pages/Ferpa')),
+  "Coppa":                lazy(() => import('./pages/Coppa')),
+  "DataSharing":          lazy(() => import('./pages/DataSharing')),
   "Classes":              lazy(() => import('./pages/Classes')),
   "CreateCurriculum":     lazy(() => import('./pages/CreateCurriculum')),
   "Curriculum":           lazy(() => import('./pages/Curriculum')),
