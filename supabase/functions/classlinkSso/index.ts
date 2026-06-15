@@ -124,8 +124,6 @@ Deno.serve(async (req) => {
     const loginId = String(
       info.LoginId || info.loginId || info.UserName || info.username || '',
     ).trim();
-    const tenantId = String(info.TenantId ?? info.tenantId ?? '').trim();
-    const sourcedId = String(info.SourcedId ?? info.sourcedId ?? '').trim();
     const fullName = [info.FirstName || info.firstName, info.LastName || info.lastName]
       .filter(Boolean)
       .join(' ')
@@ -133,29 +131,18 @@ Deno.serve(async (req) => {
     const accountType = mapRole(info.Role ?? info.Profile ?? info.role);
 
     const admin = adminClient();
-    const SELECT =
-      'id, email, account_type, classlink_tenant_id, classlink_sourced_id, classlink_login_id';
+    const SELECT = 'id, email, account_type, classlink_login_id';
 
-    // Resolve a returning Quest user using ClassLink's recommended identifier
-    // precedence: (tenant + sourcedId) is the strongest GUID, then
-    // (tenant + loginId), then email. Tenant-namespacing means the same LoginId
-    // in two districts never collides.
+    // Resolve a returning Quest user — prefer the stable ClassLink LoginId,
+    // then fall back to email. (These are the two fields submitted for
+    // certification.)
     let existing: any = null;
-    if (tenantId && sourcedId) {
+    if (loginId) {
       const { data } = await admin.from('users').select(SELECT)
-        .eq('classlink_tenant_id', tenantId)
-        .eq('classlink_sourced_id', sourcedId)
-        .maybeSingle();
+        .eq('classlink_login_id', loginId).maybeSingle();
       existing = data ?? null;
     }
-    if (!existing && tenantId && loginId) {
-      const { data } = await admin.from('users').select(SELECT)
-        .eq('classlink_tenant_id', tenantId)
-        .eq('classlink_login_id', loginId)
-        .maybeSingle();
-      existing = data ?? null;
-    }
-    if (!existing && email) {
+    if (!existing) {
       const { data } = await admin.from('users').select(SELECT)
         .eq('email', email).maybeSingle();
       existing = data ?? null;
@@ -167,13 +154,7 @@ Deno.serve(async (req) => {
       const { error: createErr } = await admin.auth.admin.createUser({
         email,
         email_confirm: true,
-        user_metadata: {
-          full_name: fullName,
-          sso_provider: 'classlink',
-          classlink_tenant_id: tenantId || undefined,
-          classlink_sourced_id: sourcedId || undefined,
-          classlink_login_id: loginId || undefined,
-        },
+        user_metadata: { full_name: fullName, sso_provider: 'classlink', classlink_login_id: loginId || undefined },
       });
       if (createErr && !/already/i.test(createErr.message ?? '')) {
         console.error('createUser failed:', createErr);
@@ -185,15 +166,13 @@ Deno.serve(async (req) => {
     }
 
     // Sign into the resolved account's canonical email (matters when we matched
-    // by a ClassLink identifier and the ClassLink email has since changed).
+    // by LoginId and the ClassLink email has since changed).
     const signInEmail = existing?.email || email;
 
-    // Backfill the stable ClassLink identifiers, and seed account_type/full_name
-    // only when not already set, so we never override a choice made in Quest.
+    // Backfill the stable LoginId, and seed account_type/full_name only when
+    // not already set, so we never override a choice the user made in Quest.
     if (existing?.id) {
       const patch: Record<string, unknown> = {};
-      if (tenantId && !existing.classlink_tenant_id) patch.classlink_tenant_id = tenantId;
-      if (sourcedId && !existing.classlink_sourced_id) patch.classlink_sourced_id = sourcedId;
       if (loginId && !existing.classlink_login_id) patch.classlink_login_id = loginId;
       if (accountType && !existing.account_type) {
         patch.account_type = accountType;
