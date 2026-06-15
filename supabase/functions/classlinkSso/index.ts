@@ -121,6 +121,9 @@ Deno.serve(async (req) => {
 
     const email = String(info.Email || info.email || '').toLowerCase().trim();
     if (!email) return fail('no_email');
+    const loginId = String(
+      info.LoginId || info.loginId || info.UserName || info.username || '',
+    ).trim();
     const fullName = [info.FirstName || info.firstName, info.LastName || info.lastName]
       .filter(Boolean)
       .join(' ')
@@ -128,33 +131,55 @@ Deno.serve(async (req) => {
     const accountType = mapRole(info.Role ?? info.Profile ?? info.role);
 
     const admin = adminClient();
+    const SELECT = 'id, email, account_type, classlink_login_id';
 
-    // Find or create the auth user. createUser fires handle_new_auth_user,
-    // which seeds the matching public.users row.
-    const { data: existing } = await admin
-      .from('users')
-      .select('id, account_type')
-      .eq('email', email)
-      .maybeSingle();
+    // Resolve a returning Quest user — prefer the stable ClassLink LoginId,
+    // then fall back to email. (Both fields authenticate the user.)
+    let existing: any = null;
+    if (loginId) {
+      const { data } = await admin.from('users').select(SELECT)
+        .eq('classlink_login_id', loginId).maybeSingle();
+      existing = data ?? null;
+    }
+    if (!existing) {
+      const { data } = await admin.from('users').select(SELECT)
+        .eq('email', email).maybeSingle();
+      existing = data ?? null;
+    }
 
+    // No match → provision. createUser fires handle_new_auth_user, which seeds
+    // the matching public.users row; re-read it so we can backfill below.
     if (!existing) {
       const { error: createErr } = await admin.auth.admin.createUser({
         email,
         email_confirm: true,
-        user_metadata: { full_name: fullName, sso_provider: 'classlink' },
+        user_metadata: { full_name: fullName, sso_provider: 'classlink', classlink_login_id: loginId || undefined },
       });
       if (createErr && !/already/i.test(createErr.message ?? '')) {
         console.error('createUser failed:', createErr);
         return fail('user_create_failed');
       }
+      const { data } = await admin.from('users').select(SELECT)
+        .eq('email', email).maybeSingle();
+      existing = data ?? null;
     }
 
-    // Seed account_type from the ClassLink role only when we don't already
-    // have one, so we never override a choice the user made in Quest.
-    if (accountType) {
-      const patch: Record<string, unknown> = { account_type: accountType };
-      if (fullName) patch.full_name = fullName;
-      await admin.from('users').update(patch).eq('email', email).is('account_type', null);
+    // Sign into the resolved account's canonical email (matters when we matched
+    // by LoginId and the ClassLink email has since changed).
+    const signInEmail = existing?.email || email;
+
+    // Backfill the stable LoginId, and seed account_type/full_name only when
+    // not already set, so we never override a choice the user made in Quest.
+    if (existing?.id) {
+      const patch: Record<string, unknown> = {};
+      if (loginId && !existing.classlink_login_id) patch.classlink_login_id = loginId;
+      if (accountType && !existing.account_type) {
+        patch.account_type = accountType;
+        if (fullName) patch.full_name = fullName;
+      }
+      if (Object.keys(patch).length > 0) {
+        await admin.from('users').update(patch).eq('id', existing.id);
+      }
     }
 
     // Mint a one-time login token. We forward it to our own callback page
@@ -162,7 +187,7 @@ Deno.serve(async (req) => {
     // reliably regardless of the client's PKCE/implicit flow setting.
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: 'magiclink',
-      email,
+      email: signInEmail,
       options: { redirectTo: `${SITE_URL}/RoleSelection` },
     });
     if (linkErr || !linkData?.properties?.hashed_token) {
