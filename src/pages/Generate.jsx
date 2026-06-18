@@ -52,6 +52,7 @@ import CustomizePanel, { DEFAULT_OPTIONS } from "@/components/try/CustomizePanel
 import { generateTryPDF } from "@/lib/pdf/generatePDF";
 import { downloadTryWord } from "@/lib/pdf/generateWord";
 import { createPageUrl } from "@/utils";
+import { GenerationProgress, SessionContentReview } from "@/components/teacher/SessionContentReview";
 
 function downloadBlobLocally(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -1366,7 +1367,28 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         )}
 
         {stage === "generating" && (
-          <GeneratingProgress result={result} enriching={enriching} options={options} />
+          <GenerationProgress
+            title="Building your handout"
+            started={!!result}
+            steps={[
+              { label: "Quiz + case study", done: !!result?.quiz?.length },
+              ...(options.includeInquiry
+                ? [{
+                    label: "Inquiry hook + Socratic prompt",
+                    done: !!result?.inquiry_session?.hook_question && !enriching.inquiry,
+                  }]
+                : []),
+              ...(options.includeAttentionChecks
+                ? [{
+                    label: "Attention checks",
+                    done:
+                      Array.isArray(result?.attention_checks) &&
+                      result.attention_checks.length > 0 &&
+                      !enriching.attentionChecks,
+                  }]
+                : []),
+            ]}
+          />
         )}
 
         {stage === "result" && result && !isStudent && (
@@ -1680,9 +1702,11 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
       )}
 
       {editTarget && (
-        <HandoutModal
-          target={editTarget}
+        <SessionContentReview
+          title={editTarget.title || editTarget.payload?.video?.title}
+          payload={editTarget.payload}
           saving={editSaving}
+          saveLabel={editTarget.source === "library" ? "Save changes" : "Apply changes"}
           onClose={() => setEditTarget(null)}
           onSave={handleSaveEdit}
         />
@@ -2273,84 +2297,6 @@ function _StudentLearningSessionView_unused() {
   /* eslint-enable */
 }
 
-// Step row inside the "Generating…" panel. Three visual states:
-//   running = spinner, done = green check, idle = grey dot.
-// Generating stage — a single progress bar that fills as each piece lands,
-// with a slim checklist underneath. Replaces the old row of spinning circles.
-function GeneratingProgress({ result, enriching, options }) {
-  const steps = [
-    { key: "quiz", label: "Quiz + case study", done: !!result?.quiz?.length },
-  ];
-  if (options.includeInquiry) {
-    steps.push({
-      key: "inquiry",
-      label: "Inquiry hook + Socratic prompt",
-      done: !!result?.inquiry_session?.hook_question && !enriching.inquiry,
-    });
-  }
-  if (options.includeAttentionChecks) {
-    steps.push({
-      key: "attention",
-      label: "Attention checks",
-      done:
-        Array.isArray(result?.attention_checks) &&
-        result.attention_checks.length > 0 &&
-        !enriching.attentionChecks,
-    });
-  }
-  const doneCount = steps.filter((s) => s.done).length;
-  const complete = doneCount === steps.length;
-  const pct = Math.round((doneCount / steps.length) * 100);
-  // Show a small moving baseline before the first chunk lands so the bar reads
-  // as "working" rather than stuck on zero.
-  const display = result ? Math.max(pct, 12) : 8;
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-10 shadow-sm">
-      <div className="text-center mb-7">
-        <div className="inline-flex items-center gap-2 text-[#2563EB] mb-3">
-          <Sparkles className="w-5 h-5" />
-          <span className="text-xs font-bold uppercase tracking-wider">Generating</span>
-        </div>
-        <h2 className="text-xl font-bold text-slate-900">Building your handout</h2>
-        <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto">
-          This usually takes 30–90 seconds. We'll reveal everything at once when it's ready.
-        </p>
-      </div>
-
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
-          <span>{complete ? "Finishing up…" : "Working…"}</span>
-          <span>{display}%</span>
-        </div>
-        <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
-          <div
-            className={`h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#60A5FA] transition-[width] duration-700 ease-out ${
-              complete ? "" : "animate-pulse"
-            }`}
-            style={{ width: `${display}%` }}
-          />
-        </div>
-
-        <ul className="mt-6 space-y-3">
-          {steps.map((s) => (
-            <li key={s.key} className="flex items-center gap-2.5 text-sm">
-              {s.done ? (
-                <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              ) : (
-                <span className="w-4 h-4 rounded-full border-2 border-slate-200 flex-shrink-0" />
-              )}
-              <span className={s.done ? "text-slate-900 font-medium" : "text-slate-500"}>
-                {s.label}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
 // The 0–4 scale the AI uses to grade free-response case-study answers (mirrors
 // supabase/functions/scoreCaseStudyAnswer). Shown to teachers so they know how
 // each case-study prompt is scored.
@@ -2595,274 +2541,6 @@ function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: 
           </ol>
         </section>
       )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Review & edit modal — an in-page overlay (matching the live-session review
-// layout) that lets teachers read through a handout and edit any part of it.
-// Opened from the result-stage "Edit" button and the library "Review" button.
-// ---------------------------------------------------------------------------
-
-const EDITOR_LETTERS = ["a", "b", "c", "d"];
-
-function EditorLabel({ children }) {
-  return (
-    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-      {children}
-    </label>
-  );
-}
-
-function EditorSection({ icon: Icon, color, label, children }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className="w-4 h-4" />
-        </div>
-        <div className="font-bold text-slate-900 leading-tight">{label}</div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-// Editable multiple-choice block — shared by quiz questions and attention
-// checks. `item` carries question + choice_a..d + correct_choice (uppercase).
-function ChoiceEditor({ item, onChange }) {
-  const correct = String(item.correct_choice || "").toUpperCase();
-  return (
-    <div className="space-y-2">
-      <Input
-        value={item.question || ""}
-        onChange={(e) => onChange({ question: e.target.value })}
-        placeholder="Question"
-      />
-      <div className="space-y-1.5">
-        {EDITOR_LETTERS.map((l) => {
-          const isCorrect = correct === l.toUpperCase();
-          return (
-            <div key={l} className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onChange({ correct_choice: l.toUpperCase() })}
-                title="Mark correct"
-                className={`w-6 h-6 rounded-md text-[11px] font-bold flex items-center justify-center shrink-0 border ${
-                  isCorrect
-                    ? "bg-emerald-600 border-emerald-600 text-white"
-                    : "bg-white border-slate-200 text-slate-500 hover:border-emerald-400"
-                }`}
-              >
-                {l.toUpperCase()}
-              </button>
-              <Input
-                value={item[`choice_${l}`] || ""}
-                onChange={(e) => onChange({ [`choice_${l}`]: e.target.value })}
-                placeholder={`Choice ${l.toUpperCase()}`}
-                className="h-9"
-              />
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-[11px] text-slate-400">Tap a letter to mark the correct answer.</p>
-    </div>
-  );
-}
-
-function HandoutEditor({ draft, setDraft }) {
-  const setVideo = (patch) =>
-    setDraft((d) => ({ ...d, video: { ...(d.video || {}), ...patch } }));
-  const setInquiry = (patch) =>
-    setDraft((d) => ({ ...d, inquiry_session: { ...(d.inquiry_session || {}), ...patch } }));
-  const setCase = (patch) =>
-    setDraft((d) => ({ ...d, case_study: { ...(d.case_study || {}), ...patch } }));
-  const setQuizItem = (i, patch) =>
-    setDraft((d) => {
-      const quiz = [...(d.quiz || [])];
-      quiz[i] = { ...quiz[i], ...patch };
-      return { ...d, quiz };
-    });
-  const setCheckItem = (i, patch) =>
-    setDraft((d) => {
-      const arr = [...(d.attention_checks || [])];
-      arr[i] = { ...arr[i], ...patch };
-      return { ...d, attention_checks: arr };
-    });
-
-  const quiz = Array.isArray(draft.quiz) ? draft.quiz : [];
-  const checks = Array.isArray(draft.attention_checks) ? draft.attention_checks : [];
-  const cs = draft.case_study || {};
-  const inq = draft.inquiry_session || null;
-  const hasInquiry = !!(inq && (inq.hook_question != null || inq.tutor_first_message != null));
-  const hasCase = !!cs.scenario || (Array.isArray(cs.discussion_questions) && cs.discussion_questions.length > 0);
-
-  return (
-    <div className="space-y-4">
-      <EditorSection icon={FileText} color="bg-slate-100 text-slate-600" label="Title">
-        <Input
-          value={draft.video?.title || ""}
-          onChange={(e) => setVideo({ title: e.target.value })}
-          placeholder="Handout title"
-        />
-      </EditorSection>
-
-      {hasInquiry && (
-        <EditorSection icon={Sparkles} color="bg-indigo-100 text-indigo-600" label="Inquiry hook">
-          <div className="space-y-3">
-            <div>
-              <EditorLabel>Hook question</EditorLabel>
-              <Input
-                value={inq.hook_question || ""}
-                onChange={(e) => setInquiry({ hook_question: e.target.value })}
-                placeholder="A curiosity question to prime thinking"
-              />
-            </div>
-            <div>
-              <EditorLabel>Tutor's opening message</EditorLabel>
-              <Textarea
-                rows={2}
-                value={inq.tutor_first_message || ""}
-                onChange={(e) => setInquiry({ tutor_first_message: e.target.value })}
-                placeholder="Welcome! Let's think about this together..."
-              />
-            </div>
-          </div>
-        </EditorSection>
-      )}
-
-      {checks.length > 0 && (
-        <EditorSection
-          icon={Eye}
-          color="bg-amber-100 text-amber-700"
-          label={`Attention checks · ${checks.length}`}
-        >
-          <ol className="space-y-4">
-            {checks.map((ac, i) => (
-              <li key={i} className="border border-slate-200 rounded-xl p-3 bg-amber-50/30">
-                <ChoiceEditor item={ac} onChange={(patch) => setCheckItem(i, patch)} />
-              </li>
-            ))}
-          </ol>
-        </EditorSection>
-      )}
-
-      {quiz.length > 0 && (
-        <EditorSection
-          icon={FileText}
-          color="bg-violet-100 text-violet-600"
-          label={`Quiz · ${quiz.length} question${quiz.length === 1 ? "" : "s"}`}
-        >
-          <ol className="space-y-4">
-            {quiz.map((q, i) => (
-              <li key={i} className="border border-slate-200 rounded-xl p-3">
-                <div className="text-[11px] font-bold text-slate-400 mb-1.5">Q{i + 1}</div>
-                <ChoiceEditor item={q} onChange={(patch) => setQuizItem(i, patch)} />
-              </li>
-            ))}
-          </ol>
-        </EditorSection>
-      )}
-
-      {hasCase && (
-        <EditorSection icon={ClipboardList} color="bg-blue-100 text-blue-600" label="Case study">
-          <div className="space-y-3">
-            <div>
-              <EditorLabel>Scenario</EditorLabel>
-              <Textarea
-                rows={4}
-                value={cs.scenario || ""}
-                onChange={(e) => setCase({ scenario: e.target.value })}
-                placeholder="A realistic scenario students reason through..."
-              />
-            </div>
-            <div>
-              <EditorLabel>Discussion questions (one per line)</EditorLabel>
-              <Textarea
-                rows={3}
-                value={(cs.discussion_questions || []).join("\n")}
-                onChange={(e) =>
-                  setCase({
-                    discussion_questions: e.target.value
-                      .split("\n")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-                placeholder={"What might explain X?\nWhat would happen if Y?"}
-              />
-            </div>
-            <CaseStudyRubric />
-          </div>
-        </EditorSection>
-      )}
-    </div>
-  );
-}
-
-function HandoutModal({ target, saving, onClose, onSave }) {
-  const [draft, setDraft] = useState(() =>
-    JSON.parse(JSON.stringify(target.payload || {}))
-  );
-
-  const counts = [];
-  if (Array.isArray(draft.quiz) && draft.quiz.length)
-    counts.push(`${draft.quiz.length} question${draft.quiz.length === 1 ? "" : "s"}`);
-  if (Array.isArray(draft.attention_checks) && draft.attention_checks.length)
-    counts.push(`${draft.attention_checks.length} attention check${draft.attention_checks.length === 1 ? "" : "s"}`);
-  if (draft.case_study?.scenario) counts.push("1 case study");
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl">
-        <div
-          className="sticky top-0 z-10 text-white p-6"
-          style={{ background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)" }}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-2xl font-bold">Review &amp; edit</h2>
-              <p className="text-blue-100 text-sm mt-0.5 truncate">
-                {draft.video?.title || target.title || "Untitled"}
-                {counts.length ? ` · ${counts.join(" · ")}` : ""}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors shrink-0"
-              aria-label="Close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-5">
-          <HandoutEditor draft={draft} setDraft={setDraft} />
-
-          {/* Actions scroll with the content (matches the curriculum review). */}
-          <div className="flex gap-3 pt-1">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              disabled={saving}
-              className="flex-1 border-2"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => onSave(draft)}
-              disabled={saving}
-              className="flex-1 bg-[#2563EB] hover:bg-[#1D4ED8] text-white gap-2"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {target.source === "library" ? "Save changes" : "Apply changes"}
-            </Button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   Search,
   Youtube,
 } from "lucide-react";
+import { GenerationProgress, SessionContentReview } from "@/components/teacher/SessionContentReview";
 
 function extractYouTubeId(url) {
   if (!url) return null;
@@ -74,6 +75,10 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
   const [working, setWorking] = useState(false);
   const [enriching, setEnriching] = useState({ inquiry: false, attentionChecks: false });
   const [baseDone, setBaseDone] = useState(false);
+  // After generation, the teacher reviews/edits the content before it's
+  // assigned (shared review modal, same as Generate / curriculum).
+  const [reviewPayload, setReviewPayload] = useState(null);
+  const [savingReview, setSavingReview] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -241,7 +246,8 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
 
       await Promise.allSettled(tasks);
 
-      // 3. Build the payload + insert bundle + insert assignment.
+      // 3. Build the payload and hand off to the review step. Assignment only
+      //    happens after the teacher confirms in the review modal.
       const payload = {
         video: base.video,
         timestamped_segments: base.timestamped_segments || [],
@@ -251,7 +257,20 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
         inquiry_session: inquirySession,
         attention_checks: attentionChecks,
       };
+      setReviewPayload(payload);
+    } catch (err) {
+      console.error("Create assigned session failed:", err);
+      toast.error(err?.message || "Could not create the learning session.");
+    } finally {
+      setWorking(false);
+    }
+  };
 
+  // Persist the reviewed/edited content as a bundle + assignment to the class.
+  const handleConfirmSave = async (draft) => {
+    setSavingReview(true);
+    try {
+      const videoId = extractYouTubeId(videoUrl);
       const { data: bundle, error: bErr } = await supabase
         .from("lesson_bundles")
         .insert({
@@ -259,7 +278,7 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
           title,
           source_type: "youtube",
           source_url: `https://www.youtube.com/watch?v=${videoId}`,
-          payload,
+          payload: draft,
         })
         .select("id")
         .single();
@@ -276,17 +295,31 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
 
       toast.success("Learning session assigned");
       onClose?.();
-      // Bounce to dashboard so the teacher sees the new assigned-session row.
       navigate(createPageUrl("TeacherDashboard"));
     } catch (err) {
-      console.error("Create assigned session failed:", err);
-      toast.error(err?.message || "Could not create the learning session.");
-    } finally {
-      setWorking(false);
+      console.error("Assign learning session failed:", err);
+      toast.error(err?.message || "Could not assign the learning session.");
+      setSavingReview(false);
     }
   };
 
   if (!open) return null;
+
+  // After generation, show the shared review/edit modal. Saving from here
+  // creates the bundle + assignment.
+  if (reviewPayload) {
+    return (
+      <SessionContentReview
+        title={title}
+        subtitle="Review before assigning"
+        payload={reviewPayload}
+        saving={savingReview}
+        saveLabel="Create & assign"
+        onClose={() => !savingReview && setReviewPayload(null)}
+        onSave={handleConfirmSave}
+      />
+    );
+  }
 
   return (
     <div
@@ -538,22 +571,23 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
             </div>
           </div>
         ) : (
-          // Generation in progress
+          // Generation in progress — shared progress bar (matches Generate /
+          // curriculum). We'll reveal the review step the moment it's ready.
           <div className="p-6">
-            <div className="text-center mb-5">
-              <Loader2 className="w-10 h-10 text-blue-600 mx-auto mb-3 animate-spin" />
-              <h3 className="text-lg font-bold text-slate-900">Generating your learning session</h3>
-              <p className="text-sm text-slate-500 mt-1">30–90s. We'll assign it the moment it's ready.</p>
-            </div>
-            <ul className="max-w-md mx-auto space-y-2 text-sm">
-              <GenStep done={baseDone} running={!baseDone} label="Quiz + case study" />
-              {includes.inquiry && (
-                <GenStep done={baseDone && !enriching.inquiry} running={!baseDone || enriching.inquiry} label="Inquiry hook + Socratic prompt" />
-              )}
-              {includes.attentionChecks && (
-                <GenStep done={baseDone && !enriching.attentionChecks} running={!baseDone || enriching.attentionChecks} label="Attention checks" />
-              )}
-            </ul>
+            <GenerationProgress
+              title="Generating your learning session"
+              subtitle="This usually takes 30–90 seconds. You'll review it before it's assigned."
+              started={baseDone}
+              steps={[
+                { label: "Quiz + case study", done: baseDone },
+                ...(includes.inquiry
+                  ? [{ label: "Inquiry hook + Socratic prompt", done: baseDone && !enriching.inquiry }]
+                  : []),
+                ...(includes.attentionChecks
+                  ? [{ label: "Attention checks", done: baseDone && !enriching.attentionChecks }]
+                  : []),
+              ]}
+            />
           </div>
         )}
 
@@ -601,17 +635,3 @@ function PhaseToggle({ Icon, label, on, onClick }) {
   );
 }
 
-function GenStep({ done, running, label }) {
-  return (
-    <li className="flex items-center gap-3">
-      {done ? (
-        <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-      ) : running ? (
-        <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
-      ) : (
-        <div className="w-5 h-5 rounded-full border-2 border-slate-200 flex-shrink-0" />
-      )}
-      <span className={done ? "text-slate-900 font-medium" : "text-slate-600"}>{label}</span>
-    </li>
-  );
-}
