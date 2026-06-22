@@ -55,6 +55,35 @@ export default function ManageCurriculum() {
   const [queueProgress, setQueueProgress] = useState({ current: 0, total: 0 });
   const [currentGeneratingSubunit, setCurrentGeneratingSubunit] = useState(null);
   const [generatingTests, setGeneratingTests] = useState(false);
+  // Live ETA for bulk generation: timestamp when it started + a 1s ticker so
+  // the remaining-time estimate recomputes from real throughput.
+  const [queueStartedAt, setQueueStartedAt] = useState(null);
+  const [, setEtaTick] = useState(0);
+  const GEN_CONCURRENCY = 2;
+
+  useEffect(() => {
+    if (!generatingQueue) return;
+    const id = setInterval(() => setEtaTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [generatingQueue]);
+
+  // Estimate remaining time from how long completed subunits actually took
+  // (wall-clock per completed subunit already accounts for the concurrency).
+  const estimateRemaining = () => {
+    const { current, total } = queueProgress;
+    const remaining = Math.max(0, total - current);
+    if (remaining === 0) return "finishing up…";
+    const perSubunitMs =
+      current > 0 && queueStartedAt
+        ? (Date.now() - queueStartedAt) / current
+        : 45000 / GEN_CONCURRENCY; // initial guess before the first one lands
+    const secs = Math.max(5, Math.round((remaining * perSubunitMs) / 1000));
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0
+      ? `~${m} min ${String(s).padStart(2, "0")} sec remaining`
+      : `~${s} sec remaining`;
+  };
 
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -183,6 +212,7 @@ export default function ManageCurriculum() {
 
     setGeneratingQueue(true);
     setQueueProgress({ current: 0, total: subunitsNeedingContent.length });
+    setQueueStartedAt(Date.now());
 
     // Generate a few subunits at a time, not ALL at once. Each subunit fires
     // several heavy gpt-5-mini calls, so running every subunit concurrently
@@ -190,7 +220,7 @@ export default function ManageCurriculum() {
     // capacity → 500/546 worker-killed errors). A small worker pool keeps
     // throughput high while staying under the limits; the LLM client also
     // retries transient failures with backoff.
-    const CONCURRENCY = 2;
+    const CONCURRENCY = GEN_CONCURRENCY;
     const queue = [...subunitsNeedingContent];
     const worker = async () => {
       while (queue.length > 0) {
@@ -808,7 +838,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                   />
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  Generating {queueProgress.total} subunit{queueProgress.total === 1 ? "" : "s"} a few at a time so nothing gets rate-limited — this can take a few minutes.
+                  Generating {GEN_CONCURRENCY} at a time so nothing gets rate-limited — {estimateRemaining()}
                 </p>
               </div>
 
