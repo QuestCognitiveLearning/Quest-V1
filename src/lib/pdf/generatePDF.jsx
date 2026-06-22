@@ -6,6 +6,7 @@ import CaseStudyPacket from "./templates/CaseStudyPacket.jsx";
 import SubunitPacket from "./templates/SubunitPacket.jsx";
 import ClassWorkbook from "./templates/ClassWorkbook.jsx";
 import ParentReport from "./templates/ParentReport.jsx";
+import { deepSanitizePdf, sanitizePdfText } from "./shared/sanitize.js";
 
 const GRADE_LABEL = {
   Elementary: "Grades 3–5",
@@ -189,22 +190,25 @@ async function loadClassData(classId) {
 }
 
 export async function generatePDF({ type, contentId, branding, data }) {
+  // Strip glyphs the built-in PDF font can't render (math symbols etc.) so the
+  // render never aborts with "unsupported number".
+  const b = deepSanitizePdf(branding);
   let doc;
   if (type === "quiz") {
-    const d = await loadQuizData(contentId);
-    doc = <QuizPacket {...d} branding={branding} />;
+    const d = deepSanitizePdf(await loadQuizData(contentId));
+    doc = <QuizPacket {...d} branding={b} />;
   } else if (type === "caseStudy") {
-    const d = await loadCaseStudyData(contentId);
-    doc = <CaseStudyPacket {...d} branding={branding} />;
+    const d = deepSanitizePdf(await loadCaseStudyData(contentId));
+    doc = <CaseStudyPacket {...d} branding={b} />;
   } else if (type === "subunit") {
-    const d = await loadSubunitData(contentId);
-    doc = <SubunitPacket {...d} branding={branding} />;
+    const d = deepSanitizePdf(await loadSubunitData(contentId));
+    doc = <SubunitPacket {...d} branding={b} />;
   } else if (type === "classWorkbook") {
-    const d = await loadClassData(contentId);
-    doc = <ClassWorkbook {...d} branding={branding} />;
+    const d = deepSanitizePdf(await loadClassData(contentId));
+    doc = <ClassWorkbook {...d} branding={b} />;
   } else if (type === "parentReport") {
     if (!data) throw new Error("parentReport requires data");
-    doc = <ParentReport {...data} branding={branding} />;
+    doc = <ParentReport {...deepSanitizePdf(data)} branding={b} />;
   } else {
     throw new Error(`Unknown PDF type: ${type}`);
   }
@@ -236,22 +240,29 @@ export async function generateTryPDF({
   const prompts = case_study?.discussion_questions || [];
   const topic = video?.title || "YouTube video";
 
+  // Strip glyphs the built-in PDF font can't render (math symbols etc.).
+  const sTopic = sanitizePdfText(topic);
+  const sQuestions = deepSanitizePdf(questions);
+  const sPrompts = deepSanitizePdf(prompts);
+  const sScenario = sanitizePdfText(case_study?.scenario);
+  const b = deepSanitizePdf(branding);
+
   const doc = case_study?.scenario ? (
     <SubunitPacket
-      topic={topic}
+      topic={sTopic}
       gradeLevel={gradeLevel}
-      questions={questions}
-      scenario={case_study.scenario}
-      prompts={prompts}
-      branding={branding}
+      questions={sQuestions}
+      scenario={sScenario}
+      prompts={sPrompts}
+      branding={b}
     />
   ) : (
     <QuizPacket
-      topic={topic}
+      topic={sTopic}
       gradeLevel={gradeLevel}
-      source={video?.channelTitle}
-      questions={questions}
-      branding={branding}
+      source={sanitizePdfText(video?.channelTitle)}
+      questions={sQuestions}
+      branding={b}
     />
   );
 
