@@ -414,14 +414,6 @@ export default function TeacherClassDetail() {
             </TabsContent>
 
             <TabsContent value="sessions">
-              <div className="flex justify-end mb-4">
-                <Button
-                  onClick={() => setSessionBuilderOpen(true)}
-                  className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
-                >
-                  <Sparkles className="w-4 h-4" /> Assign a learning session
-                </Button>
-              </div>
               <AssignedSessionsTab
                 assignedBundles={assignedBundles}
                 students={students}
