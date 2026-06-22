@@ -1,5 +1,4 @@
 import React from "react";
-import { Toaster } from "sonner";
 
 import Header from "@/components/landing/v3/Header";
 import Hero from "@/components/landing/v3/Hero";
@@ -37,7 +36,6 @@ export default function Landing() {
       </main>
       <Footer />
       <StickyCta />
-      <Toaster />
     </div>
   );
 }

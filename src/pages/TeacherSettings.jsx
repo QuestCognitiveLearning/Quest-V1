@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -59,14 +60,14 @@ export default function TeacherSettings() {
     try {
       // Check if running in iframe (preview mode)
       if (window.self !== window.top) {
-        alert("Please open the published app to complete checkout");
+        toast.error("Please open the published app to complete checkout");
         setUpgrading(false);
         return;
       }
 
       // Create checkout session for Premium plan
       if (!priceIds?.premium_price_id) {
-        alert("Stripe products not configured. Please contact support.");
+        toast.error("Stripe products not configured. Please contact support.");
         setUpgrading(false);
         return;
       }
@@ -82,7 +83,7 @@ export default function TeacherSettings() {
       }
     } catch (error) {
       console.error("Checkout error:", error);
-      alert("Failed to start checkout. Please try again.");
+      toast.error("Failed to start checkout. Please try again.");
       setUpgrading(false);
     }
   };
@@ -95,7 +96,7 @@ export default function TeacherSettings() {
       }
     } catch (error) {
       console.error("Failed to open billing portal:", error);
-      alert("Failed to open billing portal. Please try again.");
+      toast.error("Failed to open billing portal. Please try again.");
     }
   };
 

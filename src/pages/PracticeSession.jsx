@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -369,7 +370,7 @@ export default function PracticeSession() {
         : createPageUrl("LearningHub");
     } catch (err) {
       console.error("Failed to save progress:", err);
-      alert("Failed to save progress. Please try again.");
+      toast.error("Failed to save progress. Please try again.");
     }
   };
 

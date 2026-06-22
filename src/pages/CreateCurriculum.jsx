@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
+import { toast } from "sonner";
 import SubscriptionCheck from "@/components/teacher/SubscriptionCheck";
 import StandardsPicker from "@/components/teacher/StandardsPicker";
 import CurriculumMethodChooser from "@/components/teacher/CurriculumMethodChooser";
@@ -103,13 +104,13 @@ export default function CreateCurriculum() {
   const handleSaveCurriculum = async () => {
     // Validate
     if (!formData.subject_name.trim()) {
-      alert("Please enter a subject name");
+      toast.error("Please enter a subject name");
       return;
     }
 
     const validUnits = units.filter(u => u.unit_name.trim() && u.subunits.some(s => s.trim()));
     if (validUnits.length === 0) {
-      alert("Please add at least one unit with standards");
+      toast.error("Please add at least one unit with standards");
       return;
     }
 
@@ -151,7 +152,7 @@ export default function CreateCurriculum() {
         navigate(createPageUrl("ManageCurriculum") + `?id=${curriculum.id}`);
       }, 2000);
     } catch (error) {
-      alert("Failed to save curriculum: " + error.message);
+      toast.error("Failed to save curriculum: " + error.message);
       setStep("define");
     } finally {
       setLoading(false);

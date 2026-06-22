@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { confirmDialog } from "@/lib/confirm";
 import { quest } from "@/api/questClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,7 +114,7 @@ export default function TeacherClasses() {
   };
 
   const handleDeleteClass = async (id) => {
-    if (!confirm("Are you sure you want to delete this class?")) return;
+    if (!(await confirmDialog({ title: "Delete class?", message: "This permanently deletes the class. This can't be undone.", tone: "danger", confirmLabel: "Delete" }))) return;
     try {
       await quest.entities.Class.delete(id);
       loadData();

@@ -19,6 +19,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ChevronLeft, Video, CheckCircle, Clock, Sparkles, Zap, BookOpen, ClipboardList, RefreshCw, FileText, Paperclip } from "lucide-react";
@@ -176,7 +177,7 @@ export default function ManageCurriculum() {
     const subunitsNeedingContent = subunits.filter(sub => getSubunitStatus(sub.id) === "video_only");
     
     if (subunitsNeedingContent.length === 0) {
-      alert("All subunits already have content generated!");
+      toast("All subunits already have content generated!");
       return;
     }
 
@@ -719,7 +720,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                                     e.target.value = '';
                                     if (!file) return;
                                     if (file.size > 25 * 1024 * 1024) {
-                                      alert('PDF must be 25MB or smaller.');
+                                      toast.error('PDF must be 25MB or smaller.');
                                       return;
                                     }
                                     setExtractingForSubunit(subunit.id);
@@ -727,7 +728,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                                       const { extractPdfText } = await import('@/lib/extractPdfText');
                                       const meta = await extractPdfText(file);
                                       if (meta.wordCount < 20) {
-                                        alert('Could not extract enough text from this PDF (it may be scanned). Try a digital PDF.');
+                                        toast.error('Could not extract enough text from this PDF (it may be scanned). Try a digital PDF.');
                                       } else {
                                         setPdfContextBySubunit((prev) => ({
                                           ...prev,
@@ -736,7 +737,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                                       }
                                     } catch (err) {
                                       console.error('PDF extraction failed:', err);
-                                      alert('Could not read this PDF.');
+                                      toast.error('Could not read this PDF.');
                                     } finally {
                                       setExtractingForSubunit(null);
                                     }

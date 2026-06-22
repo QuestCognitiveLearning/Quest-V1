@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { quest } from "@/api/questClient";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -119,7 +120,7 @@ Description: ${description}`,
       onVideoAdded();
     } catch (error) {
       console.error("Failed to save video:", error);
-      alert("Failed to save video: " + error.message);
+      toast.error("Failed to save video: " + error.message);
     } finally {
       setSaving(null);
     }
@@ -132,7 +133,7 @@ Description: ${description}`,
     try {
       const videoId = extractYouTubeVideoId(customUrl);
       if (!videoId) {
-        alert("Invalid YouTube URL. Please check and try again.");
+        toast.error("Invalid YouTube URL. Please check and try again.");
         setLoadingCustom(false);
         return;
       }
@@ -140,7 +141,7 @@ Description: ${description}`,
       const { data } = await quest.functions.invoke('youtubeSearch', { action: "videoDetails", videoId });
       
       if (!data.items || data.items.length === 0) {
-        alert("Video not found. Please check the URL.");
+        toast.error("Video not found. Please check the URL.");
         setLoadingCustom(false);
         return;
       }
@@ -167,7 +168,7 @@ Description: ${description}`,
       handleSelectVideo(video);
     } catch (error) {
       console.error("Failed to add custom video:", error);
-      alert("Failed to load video. Please try again.");
+      toast.error("Failed to load video. Please try again.");
       setLoadingCustom(false);
     }
   };

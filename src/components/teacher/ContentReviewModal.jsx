@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { quest } from "@/api/questClient";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -126,7 +127,7 @@ export default function ContentReviewModal({ subunit, content, onClose, onSave }
       onSave();
     } catch (error) {
       console.error("Failed to save content:", error);
-      alert("Failed to save content: " + error.message);
+      toast.error("Failed to save content: " + error.message);
     } finally {
       setSaving(false);
     }
@@ -148,7 +149,7 @@ export default function ContentReviewModal({ subunit, content, onClose, onSave }
       });
     } catch (error) {
       console.error("Failed to regenerate image:", error);
-      alert("Failed to regenerate image: " + error.message);
+      toast.error("Failed to regenerate image: " + error.message);
     } finally {
       setRegeneratingImage(false);
     }

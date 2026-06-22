@@ -17,6 +17,7 @@
  */
 import React, { useState, useEffect } from "react";
 import { quest } from "@/api/questClient";
+import { confirmDialog } from "@/lib/confirm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -909,9 +910,9 @@ Base the case study on the actual content and examples from the video transcript
                 </div>
               </div>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (processing) {
-                    if (confirm("Generation is in progress. Are you sure you want to close?")) {
+                    if (await confirmDialog({ title: "Close while generating?", message: "Generation is in progress. Closing now will stop it.", tone: "danger", confirmLabel: "Close anyway" })) {
                       onClose();
                     }
                   } else {

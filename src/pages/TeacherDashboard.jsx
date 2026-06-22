@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { confirmDialog } from "@/lib/confirm";
+import { toast } from "sonner";
 import { quest } from "@/api/questClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -460,7 +462,7 @@ export default function TeacherDashboard() {
       await quest.auth.updateMe({ subscription_tier: 'premium' });
       window.location.reload();
     } else {
-      alert('Invalid teacher key');
+      toast.error('Invalid teacher key');
     }
   };
 
@@ -716,7 +718,7 @@ export default function TeacherDashboard() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={async () => {
-                                    if (!confirm("Unassign this learning session?")) return;
+                                    if (!(await confirmDialog({ title: "Unassign session?", message: "Students will no longer see this learning session.", tone: "danger", confirmLabel: "Unassign" }))) return;
                                     try {
                                       await quest.entities.LearningSessionAssignment.delete(a.id);
                                       setBundleAssignments((prev) => prev.filter((x) => x.id !== a.id));

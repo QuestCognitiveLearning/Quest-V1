@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { confirmDialog } from "@/lib/confirm";
 import { quest } from "@/api/questClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,7 @@ export default function TeacherCurricula() {
   };
 
   const handleDeleteCurriculum = async (id) => {
-    if (!confirm("Are you sure you want to delete this curriculum?")) return;
+    if (!(await confirmDialog({ title: "Delete curriculum?", message: "This permanently deletes the curriculum and its content. This can't be undone.", tone: "danger", confirmLabel: "Delete" }))) return;
     try {
       await quest.entities.Curriculum.delete(id);
       loadCurricula();
