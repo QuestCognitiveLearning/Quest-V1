@@ -4,6 +4,7 @@ import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import TestBuilder from "@/components/teacher/TestBuilder";
+import CreateAssignedSessionModal from "@/components/teacher/CreateAssignedSessionModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +52,7 @@ export default function TeacherClassDetail() {
   // Assigned tests for this class + per-student completion rows.
   const [testAssignments, setTestAssignments] = useState([]); // [{ id, title, due_at, completions: [...] }]
   const [testBuilderOpen, setTestBuilderOpen] = useState(false);
+  const [sessionBuilderOpen, setSessionBuilderOpen] = useState(false);
 
   useEffect(() => {
     loadClassData();
@@ -412,7 +414,19 @@ export default function TeacherClassDetail() {
             </TabsContent>
 
             <TabsContent value="sessions">
-              <AssignedSessionsTab assignedBundles={assignedBundles} students={students} />
+              <div className="flex justify-end mb-4">
+                <Button
+                  onClick={() => setSessionBuilderOpen(true)}
+                  className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  <Sparkles className="w-4 h-4" /> Assign a learning session
+                </Button>
+              </div>
+              <AssignedSessionsTab
+                assignedBundles={assignedBundles}
+                students={students}
+                onAssign={() => setSessionBuilderOpen(true)}
+              />
             </TabsContent>
 
             <TabsContent value="tests">
@@ -440,6 +454,13 @@ export default function TeacherClassDetail() {
           units={units}
           subunits={subunits}
           onCreated={loadTests}
+        />
+      )}
+
+      {sessionBuilderOpen && (
+        <CreateAssignedSessionModal
+          open={sessionBuilderOpen}
+          onClose={() => setSessionBuilderOpen(false)}
         />
       )}
     </div>
@@ -817,7 +838,7 @@ function ClassLeaderboard({ students, progressData, subunits }) {
 // Per-class view of every assigned learning session + the per-student grade
 // roll-up. Expand a session to see who finished it, when, and what they
 // scored. Mirrors the dashboard's progress block but scoped to one class.
-function AssignedSessionsTab({ assignedBundles, students }) {
+function AssignedSessionsTab({ assignedBundles, students, onAssign }) {
   const [openId, setOpenId] = useState(null);
 
   if (!assignedBundles || assignedBundles.length === 0) {
@@ -828,9 +849,12 @@ function AssignedSessionsTab({ assignedBundles, students }) {
           <h3 className="text-lg font-semibold text-gray-900 mb-1">
             No learning sessions assigned to this class yet
           </h3>
-          <p className="text-sm text-gray-500">
-            Use <strong>Curriculum → Create Curriculum with Quest → Create one learning session</strong> to assign one.
+          <p className="text-sm text-gray-500 mb-5">
+            Turn a video into a quiz, case study, and more — then assign it to this class.
           </p>
+          <Button onClick={onAssign} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
+            <Sparkles className="w-4 h-4" /> Assign a learning session
+          </Button>
         </CardContent>
       </Card>
     );
