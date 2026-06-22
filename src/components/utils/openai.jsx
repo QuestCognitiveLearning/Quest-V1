@@ -19,19 +19,42 @@ function addAdditionalPropertiesToSchema(schema) {
   return out;
 }
 
+// Retry transient failures with exponential backoff + jitter. invokeLLM /
+// generateImage edge functions return 500/546 (worker killed) and 429 (rate
+// limit) under bursty load — e.g. generating many subunits at once. These
+// calls are side-effect-free, so retrying is safe and recovers most blips.
+async function withRetry(fn, { retries = 3, baseMs = 1500 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === retries) break;
+      const wait = baseMs * Math.pow(2, attempt) + Math.floor(Math.random() * 600);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+}
+
 // Accept EITHER a bare string OR an options object — callers do both.
 export async function invokeLLM(arg) {
   const { quest } = await import("@/api/questClient");
   const opts = typeof arg === 'string' ? { prompt: arg } : (arg || {});
-  return quest.integrations.Core.InvokeLLM({
-    prompt: opts.prompt,
-    response_json_schema: opts.response_json_schema,
-    add_context_from_internet: opts.add_context_from_internet ?? false,
-    model: opts.model,
-  });
+  return withRetry(() =>
+    quest.integrations.Core.InvokeLLM({
+      prompt: opts.prompt,
+      response_json_schema: opts.response_json_schema,
+      add_context_from_internet: opts.add_context_from_internet ?? false,
+      model: opts.model,
+    })
+  );
 }
 
 export async function generateImage({ prompt, quality }) {
   const { quest } = await import("@/api/questClient");
-  return quest.integrations.Core.GenerateImage({ prompt, quality });
+  return withRetry(() => quest.integrations.Core.GenerateImage({ prompt, quality }), {
+    retries: 2,
+  });
 }

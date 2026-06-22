@@ -184,9 +184,17 @@ export default function ManageCurriculum() {
     setGeneratingQueue(true);
     setQueueProgress({ current: 0, total: subunitsNeedingContent.length });
 
-    // Run ALL subunits concurrently — each fires off independently like separate servers
-    await Promise.allSettled(
-      subunitsNeedingContent.map(async (sub) => {
+    // Generate a few subunits at a time, not ALL at once. Each subunit fires
+    // several heavy gpt-5-mini calls, so running every subunit concurrently
+    // overwhelmed the invokeLLM edge function (per-user rate limit + OpenAI
+    // capacity → 500/546 worker-killed errors). A small worker pool keeps
+    // throughput high while staying under the limits; the LLM client also
+    // retries transient failures with backoff.
+    const CONCURRENCY = 2;
+    const queue = [...subunitsNeedingContent];
+    const worker = async () => {
+      while (queue.length > 0) {
+        const sub = queue.shift();
         console.log(`\n🚀 Starting generation for: ${sub.subunit_name}`);
         try {
           await generateContentForSubunit(sub);
@@ -196,7 +204,10 @@ export default function ManageCurriculum() {
         }
         // Update progress counter as each one finishes
         setQueueProgress(prev => ({ ...prev, current: prev.current + 1 }));
-      })
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, subunitsNeedingContent.length) }, worker)
     );
 
     await loadCurriculumData();
@@ -797,12 +808,12 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                   />
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  All {queueProgress.total} subunits generating simultaneously — estimated ~2 min total
+                  Generating {queueProgress.total} subunit{queueProgress.total === 1 ? "" : "s"} a few at a time so nothing gets rate-limited — this can take a few minutes.
                 </p>
               </div>
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">Running in parallel — {queueProgress.total} instances</h4>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">{queueProgress.total} subunit{queueProgress.total === 1 ? "" : "s"} in the queue</h4>
                 {subunits.filter(sub => getSubunitStatus(sub.id) === "video_only").map((sub) => (
                   <div 
                     key={sub.id}
