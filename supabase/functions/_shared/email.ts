@@ -15,6 +15,19 @@ export function signerName(): string {
 export function signOff(): string {
   return `${signerName()} at Quest Learning`;
 }
+
+// Make the sender "From" name match whichever founder signed THIS email's
+// body, so the name in the inbox never disagrees with the signature at the
+// bottom. Looks for "<Name> at Quest Learning" in the html (produced by
+// signOff) and rebuilds the From display name around the same email address.
+// Falls back to the configured From unchanged when no signature is present.
+function fromMatchingSignature(fromAddress: string, html: string): string {
+  const signer = SIGNERS.find((name) => html.includes(`${name} at Quest Learning`));
+  if (!signer) return fromAddress;
+  const m = fromAddress.match(/<([^>]+)>/);
+  const email = m ? m[1] : fromAddress.trim();
+  return `${signer} at Quest Learning <${email}>`;
+}
 // Short re-engagement nudge appended to every platform email so each one
 // prompts continued use of Quest.
 export function keepUsingQuestHtml(
@@ -61,7 +74,7 @@ export async function sendEmail(
   }
 
   const body: Record<string, unknown> = {
-    from: FROM_ADDRESS,
+    from: fromMatchingSignature(FROM_ADDRESS, html),
     to,
     subject,
     html,
