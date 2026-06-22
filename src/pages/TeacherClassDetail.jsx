@@ -351,20 +351,6 @@ export default function TeacherClassDetail() {
                 Students
               </TabsTrigger>
               <TabsTrigger
-                value="leaderboard"
-                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
-              >
-                <Trophy className="w-4 h-4 mr-2" />
-                Leaderboard
-              </TabsTrigger>
-              <TabsTrigger
-                value="feedback"
-                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
-              >
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Feedback
-              </TabsTrigger>
-              <TabsTrigger
                 value="sessions"
                 className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
               >
@@ -377,6 +363,20 @@ export default function TeacherClassDetail() {
               >
                 <Target className="w-4 h-4 mr-2" />
                 Tests
+              </TabsTrigger>
+              <TabsTrigger
+                value="leaderboard"
+                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
+              >
+                <Trophy className="w-4 h-4 mr-2" />
+                Leaderboard
+              </TabsTrigger>
+              <TabsTrigger
+                value="feedback"
+                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Feedback
               </TabsTrigger>
             </TabsList>
 
