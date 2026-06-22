@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
+import { supabase } from "@/components/lib/supabase-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,7 @@ export default function LearningHub() {
   const [learnedTopics, setLearnedTopics] = useState(0);
   const [assignments, setAssignments] = useState([]);
   const [assignedBundles, setAssignedBundles] = useState([]);
+  const [testAssignments, setTestAssignments] = useState([]);
   // Student-created self-sessions due today (scheduled_for <= today,
   // not yet completed). Includes both the original session and any
   // queued review entries.
@@ -197,6 +199,30 @@ export default function LearningHub() {
       } catch (err) {
         console.warn("Could not load assigned bundles:", err);
         setAssignedBundles([]);
+      }
+
+      // Assigned tests for this class + this student's completions.
+      try {
+        const { data: tas } = await supabase
+          .from("test_assignments")
+          .select("*")
+          .eq("class_id", selectedClassId)
+          .order("assigned_at", { ascending: false });
+        const ids = (tas || []).map((t) => t.id);
+        let comps = [];
+        if (ids.length > 0) {
+          const { data } = await supabase
+            .from("test_completions")
+            .select("*")
+            .eq("student_id", user.id)
+            .in("assignment_id", ids);
+          comps = data || [];
+        }
+        const cmap = new Map(comps.map((c) => [c.assignment_id, c]));
+        setTestAssignments((tas || []).map((t) => ({ ...t, completion: cmap.get(t.id) || null })));
+      } catch (err) {
+        console.warn("Could not load assigned tests:", err);
+        setTestAssignments([]);
       }
 
       const curriculumData = selectedClass.curriculum_id
@@ -489,15 +515,10 @@ export default function LearningHub() {
 
       // Score is stored directly on the LearningSession (new field)
       const score = s.score ?? (s.session_type === "review" ? (p?.last_review_score || 0) : (p?.new_session_score || 0));
-      let type = "New Session";
-      if (s.session_type === "review") {
-        type = "Review";
-      } else {
-        const name = subunit.subunit_name?.toLowerCase() || "";
-        if (name.includes("pre-test") || name.includes("pre test")) type = "Pre-Test";
-        else if (name.includes("post-test") || name.includes("post test")) type = "Post-Test";
-        else type = "New Session";
-      }
+      // Pre-Test/Post-Test naming is deprecated — tests are now assigned
+      // separately (see TestBuilder / AssignedTestPlay), so a session is just
+      // a new session or a review.
+      const type = s.session_type === "review" ? "Review" : "New Session";
 
       return {
         id: s.id,
@@ -730,6 +751,67 @@ export default function LearningHub() {
                                     : a.due_at
                                     ? `Due ${new Date(a.due_at).toLocaleDateString()}`
                                     : "No due date"}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {testAssignments.length > 0 && (
+                <Card className="border border-indigo-200">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Target className="w-5 h-5 text-indigo-600" />
+                        <h2 className="text-lg font-semibold text-black">Tests assigned to you</h2>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">{testAssignments.length}</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {testAssignments.map((a) => {
+                        const isDone = !!a.completion;
+                        const overdue = !isDone && a.due_at && new Date(a.due_at) < new Date();
+                        const cardBg = isDone
+                          ? "border-emerald-200 bg-emerald-50"
+                          : overdue
+                          ? "border-red-200 bg-red-50"
+                          : "border-indigo-100 bg-indigo-50";
+                        const iconBg = isDone ? "bg-emerald-100" : overdue ? "bg-red-100" : "bg-indigo-100";
+                        const iconColor = isDone ? "text-emerald-600" : overdue ? "text-red-600" : "text-indigo-600";
+                        const Icon = isDone ? CheckCircle2 : Target;
+                        const qCount = Array.isArray(a.question_ids) ? a.question_ids.length : 0;
+                        return (
+                          <div
+                            key={a.id}
+                            onClick={() => navigate(createPageUrl(`AssignedTestPlay?assignment_id=${a.id}`))}
+                            className={`flex items-center justify-between p-4 border rounded-lg hover:border-indigo-400 transition-all cursor-pointer ${cardBg}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconBg}`}>
+                                <Icon className={`w-5 h-5 ${iconColor}`} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-black text-sm">{a.title}</h3>
+                                  {isDone && (
+                                    <Badge className="text-xs bg-emerald-100 text-emerald-700">
+                                      {a.completion.score_pct != null ? `${Math.round(a.completion.score_pct)}%` : "Done"}
+                                    </Badge>
+                                  )}
+                                  {!isDone && overdue && (
+                                    <Badge className="text-xs bg-red-100 text-red-700">Overdue</Badge>
+                                  )}
+                                </div>
+                                <p className={`text-xs ${isDone ? "text-emerald-700" : overdue ? "text-red-600" : "text-gray-500"}`}>
+                                  {isDone
+                                    ? `Submitted ${new Date(a.completion.completed_at).toLocaleDateString()}`
+                                    : `${qCount} question${qCount === 1 ? "" : "s"}${a.due_at ? ` · Due ${new Date(a.due_at).toLocaleDateString()}` : ""}`}
                                 </p>
                               </div>
                             </div>

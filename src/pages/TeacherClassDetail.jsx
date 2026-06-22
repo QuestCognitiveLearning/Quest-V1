@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
+import { supabase } from "@/components/lib/supabase-client";
+import TestBuilder from "@/components/teacher/TestBuilder";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,6 +48,9 @@ export default function TeacherClassDetail() {
   // Loaded alongside curriculum data so the teacher sees both axes (subunit
   // progress and one-off assigned sessions) on a single page.
   const [assignedBundles, setAssignedBundles] = useState([]); // [{ id, bundle_title, due_at, completions: [...] }]
+  // Assigned tests for this class + per-student completion rows.
+  const [testAssignments, setTestAssignments] = useState([]); // [{ id, title, due_at, completions: [...] }]
+  const [testBuilderOpen, setTestBuilderOpen] = useState(false);
 
   useEffect(() => {
     loadClassData();
@@ -199,10 +204,39 @@ export default function TeacherClassDetail() {
         setAssignedBundles([]);
       }
 
+      await loadTests();
+
       setLoading(false);
     } catch (err) {
       console.error("Failed to load class data:", err);
       setLoading(false);
+    }
+  };
+
+  // Assigned tests for this class + per-student completions. Standalone so the
+  // TestBuilder can refresh it after assigning a new test.
+  const loadTests = async () => {
+    try {
+      const { data: tas } = await supabase
+        .from("test_assignments")
+        .select("*")
+        .eq("class_id", classId)
+        .order("assigned_at", { ascending: false });
+      const ids = (tas || []).map((t) => t.id);
+      let comps = [];
+      if (ids.length > 0) {
+        const { data } = await supabase.from("test_completions").select("*").in("assignment_id", ids);
+        comps = data || [];
+      }
+      const byA = new Map();
+      for (const c of comps) {
+        if (!byA.has(c.assignment_id)) byA.set(c.assignment_id, []);
+        byA.get(c.assignment_id).push(c);
+      }
+      setTestAssignments((tas || []).map((t) => ({ ...t, completions: byA.get(t.id) || [] })));
+    } catch (err) {
+      console.warn("Could not load tests for class:", err);
+      setTestAssignments([]);
     }
   };
 
@@ -301,7 +335,7 @@ export default function TeacherClassDetail() {
           <Tabs defaultValue="mindmap" className="w-full">
             {/* 4 tabs distributed evenly across the full width. Was `grid-cols-6`
                 which left two empty columns on the right. */}
-            <TabsList className="grid w-full grid-cols-5 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
+            <TabsList className="grid w-full grid-cols-6 bg-white/80 backdrop-blur-sm p-1.5 rounded-xl shadow-md mb-8 h-12">
               <TabsTrigger
                 value="mindmap"
                 className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
@@ -336,6 +370,13 @@ export default function TeacherClassDetail() {
               >
                 <Sparkles className="w-4 h-4 mr-2" />
                 Sessions
+              </TabsTrigger>
+              <TabsTrigger
+                value="tests"
+                className="h-9 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg transition-all text-sm font-medium"
+              >
+                <Target className="w-4 h-4 mr-2" />
+                Tests
               </TabsTrigger>
             </TabsList>
 
@@ -374,9 +415,33 @@ export default function TeacherClassDetail() {
               <AssignedSessionsTab assignedBundles={assignedBundles} students={students} />
             </TabsContent>
 
+            <TabsContent value="tests">
+              <div className="flex justify-end mb-4">
+                <Button
+                  onClick={() => setTestBuilderOpen(true)}
+                  className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <Target className="w-4 h-4" /> Assign a test
+                </Button>
+              </div>
+              <TestsTab testAssignments={testAssignments} students={students} />
+            </TabsContent>
+
           </Tabs>
         </div>
       </div>
+
+      {testBuilderOpen && (
+        <TestBuilder
+          open={testBuilderOpen}
+          onClose={() => setTestBuilderOpen(false)}
+          classId={classId}
+          curriculumId={curriculum?.id}
+          units={units}
+          subunits={subunits}
+          onCreated={loadTests}
+        />
+      )}
     </div>
   );
 }
@@ -866,6 +931,137 @@ function AssignedSessionsTab({ assignedBundles, students }) {
                               {c?.quiz_total !== null && c?.quiz_total !== undefined && (
                                 <p className="text-[10px] text-slate-400 tabular-nums">
                                   {c.quiz_correct ?? 0}/{c.quiz_total}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// Per-test analytics: completion ratio, average score, and an expandable
+// per-student breakdown. Mirrors AssignedSessionsTab.
+function TestsTab({ testAssignments, students }) {
+  const [openId, setOpenId] = useState(null);
+
+  if (!testAssignments || testAssignments.length === 0) {
+    return (
+      <Card className="border border-gray-200">
+        <CardContent className="py-12 text-center">
+          <Target className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">No tests assigned yet</h3>
+          <p className="text-sm text-gray-500">
+            Click <strong>Assign a test</strong> to build one from this class's curriculum.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const rosterSize = students?.length || 0;
+
+  return (
+    <div className="space-y-3">
+      {testAssignments.map((a) => {
+        const completions = a.completions || [];
+        const scored = completions.filter((c) => c.score_pct !== null && c.score_pct !== undefined);
+        const avgPct = scored.length
+          ? Math.round(scored.reduce((s, r) => s + Number(r.score_pct), 0) / scored.length)
+          : null;
+        const ratioPct = rosterSize > 0 ? Math.round((completions.length / rosterSize) * 100) : 0;
+        const isOpen = openId === a.id;
+        const byStudent = new Map(completions.map((c) => [c.student_id, c]));
+        const qCount = Array.isArray(a.question_ids) ? a.question_ids.length : 0;
+        return (
+          <Card key={a.id} className="border border-gray-200">
+            <CardContent className="p-0">
+              <button
+                type="button"
+                onClick={() => setOpenId(isOpen ? null : a.id)}
+                className="w-full flex items-center justify-between gap-4 p-4 text-left hover:bg-slate-50/60 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+                    <Target className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-900 truncate">{a.title}</p>
+                    <p className="text-xs text-slate-500 inline-flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span><strong>{completions.length}/{rosterSize}</strong> done</span>
+                      <span>· {qCount} question{qCount === 1 ? "" : "s"}</span>
+                      {avgPct !== null && <span>· {avgPct}% avg</span>}
+                      {a.due_at && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Due {new Date(a.due_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+              </button>
+
+              <div className="px-4 pb-3">
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-indigo-500 transition-all" style={{ width: `${ratioPct}%` }} />
+                </div>
+              </div>
+
+              {isOpen && (
+                <div className="border-t border-slate-100 p-4 bg-slate-50/40">
+                  {rosterSize === 0 ? (
+                    <p className="text-sm text-slate-500 italic text-center py-4">
+                      No students enrolled in this class yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {students.map((s) => {
+                        const c = byStudent.get(s.id);
+                        const pct =
+                          c?.score_pct !== null && c?.score_pct !== undefined
+                            ? Math.round(Number(c.score_pct))
+                            : null;
+                        const pctColor =
+                          c === undefined ? "text-slate-400" :
+                          pct === null ? "text-slate-500" :
+                          pct >= 75 ? "text-emerald-700" :
+                          pct >= 50 ? "text-amber-700" :
+                          "text-red-700";
+                        return (
+                          <li
+                            key={s.id}
+                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white border border-slate-100"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-slate-900 truncate">
+                                {s.full_name || s.email || "Student"}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                {c?.completed_at
+                                  ? `Done ${new Date(c.completed_at).toLocaleString(undefined, {
+                                      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                                    })}`
+                                  : "Not started"}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-base font-bold tabular-nums ${pctColor}`}>
+                                {c === undefined ? "—" : pct !== null ? `${pct}%` : "—"}
+                              </p>
+                              {c?.total !== null && c?.total !== undefined && (
+                                <p className="text-[10px] text-slate-400 tabular-nums">
+                                  {c.correct ?? 0}/{c.total}
                                 </p>
                               )}
                             </div>

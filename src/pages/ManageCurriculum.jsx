@@ -601,55 +601,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
 
         <div className="space-y-6">
           {units.map((unit) => {
-            const isAssessmentUnit = unit.unit_name === "Assessments";
             const unitSubunits = subunits.filter(s => s.unit_id === unit.id);
-
-            if (isAssessmentUnit) {
-              return (
-                <Card key={unit.id} className="border border-indigo-200 shadow-lg bg-white overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
-                        <ClipboardList className="w-5 h-5 text-indigo-600" />
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-semibold text-gray-900">Assessments</h2>
-                        <p className="text-sm text-gray-600">Auto-generated from all subunit questions (1 easy + 1 medium + 1 hard per subunit)</p>
-                      </div>
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {unitSubunits.map((subunit) => {
-                        const hasQuiz = quizzes.some(q => q.subunit_id === subunit.id);
-                        const quizForSubunit = quizzes.find(q => q.subunit_id === subunit.id);
-                        const questionCount = quizForSubunit ? questions.filter(q => q.quiz_id === quizForSubunit.id).length : 0;
-                        return (
-                          <div key={subunit.id} className="p-4 rounded-lg border-2 bg-indigo-50 border-indigo-200">
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <h3 className="font-semibold text-indigo-900 text-sm">{subunit.subunit_name}</h3>
-                                {hasQuiz && <p className="text-xs text-indigo-600 mt-0.5">{questionCount} questions</p>}
-                              </div>
-                              {hasQuiz ? (
-                                <CheckCircle className="w-5 h-5 text-indigo-600 flex-shrink-0" />
-                              ) : (
-                                <Clock className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                              )}
-                            </div>
-                            <p className="text-xs text-indigo-700/70">{subunit.learning_standard}</p>
-                          </div>
-                        );
-                      })}
-                      {unitSubunits.length === 0 && (
-                        <div className="col-span-2 text-center py-6 text-gray-400 text-sm">
-                          Generate content first, then click "Regenerate Tests" to create the pre/post assessments.
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            }
-
             const completedCount = unitSubunits.filter(s => getSubunitStatus(s.id) === "complete").length;
 
             return (
