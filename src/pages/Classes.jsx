@@ -17,8 +17,7 @@ import {
   Trophy,
   Zap
 } from "lucide-react";
-import MusicPlayer from "../components/shared/MusicPlayer";
-import StudentSidebar from "../components/shared/StudentSidebar";
+import StudentPageShell from "@/components/shared/StudentPageShell";
 
 export default function Classes() {
   const navigate = useNavigate();
@@ -272,24 +271,13 @@ export default function Classes() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-
-      <StudentSidebar
-        activeNav={activeNav}
-        classes={classes}
-        selectedClassId={selectedClassId}
-        onClassChange={(val) => {
-          setSelectedClassId(val);
-          localStorage.setItem('selectedClassId', val);
-        }}
-        user={user}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto bg-white pt-14 md:pt-0 min-w-0" style={{fontFamily: '"Inter", sans-serif'}}>
+    <StudentPageShell
+      activeNav={activeNav}
+      classes={classes}
+      selectedClassId={selectedClassId}
+      setSelectedClassId={setSelectedClassId}
+      user={user}
+    >
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-12 h-12 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin"></div>
@@ -386,7 +374,6 @@ export default function Classes() {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </StudentPageShell>
   );
 }
