@@ -1,30 +1,21 @@
 import React from "react";
 
-// Positioning & sizing constants
-const CENTER = { x: 600, y: 400 };
-const UNIT_RADIUS = 220;
-const SUBUNIT_RADIUS = 130;
+// Base node sizes (virtual px). The whole map is scaled to fit the container,
+// so these stay fixed and the layout math below spaces nodes apart based on
+// the actual unit / subunit counts — no overlap at any size.
+const UNIT_RADIUS = 220;     // minimum unit-ring radius
+const SUBUNIT_RADIUS = 130;  // minimum subunit-ring radius
 
 const CENTER_SIZE = 130;
 const UNIT_SIZE = 85;
 const SUBUNIT_SIZE = 65;
 
-/**
- * When the curriculum has more than this many units, alternate units onto two
- * concentric rings instead of one. With 1 ring + N units, each unit owns
- * 360/N° of angular space; the subunit fan is 120°. Beyond N=8 the fans
- * collide. Staggering doubles the angular budget per ring, and the second
- * ring physically separates adjacent units further in 2D.
- */
-const STAGGER_THRESHOLD = 8;
-
-/**
- * Extra radius applied to "outer ring" units when staggering is active.
- * 90px is chosen to keep the outermost subunit (sitting at unit.radius +
- * SUBUNIT_RADIUS = 220 + 90 + 130 = 440 from center) inside a reasonable
- * canvas. See `containerHeight` below for the matching container size bump.
- */
-const STAGGER_OFFSET = 90;
+// Spacing knobs for the adaptive layout.
+const SUB_MIN_CHORD = SUBUNIT_SIZE + 16; // min center-to-center between subunits
+const SUB_MAX_ARC = 160;                 // cap on a unit's outward subunit fan (deg)
+const SUB_ARC_PER = 38;                  // fan degrees added per extra subunit
+const UNIT_GAP = 30;                     // clearance between adjacent unit clusters
+const PADDING = 70;                      // canvas breathing room
 
 function polarToXY(center, radius, angleDeg) {
   const rad = angleDeg * Math.PI / 180;
@@ -32,6 +23,20 @@ function polarToXY(center, radius, angleDeg) {
     x: center.x + radius * Math.cos(rad),
     y: center.y + radius * Math.sin(rad)
   };
+}
+
+// How far out a unit's subunits sit, how wide they fan, and the cluster's
+// tangential half-width (used to keep adjacent unit clusters from touching).
+function subLayoutFor(m) {
+  if (m <= 1) {
+    return { rS: SUBUNIT_RADIUS, step: 0, arc: 0, halfWidth: SUBUNIT_SIZE / 2 };
+  }
+  const arc = Math.min(SUB_MAX_ARC, SUB_ARC_PER * (m - 1));
+  const step = arc / (m - 1);
+  // Grow the subunit ring so neighbours keep at least SUB_MIN_CHORD apart.
+  const rS = Math.max(SUBUNIT_RADIUS, SUB_MIN_CHORD / (2 * Math.sin((step * Math.PI) / 360)));
+  const halfWidth = rS * Math.sin((arc / 2) * Math.PI / 180) + SUBUNIT_SIZE / 2;
+  return { rS, step, arc, halfWidth };
 }
 
 function Line({ x1, y1, x2, y2, stroke = "#93C5FD" }) {
@@ -63,6 +68,10 @@ const colorMap = {
 export default function RadialMindmap({ curriculum, units, subunits, studentProgress, assignments = [], onSubunitClick, curriculumColor = "blue" }) {
   const [currentTime, setCurrentTime] = React.useState(Date.now());
   const colors = colorMap[curriculumColor] || colorMap.blue;
+
+  // Auto-fit: scale the virtual canvas down to the available width.
+  const wrapRef = React.useRef(null);
+  const [scale, setScale] = React.useState(1);
 
   // Update time every minute to recalculate progress bars
   React.useEffect(() => {
@@ -126,19 +135,19 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
 
   const getFontSize = (text, baseSize, containerSize) => {
     if (!text) return baseSize;
-    
+
     // Calculate usable width (85% of container, accounting for padding and circular shape)
     const usableWidth = containerSize * 0.7;
-    
+
     // Estimate text width (average character width is ~0.55 of font size)
     const estimateTextWidth = (fontSize) => text.length * fontSize * 0.55;
-    
+
     // Start with base size and scale down if needed
     let fontSize = baseSize;
     while (estimateTextWidth(fontSize) > usableWidth && fontSize > 8) {
       fontSize -= 0.5;
     }
-    
+
     return Math.max(Math.round(fontSize), 8);
   };
 
@@ -161,216 +170,214 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
   };
 
   // Track used words to avoid duplicates
-   const usedWords = new Set();
+  const usedWords = new Set();
 
-   // Get display text for curriculum
-   const curriculumText = getOneWord(curriculum?.subject_name, usedWords);
+  // Get display text for curriculum
+  const curriculumText = getOneWord(curriculum?.subject_name, usedWords);
 
-   // Update line color based on curriculum color
-   const lineColor = colors.stroke.replace(/[0-9a-f]{6}/i, '') || "#93C5FD";
-
-  // Crowding-aware layout. With <=8 units we keep the single-ring layout +
-  // wide 120° subunit fan. Beyond that, we alternate units onto two rings
-  // (inner = even index, outer = odd index) and narrow each fan to fit the
-  // tighter per-ring angular budget. This keeps subunits from colliding when
-  // a teacher builds a large curriculum (e.g. a 12-unit AP Bio map).
-  const needsStagger = units.length > STAGGER_THRESHOLD;
-  // When staggered, the angular budget per ring is 720°/N (since N/2 units
-  // share each ring). Use 85% as a safety margin so adjacent fans never touch.
-  const subunitFanDegrees = needsStagger
-    ? Math.min(120, 0.85 * 720 / units.length)
-    : 120;
-
-  // Calculate angles + per-unit radius for units
-  const unitsWithAngles = units.map((unit, index) => {
-    const angle = index / units.length * 360 - 90; // Start from top
-    // Odd-indexed units push out to the outer ring when staggering is on.
-    const unitRadius =
-      needsStagger && index % 2 === 1 ? UNIT_RADIUS + STAGGER_OFFSET : UNIT_RADIUS;
-    const displayText = getOneWord(unit.unit_name, usedWords);
-    return { ...unit, angle, unitRadius, displayText };
+  // ---- Adaptive radial layout -------------------------------------------
+  // Unit-ring radius grows with the unit count (so clusters never collide) and
+  // each unit's subunits spread on a ring sized to their count. The whole thing
+  // is then scaled to fit, so the map looks uniform at any size/organization.
+  const N = units.length;
+  const unitMetas = units.map((unit, index) => {
+    const subs = subunits.filter((s) => s.unit_id === unit.id);
+    const lay = subLayoutFor(subs.length);
+    return {
+      unit,
+      subs,
+      lay,
+      index,
+      angle: (index / Math.max(1, N)) * 360 - 90, // start from top
+      displayText: getOneWord(unit.unit_name, usedWords)
+    };
   });
 
-  // Calculate angles for subunits around each unit
-  const subunitsWithAngles = unitsWithAngles.map((unit) => {
-    const unitSubunits = subunits.filter((s) => s.unit_id === unit.id);
-    const totalSubs = unitSubunits.length;
+  const maxHalfWidth = Math.max(SUBUNIT_SIZE / 2, ...unitMetas.map((m) => m.lay.halfWidth));
+  const maxOuter = Math.max(
+    SUBUNIT_RADIUS + SUBUNIT_SIZE / 2,
+    ...unitMetas.map((m) => m.lay.rS + SUBUNIT_SIZE / 2)
+  );
+  const unitRadius =
+    N <= 1
+      ? UNIT_RADIUS
+      : Math.max(UNIT_RADIUS, (maxHalfWidth + UNIT_GAP) / Math.sin(Math.PI / N));
+  const boundingR = unitRadius + maxOuter;
+  const canvas = 2 * (boundingR + PADDING);
+  const center = { x: canvas / 2, y: canvas / 2 };
 
-    // Spread subunits around the unit using the dynamic fan.
-    const spreadAngle = totalSubs > 1 ? subunitFanDegrees / (totalSubs - 1) : 0;
-
-    return unitSubunits.map((sub, subIndex) => {
-      const offset = (subIndex - (totalSubs - 1) / 2) * spreadAngle;
-      const angle = unit.angle + offset;
-      const displayText = getOneWord(sub.subunit_name, usedWords);
-      return { ...sub, angle, unitId: unit.id, displayText };
+  // Subunit angles fan around each unit's outward direction.
+  const subunitsWithAngles = unitMetas.flatMap(({ unit, subs, lay, angle }) => {
+    const m = subs.length;
+    return subs.map((sub, j) => {
+      const offset = m > 1 ? (j - (m - 1) / 2) * lay.step : 0;
+      return {
+        ...sub,
+        unitId: unit.id,
+        angle: angle + offset,
+        rS: lay.rS,
+        displayText: getOneWord(sub.subunit_name, usedWords)
+      };
     });
-  }).flat();
+  });
+
+  React.useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const compute = () => {
+      const w = el.clientWidth || canvas;
+      setScale(Math.min(1, w / canvas));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [canvas]);
 
   return (
-     <div
-       className="bg-zinc-50 relative w-full overflow-hidden flex items-center justify-center"
-       style={{
-         // Stretch the canvas when staggering — outer-ring subunits sit at
-         // UNIT_RADIUS + STAGGER_OFFSET + SUBUNIT_RADIUS from center (≈440px)
-         // which would clip out of an 800px-tall canvas centered at y=400.
-         height: needsStagger ? '1000px' : '800px',
-         fontFamily: '"Poppins", sans-serif',
-       }}
-     >
-       {/* Connection lines layer */}
-       <svg className="absolute inset-0 w-full h-full pointer-events-none">
-         {/* Center → Units */}
-         {unitsWithAngles.map((unit) => {
-           const pos = polarToXY(CENTER, unit.unitRadius, unit.angle);
-           return (
-             <Line
-               key={unit.id}
-               x1={CENTER.x}
-               y1={CENTER.y}
-               x2={pos.x}
-               y2={pos.y}
-               stroke={colors.stroke} />);
-
-
-        })}
-
-        {/* Units → Subunits */}
-        {unitsWithAngles.map((unit) => {
-          const unitPos = polarToXY(CENTER, unit.unitRadius, unit.angle);
-          const unitSubunits = subunitsWithAngles.filter((s) => s.unitId === unit.id);
-
-          return unitSubunits.map((sub) => {
-            const subPos = polarToXY(unitPos, SUBUNIT_RADIUS, sub.angle);
-            return (
-              <Line
-                key={`${unit.id}-${sub.id}`}
-                x1={unitPos.x}
-                y1={unitPos.y}
-                x2={subPos.x}
-                y2={subPos.y}
-                stroke={colors.stroke} />);
-
-
-          });
-        })}
-      </svg>
-
-      {/* Center Node */}
-      <div
-        style={{
-          width: CENTER_SIZE,
-          height: CENTER_SIZE,
-          left: CENTER.x - CENTER_SIZE / 2,
-          top: CENTER.y - CENTER_SIZE / 2
-        }}
-        className="absolute flex items-center justify-center rounded-full text-white font-semibold">
-
+    <div ref={wrapRef} className="w-full flex justify-center" style={{ fontFamily: '"Poppins", sans-serif' }}>
+      <div style={{ width: canvas * scale, height: canvas * scale, position: "relative" }}>
         <div
-          className={`w-full h-full rounded-full bg-gradient-to-br ${colors.bg} flex items-center justify-center px-2`}
-          style={{ fontSize: `${getFontSize(curriculumText, 20, CENTER_SIZE)}px`, boxShadow: `0 8px 32px ${colors.shadow}` }}>
+          className="absolute top-0 left-0 bg-zinc-50 rounded-2xl"
+          style={{ width: canvas, height: canvas, transform: `scale(${scale})`, transformOrigin: "top left" }}
+        >
+          {/* Connection lines layer */}
+          <svg className="absolute inset-0 pointer-events-none" style={{ width: canvas, height: canvas }}>
+            {/* Center → Units */}
+            {unitMetas.map((m) => {
+              const pos = polarToXY(center, unitRadius, m.angle);
+              return (
+                <Line key={m.unit.id} x1={center.x} y1={center.y} x2={pos.x} y2={pos.y} stroke={colors.stroke} />);
+            })}
 
-          {curriculumText}
+            {/* Units → Subunits */}
+            {unitMetas.map((m) => {
+              const unitPos = polarToXY(center, unitRadius, m.angle);
+              return subunitsWithAngles
+                .filter((s) => s.unitId === m.unit.id)
+                .map((sub) => {
+                  const subPos = polarToXY(unitPos, sub.rS, sub.angle);
+                  return (
+                    <Line key={`${m.unit.id}-${sub.id}`} x1={unitPos.x} y1={unitPos.y} x2={subPos.x} y2={subPos.y} stroke={colors.stroke} />);
+                });
+            })}
+          </svg>
+
+          {/* Center Node */}
+          <div
+            style={{
+              width: CENTER_SIZE,
+              height: CENTER_SIZE,
+              left: center.x - CENTER_SIZE / 2,
+              top: center.y - CENTER_SIZE / 2
+            }}
+            className="absolute flex items-center justify-center rounded-full text-white font-semibold">
+
+            <div
+              className={`w-full h-full rounded-full bg-gradient-to-br ${colors.bg} flex items-center justify-center px-2`}
+              style={{ fontSize: `${getFontSize(curriculumText, 20, CENTER_SIZE)}px`, boxShadow: `0 8px 32px ${colors.shadow}` }}>
+
+              {curriculumText}
+            </div>
+          </div>
+
+          {/* Unit Nodes */}
+          {unitMetas.map((m) => {
+            const pos = polarToXY(center, unitRadius, m.angle);
+            const completionPercent = getUnitCompletionPercent(m.unit.id);
+            return (
+              <div
+                key={m.unit.id}
+                style={{
+                  width: UNIT_SIZE,
+                  height: UNIT_SIZE,
+                  left: pos.x - UNIT_SIZE / 2,
+                  top: pos.y - UNIT_SIZE / 2
+                }}
+                className={`absolute flex flex-col items-center justify-center rounded-full bg-white border-[3px] ${colors.border} ${colors.text} font-semibold shadow-lg`}>
+
+                <div style={{ fontSize: `${getFontSize(m.displayText, 13, UNIT_SIZE)}px` }} className="px-2 text-center leading-tight">
+                  {m.displayText}
+                </div>
+                <div className={`w-14 h-2 ${colors.light} rounded-full overflow-hidden mt-1.5`}>
+                  <div
+                    className={`h-full ${colors.text.replace("text-", "bg-")} rounded-full transition-all duration-500`}
+                    style={{ width: `${completionPercent}%` }} />
+
+                </div>
+              </div>);
+          })}
+
+          {/* Subunit Nodes with Circular Progress */}
+          {unitMetas.map((m) => {
+            const unitPos = polarToXY(center, unitRadius, m.angle);
+            return subunitsWithAngles
+              .filter((s) => s.unitId === m.unit.id)
+              .map((sub) => {
+                const pos = polarToXY(unitPos, sub.rS, sub.angle);
+                const completed = isSubunitCompleted(sub.id);
+                const assigned = isSubunitAssigned(sub.id);
+                const timeProgress = getSubunitTimeProgress(sub.id);
+
+                const isClickable = assigned;
+                const borderColor = completed ? colors.border : assigned ? colors.border.replace("500", "300") : "border-gray-200";
+                const textColor = completed ? colors.text : assigned ? colors.text.replace("600", "500") : "text-gray-300";
+                const opacity = assigned ? 1 : 0.6;
+
+                // Calculate circular progress (starts at top, goes clockwise)
+                const radius = (SUBUNIT_SIZE - 4) / 2;
+                const circumference = 2 * Math.PI * radius;
+                const progressOffset = circumference - timeProgress / 100 * circumference;
+
+                return (
+                  <div
+                    key={sub.id}
+                    style={{
+                      width: SUBUNIT_SIZE,
+                      height: SUBUNIT_SIZE,
+                      left: pos.x - SUBUNIT_SIZE / 2,
+                      top: pos.y - SUBUNIT_SIZE / 2,
+                      opacity,
+                      cursor: isClickable ? "pointer" : "not-allowed"
+                    }}
+                    className="absolute transition-all duration-300 hover:scale-105"
+                    onClick={() => isClickable && onSubunitClick(sub)}>
+
+                    {/* Circular Progress Ring */}
+                    {completed && timeProgress > 0 &&
+                    <svg
+                      className="absolute inset-0 w-full h-full -rotate-90"
+                      style={{ pointerEvents: "none" }}>
+
+                        <circle
+                        cx={SUBUNIT_SIZE / 2}
+                        cy={SUBUNIT_SIZE / 2}
+                        r={radius}
+                        stroke={colors.stroke}
+                        strokeWidth="4"
+                        fill="none"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={progressOffset}
+                        strokeLinecap="round"
+                        className="transition-all duration-1000" />
+
+                      </svg>
+                    }
+
+                    {/* Subunit Content */}
+                    <div
+                      style={{
+                        fontSize: `${getFontSize(sub.displayText, 12, SUBUNIT_SIZE)}px`
+                      }}
+                      className={`w-full h-full flex items-center justify-center rounded-full bg-white border-[2.5px] ${borderColor} ${textColor} font-medium shadow-md px-2`}>
+
+                      {sub.displayText}
+                    </div>
+                  </div>);
+              });
+          })}
         </div>
       </div>
-
-      {/* Unit Nodes */}
-      {unitsWithAngles.map((unit) => {
-        const pos = polarToXY(CENTER, unit.unitRadius, unit.angle);
-        const completionPercent = getUnitCompletionPercent(unit.id);
-        return (
-          <div
-            key={unit.id}
-            style={{
-              width: UNIT_SIZE,
-              height: UNIT_SIZE,
-              left: pos.x - UNIT_SIZE / 2,
-              top: pos.y - UNIT_SIZE / 2
-            }}
-            className={`absolute flex flex-col items-center justify-center rounded-full bg-white border-[3px] ${colors.border} ${colors.text} font-semibold shadow-lg`}>
-
-            <div style={{ fontSize: `${getFontSize(unit.displayText, 13, UNIT_SIZE)}px` }} className="px-2 text-center leading-tight">
-              {unit.displayText}
-            </div>
-            <div className={`w-14 h-2 ${colors.light} rounded-full overflow-hidden mt-1.5`}>
-              <div
-                className={`h-full ${colors.text.replace("text-", "bg-")} rounded-full transition-all duration-500`}
-                style={{ width: `${completionPercent}%` }} />
-
-            </div>
-          </div>);
-
-      })}
-
-      {/* Subunit Nodes with Circular Progress */}
-      {unitsWithAngles.map((unit) => {
-        const unitPos = polarToXY(CENTER, unit.unitRadius, unit.angle);
-        const unitSubunits = subunitsWithAngles.filter((s) => s.unitId === unit.id);
-
-        return unitSubunits.map((sub) => {
-          const pos = polarToXY(unitPos, SUBUNIT_RADIUS, sub.angle);
-          const completed = isSubunitCompleted(sub.id);
-          const assigned = isSubunitAssigned(sub.id);
-          const timeProgress = getSubunitTimeProgress(sub.id);
-
-          const isClickable = assigned;
-          const borderColor = completed ? colors.border : assigned ? colors.border.replace("500", "300") : "border-gray-200";
-          const textColor = completed ? colors.text : assigned ? colors.text.replace("600", "500") : "text-gray-300";
-          const opacity = assigned ? 1 : 0.6;
-
-          // Calculate circular progress (starts at top, goes clockwise)
-          const radius = (SUBUNIT_SIZE - 4) / 2;
-          const circumference = 2 * Math.PI * radius;
-          const progressOffset = circumference - timeProgress / 100 * circumference;
-
-          return (
-            <div
-              key={sub.id}
-              style={{
-                width: SUBUNIT_SIZE,
-                height: SUBUNIT_SIZE,
-                left: pos.x - SUBUNIT_SIZE / 2,
-                top: pos.y - SUBUNIT_SIZE / 2,
-                opacity,
-                cursor: isClickable ? 'pointer' : 'not-allowed'
-              }}
-              className="absolute transition-all duration-300 hover:scale-105"
-              onClick={() => isClickable && onSubunitClick(sub)}>
-
-              {/* Circular Progress Ring */}
-              {completed && timeProgress > 0 &&
-              <svg
-                className="absolute inset-0 w-full h-full -rotate-90"
-                style={{ pointerEvents: 'none' }}>
-
-                  <circle
-                  cx={SUBUNIT_SIZE / 2}
-                  cy={SUBUNIT_SIZE / 2}
-                  r={radius}
-                  stroke={colors.stroke}
-                  strokeWidth="4"
-                  fill="none"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={progressOffset}
-                  strokeLinecap="round"
-                  className="transition-all duration-1000" />
-
-                </svg>
-              }
-              
-              {/* Subunit Content */}
-              <div
-                style={{
-                  fontSize: `${getFontSize(sub.displayText, 12, SUBUNIT_SIZE)}px`
-                }}
-                className={`w-full h-full flex items-center justify-center rounded-full bg-white border-[2.5px] ${borderColor} ${textColor} font-medium shadow-md px-2`}>
-
-                {sub.displayText}
-              </div>
-            </div>);
-
-        });
-      })}
     </div>);
 
 }
