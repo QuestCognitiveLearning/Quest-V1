@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
-import { Music, Flame, FileText, BookOpen, Home, BarChart3, LogOut, ChevronLeft, Circle, Dna, Leaf, Users, Beaker, Sprout, User as UserIcon } from "lucide-react";
+import { Music, BookOpen, Users } from "lucide-react";
 
 import RadialMindmap from "../components/mindmap/RadialMindmap";
 import {
