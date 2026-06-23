@@ -6,7 +6,7 @@
  * Walks the same SelfSessionPhases as the inline Generate experience.
  * On completion, writes scores back to the self-session row and (when
  * review_enabled AND this is the original session, not a review entry)
- * queues 5 future review rows at +1/+3/+7/+14/+30 days.
+ * queues future review rows on the shared spaced-repetition ladder.
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -16,8 +16,7 @@ import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Save, XCircle } from "lucide-react";
 import SelfSessionPhases from "../components/student/SelfSessionPhases";
-
-const REVIEW_OFFSETS = [1, 3, 7, 14, 30];
+import { REVIEW_OFFSETS } from "@/lib/spacedRepetition";
 
 export default function SelfSessionPlay() {
   const navigate = useNavigate();

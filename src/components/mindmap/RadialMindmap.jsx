@@ -1,4 +1,5 @@
 import React from "react";
+import { PASS_THRESHOLD } from "@/lib/spacedRepetition";
 
 // Base node sizes (virtual px). The whole map is scaled to fit the container,
 // so these stay fixed and the layout math below spaces nodes apart based on
@@ -130,7 +131,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
     if (unitSubunits.length === 0) return 0;
     const completed = unitSubunits.filter((sub) => {
       const progress = studentProgress.find((p) => p.subunit_id === sub.id);
-      return progress && progress.new_session_completed === true && (progress.new_session_score || 0) >= 70;
+      return progress && progress.new_session_completed === true && (progress.new_session_score || 0) >= PASS_THRESHOLD;
     }).length;
     return Math.round(completed / unitSubunits.length * 100);
   };
@@ -171,7 +172,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
 
   const isSubunitCompleted = (subunitId) => {
     const progress = studentProgress.find((p) => p.subunit_id === subunitId);
-    return progress && progress.new_session_completed === true && (progress.new_session_score || 0) >= 70;
+    return progress && progress.new_session_completed === true && (progress.new_session_score || 0) >= PASS_THRESHOLD;
   };
 
   const isSubunitAssigned = (subunitId) => {

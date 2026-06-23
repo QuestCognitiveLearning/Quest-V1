@@ -53,6 +53,7 @@ import { generateTryPDF } from "@/lib/pdf/generatePDF";
 import { downloadTryWord } from "@/lib/pdf/generateWord";
 import { createPageUrl } from "@/utils";
 import { GenerationProgress, SessionContentReview } from "@/components/teacher/SessionContentReview";
+import { REVIEW_OFFSETS } from "@/lib/spacedRepetition";
 
 function downloadBlobLocally(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -268,9 +269,8 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
 
   // Persist the student-created session: bundle row + student_self_sessions
   // row (with scheduled date + review-enabled flag). If reviews are enabled
-  // AND the student has already completed it inline, queue 5 review rows
-  // at +1/+3/+7/+14/+30 days.
-  const REVIEW_OFFSETS = [1, 3, 7, 14, 30];
+  // AND the student has already completed it inline, queue review rows on the
+  // shared spaced-repetition ladder.
   const saveStudentSession = async () => {
     if (!isStudent || !user || !result || saving) return;
     setSaving(true);

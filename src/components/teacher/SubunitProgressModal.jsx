@@ -2,6 +2,7 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle } from "lucide-react";
+import { PASS_THRESHOLD } from "@/lib/spacedRepetition";
 
 export default function SubunitProgressModal({ 
   open, 
@@ -64,7 +65,7 @@ export default function SubunitProgressModal({
                         <p className="text-sm text-gray-600">{student.email}</p>
                       </div>
                       {data.score !== null && (
-                        <Badge className={`${data.score >= 70 ? 'bg-green-600' : 'bg-orange-500'} text-white`}>
+                        <Badge className={`${data.score >= PASS_THRESHOLD ? 'bg-green-600' : 'bg-orange-500'} text-white`}>
                           {data.score}%
                         </Badge>
                       )}

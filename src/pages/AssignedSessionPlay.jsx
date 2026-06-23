@@ -22,6 +22,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { PASS_THRESHOLD, gradeLearnSession, gradeReview, addDays } from "@/lib/spacedRepetition";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
@@ -501,25 +502,25 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
       const csScore = csResult?.score ?? null;
       const csMax = csResult?.max ?? null;
 
-      // Spaced repetition schedule — match the SM2-style cadence used by
-      // student_progress for subunits. First completion → 1 day; high
-      // scores stretch faster, low scores compress.
+      // Unified spaced repetition — same engine as curriculum + self sessions.
+      // First completion grades like a learn session; later ones advance the
+      // ladder. (Assigned work isn't a hard gate, so a non-passing first try
+      // still gets a soon nudge rather than blocking.)
       const now = new Date();
-      const interval = quizPct === null
-        ? 2
-        : quizPct >= 85
-          ? 3
-          : quizPct >= 60
-            ? 2
-            : 1; // days
-      const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
-      const urgency = quizPct === null
-        ? "Medium"
-        : quizPct >= 75
-          ? "Low"
-          : quizPct >= 50
-            ? "Medium"
-            : "Critical";
+      const priorCount = completion?.review_count ?? null;
+      let nextReview, urgency, reviewCount;
+      if (quizPct === null) {
+        reviewCount = priorCount ?? 0;
+        nextReview = addDays(2, now);
+        urgency = "Medium";
+      } else {
+        const result = priorCount === null
+          ? gradeLearnSession(quizPct)
+          : gradeReview(quizPct, priorCount);
+        reviewCount = priorCount === null ? 0 : result.reviewCount;
+        nextReview = result.nextReviewDate || addDays(1, now);
+        urgency = result.urgency;
+      }
 
       const row = {
         student_id: user.id,
@@ -537,7 +538,7 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
         completed_at: now.toISOString(),
         next_review_date: nextReview.toISOString(),
         last_review_date: now.toISOString(),
-        review_count: 0,
+        review_count: reviewCount,
         urgency_status: urgency,
       };
 
@@ -1122,7 +1123,7 @@ function ResultsView({
   const overall = components.length
     ? Math.round(components.reduce((a, b) => a + b, 0) / components.length)
     : null;
-  const passed = overall !== null && overall >= 70;
+  const passed = overall !== null && overall >= PASS_THRESHOLD;
 
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-md">

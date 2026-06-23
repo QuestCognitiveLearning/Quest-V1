@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { toast } from "sonner";
+import { PASS_THRESHOLD, gradeReview } from "@/lib/spacedRepetition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -287,7 +288,7 @@ export default function PracticeSession() {
         start_time: sessionStart.toISOString(),
         end_time: sessionEnd.toISOString(),
         total_time_seconds: 10 * 60,
-        completed: finalScore >= 70,
+        completed: finalScore >= PASS_THRESHOLD,
         review_number: reviewNumber,
         score: finalScore
       };
@@ -311,55 +312,41 @@ export default function PracticeSession() {
       });
 
       const currentReviewCount = progress[0]?.review_count || 0;
+      // Unified spaced-repetition engine: pass advances the ladder, borderline
+      // retries this review soon, fail resets the topic to relearn.
+      const review = gradeReview(finalScore, currentReviewCount);
 
-      if (finalScore >= 70) {
-        // Passed — advance the spaced-repetition cycle.
-        const reviewCount = currentReviewCount + 1;
-        // Spaced repetition: 1, 3, 7, 14, 21, 30 days, then every 30 days
-        const reviewIntervals = [1, 3, 7, 14, 21, 30];
-        const daysUntilNext = reviewCount < reviewIntervals.length
-          ? reviewIntervals[reviewCount]
-          : 30; // Every 30 days after the 6th review
-        const nextReviewDate = new Date(Date.now() + daysUntilNext * 24 * 60 * 60 * 1000);
-
-        if (progress.length > 0) {
+      if (progress.length > 0) {
+        const now = new Date().toISOString();
+        if (review.outcome === "pass") {
           await quest.entities.StudentProgress.update(progress[0].id, {
             learned_status: true,
-            last_review_date: new Date().toISOString(),
+            last_review_date: now,
             last_review_score: finalScore,
-            next_review_date: nextReviewDate.toISOString(),
-            review_count: reviewCount,
-            urgency_status: "Low"
+            next_review_date: review.nextReviewDate.toISOString(),
+            review_count: review.reviewCount,
+            urgency_status: review.urgency
           });
-        }
-      } else if (finalScore >= 50) {
-        // Borderline — retry THIS review tomorrow without advancing.
-        const nextReviewDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        if (progress.length > 0) {
+        } else if (review.outcome === "borderline") {
           await quest.entities.StudentProgress.update(progress[0].id, {
-            last_review_date: new Date().toISOString(),
+            last_review_date: now,
             last_review_score: finalScore,
-            next_review_date: nextReviewDate.toISOString(),
-            urgency_status: "Critical"
+            next_review_date: review.nextReviewDate.toISOString(),
+            urgency_status: review.urgency
           });
-        }
-      } else {
-        // Below 50% — the topic isn't retained. Send them back to the learn
-        // session and restart spaced repetition from scratch. The learn
-        // session clears the stale review grades when it's redone.
-        if (progress.length > 0) {
+        } else {
           await quest.entities.StudentProgress.update(progress[0].id, {
             new_session_completed: false,
             learned_status: false,
-            last_review_date: new Date().toISOString(),
+            last_review_date: now,
             last_review_score: finalScore,
-            next_review_date: new Date().toISOString(), // due now
+            next_review_date: review.nextReviewDate.toISOString(),
             review_count: 0,
-            urgency_status: "Critical"
+            urgency_status: review.urgency
           });
         }
       }
-      const mustRedoLearn = finalScore < 50;
+      const mustRedoLearn = review.mustRelearn;
 
       // Clear the resume snapshot — session is done.
       try { clearResume(user.id, subunitId, "review"); } catch { /* ignore */ }
@@ -582,14 +569,14 @@ export default function PracticeSession() {
               <div className="text-center mb-8">
                 <p className="text-6xl font-bold text-[#1A1A1A] mb-2">{finalScore}%</p>
                 <p className="text-sm text-[#1A1A1A]/70" style={{fontWeight: 450}}>
-                  {finalScore >= 70
+                  {finalScore >= PASS_THRESHOLD
                     ? "Great job! You've successfully completed this review"
                     : finalScore >= 50
-                    ? "Close — you need 70% to pass. You'll retry this review soon."
+                    ? "Close — you need 80% to pass. You'll retry this review soon."
                     : "Below 50% — let's relearn this topic from the start, then restart your reviews."}
                 </p>
                 <div className="mt-4 h-2 bg-[#C4B5FD]/20 rounded-full overflow-hidden max-w-md mx-auto">
-                  <div className={`h-full rounded-full ${finalScore >= 70 ? 'bg-[#3B82F6]' : 'bg-red-500'}`} style={{ width: `${finalScore}%` }}></div>
+                  <div className={`h-full rounded-full ${finalScore >= PASS_THRESHOLD ? 'bg-[#3B82F6]' : 'bg-red-500'}`} style={{ width: `${finalScore}%` }}></div>
                 </div>
               </div>
 
@@ -599,12 +586,12 @@ export default function PracticeSession() {
                 <div className="border-t-2 border-[#1A1A1A]/20 pt-4 mt-4">
                   <div className="flex items-center justify-between">
                     <p className="font-semibold text-[#1A1A1A]">Final Score</p>
-                    <p className={`text-3xl font-bold ${finalScore >= 70 ? 'text-[#3B82F6]' : 'text-red-500'}`}>
+                    <p className={`text-3xl font-bold ${finalScore >= PASS_THRESHOLD ? 'text-[#3B82F6]' : 'text-red-500'}`}>
                       {finalScore}%
                     </p>
                   </div>
                   <p className="text-xs text-[#1A1A1A]/50 mt-1">
-                    {finalScore >= 70 ? "Passing (70% required)" : "Below passing threshold (70% required)"}
+                    {finalScore >= PASS_THRESHOLD ? "Passing (80% required)" : "Below passing threshold (80% required)"}
                   </p>
                 </div>
               </div>

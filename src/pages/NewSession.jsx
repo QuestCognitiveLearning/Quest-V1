@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { toast } from "sonner";
+import { PASS_THRESHOLD, gradeLearnSession } from "@/lib/spacedRepetition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -666,13 +667,6 @@ export default function NewSession() {
   // Final score: 60% MC + 40% FRQ
   const finalScore = frqScore !== null ? Math.round(mcPercent * 0.6 + frqPercent * 0.4) : Math.round(mcPercent);
 
-  const calculateNextReviewDate = (reviewCount) => {
-    // Schedule: 1, 3, 7, 14, 21, 30, then 30 days indefinitely
-    const reviewIntervals = [1, 3, 7, 14, 21, 30];
-    const daysUntilNextReview = reviewIntervals[reviewCount] || 30;
-    return new Date(Date.now() + daysUntilNextReview * 24 * 60 * 60 * 1000);
-  };
-
   const handleCompleteSession = async () => {
     if (!user || !subunitId) {
       navigate(createPageUrl("LearningHub"));
@@ -683,8 +677,9 @@ export default function NewSession() {
       const sessionEndTime = new Date();
       const totalTimeSeconds = Math.floor((sessionEndTime - sessionStartTime) / 1000);
       const scorePercent = finalScore;
-      const isCompleted = finalScore >= 70;
-      const nextReviewDate = isCompleted ? calculateNextReviewDate(0) : null;
+      const learn = gradeLearnSession(finalScore);
+      const isCompleted = learn.passed;
+      const nextReviewDate = learn.nextReviewDate;
 
       // Save quiz result
       if (quiz) {
@@ -748,7 +743,7 @@ export default function NewSession() {
         last_review_date: isCompleted ? sessionEndTime.toISOString() : null,
         next_review_date: isCompleted ? nextReviewDate.toISOString() : null,
         review_count: 0,
-        urgency_status: isCompleted ? "Low" : "Medium"
+        urgency_status: learn.urgency
       };
 
       if (existingProgress.length > 0) {
@@ -1131,25 +1126,25 @@ export default function NewSession() {
           <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px]">
             <CardContent className="p-8">
               <div className="flex items-center gap-3 mb-6">
-                {finalScore >= 70 ? (
+                {finalScore >= PASS_THRESHOLD ? (
                   <CheckCircle className="w-6 h-6 text-[#3B82F6]" />
                 ) : (
                   <X className="w-6 h-6 text-red-500" />
                 )}
                 <h2 className="text-xl font-semibold text-[#1A1A1A]">
-                  {finalScore >= 70 ? "Session Complete" : "Session Incomplete"}
+                  {finalScore >= PASS_THRESHOLD ? "Session Complete" : "Session Incomplete"}
                 </h2>
               </div>
 
               <div className="text-center mb-8">
                 <p className="text-6xl font-bold text-[#1A1A1A] mb-2">{finalScore}%</p>
                 <p className="text-sm text-[#1A1A1A]/70" style={{fontWeight: 450}}>
-                  {finalScore >= 70
+                  {finalScore >= PASS_THRESHOLD
                     ? "Great job! Your first review is scheduled for tomorrow"
-                    : "You need 70% or higher to pass. Please redo the lesson."}
+                    : "You need 80% or higher to pass. Please redo the lesson."}
                 </p>
                 <div className="mt-4 h-2 bg-[#C4B5FD]/20 rounded-full overflow-hidden max-w-md mx-auto">
-                  <div className={`h-full rounded-full ${finalScore >= 70 ? 'bg-[#3B82F6]' : 'bg-red-500'}`} style={{ width: `${finalScore}%` }}></div>
+                  <div className={`h-full rounded-full ${finalScore >= PASS_THRESHOLD ? 'bg-[#3B82F6]' : 'bg-red-500'}`} style={{ width: `${finalScore}%` }}></div>
                 </div>
               </div>
 
@@ -1164,7 +1159,7 @@ export default function NewSession() {
                     <p className="text-sm text-[#1A1A1A]/60">{mcCorrect} of {questions.length} correct</p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-2xl font-bold ${mcPercent >= 70 ? 'text-[#3B82F6]' : 'text-red-500'}`}>
+                    <p className={`text-2xl font-bold ${mcPercent >= PASS_THRESHOLD ? 'text-[#3B82F6]' : 'text-red-500'}`}>
                       {Math.round(mcPercent)}%
                     </p>
                     <p className="text-xs text-[#1A1A1A]/50">60% weight</p>
@@ -1189,18 +1184,18 @@ export default function NewSession() {
                 <div className="border-t-2 border-[#1A1A1A]/20 pt-4 mt-4">
                   <div className="flex items-center justify-between">
                     <p className="font-semibold text-[#1A1A1A]">Final Score</p>
-                    <p className={`text-3xl font-bold ${finalScore >= 70 ? 'text-[#3B82F6]' : 'text-red-500'}`}>
+                    <p className={`text-3xl font-bold ${finalScore >= PASS_THRESHOLD ? 'text-[#3B82F6]' : 'text-red-500'}`}>
                       {finalScore}%
                     </p>
                   </div>
                   <p className="text-xs text-[#1A1A1A]/50 mt-1">
-                    {finalScore >= 70 ? "Passing (70% required)" : "Below passing threshold (70% required)"}
+                    {finalScore >= PASS_THRESHOLD ? "Passing (80% required)" : "Below passing threshold (80% required)"}
                   </p>
                 </div>
               </div>
 
 
-              {finalScore >= 70 ? (
+              {finalScore >= PASS_THRESHOLD ? (
                 <Button onClick={() => setShowFeedbackModal(true)} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
                   Return to Learning Hub
                 </Button>

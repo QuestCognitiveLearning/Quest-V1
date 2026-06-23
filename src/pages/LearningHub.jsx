@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
+import { PASS_THRESHOLD } from "@/lib/spacedRepetition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1007,7 +1008,7 @@ export default function LearningHub() {
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-black text-sm">{session.topic}</h3>
                                 <Badge variant="secondary" className="text-xs">{session.type}</Badge>
-                                <Badge className={`text-xs ${session.score >= 70 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{session.score}%</Badge>
+                                <Badge className={`text-xs ${session.score >= PASS_THRESHOLD ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{session.score}%</Badge>
                               </div>
                               <p className="text-xs text-gray-500">{session.unit} • {session.completedDate ? new Date(session.completedDate).toLocaleDateString() : ''}</p>
                             </div>
