@@ -54,9 +54,7 @@ const TABLE_NAME_OVERRIDES = {
   VideoQuestionResponse: "video_question_responses",
   Notification: "notifications",
   UnitImage: "unit_images",
-  Branding: "branding",
   Lead: "leads",
-  ParentReport: "parent_reports",
   GeneratedHandout: "generated_handouts",
   // The newer "learning session" concept (generated handouts assigned to
   // classes) lives in lesson_bundles. It is exposed as LessonBundle here

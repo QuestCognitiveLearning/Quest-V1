@@ -189,12 +189,6 @@ export default function PracticeSession() {
 
 
 
-  const shuffleChoices = (options, correctIndex) => {
-    const shuffledIndices = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
-    const shuffledOptions = shuffledIndices.map(i => options[i]);
-    const newCorrectIndex = shuffledIndices.indexOf(correctIndex);
-    return { options: shuffledOptions, correctIndex: newCorrectIndex };
-  };
 
   // Use database questions with randomized selection
   const questions = React.useMemo(() => {

@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Download, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { downloadPDF } from "@/lib/pdf/generatePDF";
-import { quest } from "@/api/questClient";
 
 export default function DownloadPDFButton({
   type,
@@ -20,23 +19,7 @@ export default function DownloadPDFButton({
     if (loading) return;
     setLoading(true);
     try {
-      let branding = brandingProp;
-      if (branding === undefined) {
-        try {
-          const me = await quest.auth.me();
-          if (me?.id) {
-            const rows = await quest.entities.Branding?.filter?.(
-              { user_id: me.id },
-              "-updated_at",
-              1
-            );
-            branding = (rows || [])[0] || undefined;
-          }
-        } catch {
-          branding = undefined;
-        }
-      }
-      await downloadPDF({ type, contentId, branding, data, label });
+      await downloadPDF({ type, contentId, branding: brandingProp, data, label });
       toast.success("PDF downloaded");
     } catch (err) {
       console.error("PDF generation failed:", err);
