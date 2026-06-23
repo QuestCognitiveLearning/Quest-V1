@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { loadStudentClasses } from "@/lib/studentClasses";
 import { quest } from "@/api/questClient";
 import { Music, BookOpen, Users } from "lucide-react";
 
@@ -125,25 +126,11 @@ export default function KnowledgeMap() {
           );
       }
 
-      const enrollmentsData = await quest.entities.StudentEnrollment.filter({ student_id: currentUser.id });
-      setEnrollments(enrollmentsData);
-      setHasClass(enrollmentsData.length > 0);
-
-      if (enrollmentsData.length > 0) {
-        const classesData = await Promise.all(
-          enrollmentsData.map((e) => quest.entities.Class.filter({ id: e.class_id }).then((c) => c[0]))
-        );
-        const validClasses = classesData.filter(Boolean);
-        setClasses(validClasses);
-
-        const savedClassId = localStorage.getItem('selectedClassId');
-        if (savedClassId && validClasses.some((c) => c.id === savedClassId)) {
-          setSelectedClassId(savedClassId);
-        } else if (validClasses.length > 0) {
-          setSelectedClassId(validClasses[0].id);
-          localStorage.setItem('selectedClassId', validClasses[0].id);
-        }
-      }
+      const { enrollments, classes, selectedClassId } = await loadStudentClasses(currentUser);
+      setEnrollments(enrollments);
+      setHasClass(enrollments.length > 0);
+      setClasses(classes);
+      if (selectedClassId) setSelectedClassId(selectedClassId);
     } catch (err) {
       console.error("Failed to load data:", err);
     } finally {

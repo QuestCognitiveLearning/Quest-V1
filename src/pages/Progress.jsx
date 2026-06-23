@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { calculateDayStreak } from "@/lib/streak";
+import { loadStudentClasses } from "@/lib/studentClasses";
 import { quest } from "@/api/questClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,25 +79,13 @@ export default function Progress() {
      localStorage.setItem('currentUser', JSON.stringify(currentUser));
      setUser(currentUser);
 
-     const enrollmentsData = await quest.entities.StudentEnrollment.filter({ student_id: currentUser.id });
-     setEnrollments(enrollmentsData);
-     setHasClass(enrollmentsData.length > 0);
+     const { enrollments, classes, selectedClassId } = await loadStudentClasses(currentUser);
+     setEnrollments(enrollments);
+     setHasClass(enrollments.length > 0);
+     setClasses(classes);
+     if (selectedClassId) setSelectedClassId(selectedClassId);
 
-     if (enrollmentsData.length > 0) {
-       const allClasses = await quest.entities.Class.list();
-       const classesData = enrollmentsData
-         .map(e => allClasses.find(c => c.id === e.class_id))
-         .filter(Boolean);
-       setClasses(classesData);
-
-       const savedClassId = localStorage.getItem('selectedClassId');
-       if (savedClassId && enrollmentsData.some(e => e.class_id === savedClassId)) {
-         setSelectedClassId(savedClassId);
-       } else {
-         setSelectedClassId(enrollmentsData[0].class_id);
-         localStorage.setItem('selectedClassId', enrollmentsData[0].class_id);
-       }
-
+     if (enrollments.length > 0) {
        // Load achievements
        const achievementsData = await quest.entities.Achievement.filter({ student_id: currentUser.id });
        setAchievements(achievementsData);

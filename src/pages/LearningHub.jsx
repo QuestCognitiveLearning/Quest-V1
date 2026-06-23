@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { calculateDayStreak } from "@/lib/streak";
+import { loadStudentClasses } from "@/lib/studentClasses";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import { PASS_THRESHOLD } from "@/lib/spacedRepetition";
@@ -125,25 +126,13 @@ export default function LearningHub() {
         setSelfSessions([]);
       }
 
-      const enrollmentsData = await quest.entities.StudentEnrollment.filter({ student_id: currentUser.id });
-      setEnrollments(enrollmentsData);
-      setHasClass(enrollmentsData.length > 0);
+      const { enrollments, classes, selectedClassId } = await loadStudentClasses(currentUser);
+      setEnrollments(enrollments);
+      setHasClass(enrollments.length > 0);
+      setClasses(classes);
+      if (selectedClassId) setSelectedClassId(selectedClassId);
 
-      if (enrollmentsData.length > 0) {
-        const allClasses = await quest.entities.Class.list();
-        const validClasses = enrollmentsData
-          .map(e => allClasses.find(c => c.id === e.class_id))
-          .filter(Boolean);
-        setClasses(validClasses);
-        
-        const savedClassId = localStorage.getItem('selectedClassId');
-        if (savedClassId && validClasses.some(c => c.id === savedClassId)) {
-          setSelectedClassId(savedClassId);
-        } else if (validClasses.length > 0) {
-          setSelectedClassId(validClasses[0].id);
-          localStorage.setItem('selectedClassId', validClasses[0].id);
-        }
-
+      if (enrollments.length > 0) {
         const progressData = await quest.entities.StudentProgress.filter({ student_id: currentUser.id });
         setStudentProgress(progressData);
       }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { loadStudentClasses } from "@/lib/studentClasses";
 import { quest } from "@/api/questClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,24 +61,20 @@ export default function Classes() {
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
       setUser(currentUser);
 
-      const enrollmentsData = await quest.entities.StudentEnrollment.filter({ student_id: currentUser.id });
-      setEnrollments(enrollmentsData);
+      const { enrollments, classes, selectedClassId } = await loadStudentClasses(currentUser);
+      setEnrollments(enrollments);
 
-      if (enrollmentsData.length > 0) {
-        const [allClasses, allCurricula, progressData, allUnits, allSubunits] = await Promise.all([
-          quest.entities.Class.list(),
+      if (enrollments.length > 0) {
+        const [allCurricula, progressData, allUnits, allSubunits] = await Promise.all([
           quest.entities.Curriculum.list(),
           quest.entities.StudentProgress.filter({ student_id: currentUser.id }),
           quest.entities.Unit.list(),
           quest.entities.Subunit.list()
         ]);
-        
-        const classesData = enrollmentsData
-          .map(e => allClasses.find(c => c.id === e.class_id))
-          .filter(Boolean);
-        setClasses(classesData);
 
-        const curriculaIds = [...new Set(classesData.map(c => c.curriculum_id))];
+        setClasses(classes);
+
+        const curriculaIds = [...new Set(classes.map(c => c.curriculum_id))];
         const curriculaData = curriculaIds
           .map(id => allCurricula.find(c => c.id === id))
           .filter(Boolean);
@@ -86,13 +83,7 @@ export default function Classes() {
         setUnits(allUnits);
         setSubunits(allSubunits);
 
-        const savedClassId = localStorage.getItem('selectedClassId');
-        if (savedClassId && classesData.some(c => c.id === savedClassId)) {
-          setSelectedClassId(savedClassId);
-        } else if (classesData.length > 0) {
-          setSelectedClassId(classesData[0].id);
-          localStorage.setItem('selectedClassId', classesData[0].id);
-        }
+        if (selectedClassId) setSelectedClassId(selectedClassId);
       }
     } catch (err) {
       console.error("Failed to load data:", err);
