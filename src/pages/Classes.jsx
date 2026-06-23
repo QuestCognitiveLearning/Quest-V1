@@ -34,7 +34,6 @@ export default function Classes() {
   const [studentProgress, setStudentProgress] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [learnedTopics, setLearnedTopics] = useState(0);
-  const [dayStreak, setDayStreak] = useState(0);
   const [subunits, setSubunits] = useState([]);
   const [units, setUnits] = useState([]);
 
@@ -48,38 +47,6 @@ export default function Classes() {
     }
   }, [selectedClassId, user, classes, studentProgress]);
 
-  const calculateDayStreak = (sessions) => {
-    if (sessions.length === 0) return 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const sessionDates = sessions
-      .map(s => {
-        const date = new Date(s.start_time);
-        date.setHours(0, 0, 0, 0);
-        return date.getTime();
-      })
-      .filter((date, index, self) => self.indexOf(date) === index)
-      .sort((a, b) => b - a);
-    if (sessionDates.length === 0) return 0;
-    const mostRecentDate = sessionDates[0];
-    const daysSinceRecent = Math.floor((today.getTime() - mostRecentDate) / (1000 * 60 * 60 * 24));
-    if (daysSinceRecent > 1) return 0;
-    let streak = 0;
-    let expectedDate = today.getTime();
-    if (daysSinceRecent === 1) {
-      expectedDate = today.getTime() - (1000 * 60 * 60 * 24);
-    }
-    for (const sessionDate of sessionDates) {
-      const diff = Math.floor((expectedDate - sessionDate) / (1000 * 60 * 60 * 24));
-      if (diff === 0) {
-        streak++;
-        expectedDate = sessionDate - (1000 * 60 * 60 * 24);
-      } else if (diff > 0) {
-        break;
-      }
-    }
-    return streak;
-  };
 
   const loadData = async () => {
     try {
@@ -298,7 +265,6 @@ export default function Classes() {
       const classLearningSessions = allLearningSessions.filter(session =>
           classSubunitIds.includes(session.subunit_id)
       );
-      setDayStreak(calculateDayStreak(classLearningSessions));
 
     } catch (err) {
       console.error("Failed to load class data for sidebar:", err);

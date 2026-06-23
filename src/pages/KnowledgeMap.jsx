@@ -37,7 +37,6 @@ export default function KnowledgeMap() {
   const [subunits, setSubunits] = useState([]);
   const [studentProgress, setStudentProgress] = useState([]);
   const [user, setUser] = useState(null);
-  const [dayStreak, setDayStreak] = useState(0);
   const [learnedTopics, setLearnedTopics] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [assignments, setAssignments] = useState([]);
@@ -184,53 +183,12 @@ export default function KnowledgeMap() {
         ).length;
         setLearnedTopics(learned);
 
-        const sessions = await quest.entities.LearningSession.filter({ student_id: user.id, completed: true }, "-start_time");
-        const streak = calculateDayStreak(sessions);
-        setDayStreak(streak);
       }
     } catch (err) {
       console.error("Failed to load class data:", err);
     }
   };
 
-  const calculateDayStreak = (sessions) => {
-    if (sessions.length === 0) return 0;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const sessionDates = sessions.
-    map((s) => {
-      const date = new Date(s.start_time);
-      date.setHours(0, 0, 0, 0);
-      return date.getTime();
-    }).
-    filter((date, index, self) => self.indexOf(date) === index).
-    sort((a, b) => b - a);
-
-    if (sessionDates.length === 0) return 0;
-
-    const mostRecentDate = sessionDates[0];
-    const daysSinceRecent = Math.floor((today.getTime() - mostRecentDate) / (1000 * 60 * 60 * 24));
-
-    if (daysSinceRecent > 1) return 0;
-
-    let streak = 0;
-    let expectedDate = today.getTime();
-
-    for (const sessionDate of sessionDates) {
-      const diff = Math.floor((expectedDate - sessionDate) / (1000 * 60 * 60 * 24));
-
-      if (diff === 0 || diff === 1) {
-        streak++;
-        expectedDate = sessionDate;
-      } else {
-        break;
-      }
-    }
-
-    return streak;
-  };
 
   const handleSignOut = () => {
     quest.auth.logout();

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { calculateDayStreak } from "@/lib/streak";
 import { quest } from "@/api/questClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -181,38 +182,6 @@ export default function Progress() {
 
 
 
-  const calculateDayStreak = (sessions) => {
-    if (sessions.length === 0) return 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const sessionDates = sessions
-      .map(s => {
-        const date = new Date(s.start_time);
-        date.setHours(0, 0, 0, 0);
-        return date.getTime();
-      })
-      .filter((date, index, self) => self.indexOf(date) === index)
-      .sort((a, b) => b - a);
-    if (sessionDates.length === 0) return 0;
-    const mostRecentDate = sessionDates[0];
-    const daysSinceRecent = Math.floor((today.getTime() - mostRecentDate) / (1000 * 60 * 60 * 24));
-    if (daysSinceRecent > 1) return 0;
-    let streak = 0;
-    let expectedDate = today.getTime();
-    if (daysSinceRecent === 1) {
-      expectedDate = today.getTime() - (1000 * 60 * 60 * 24);
-    }
-    for (const sessionDate of sessionDates) {
-      const diff = Math.floor((expectedDate - sessionDate) / (1000 * 60 * 60 * 24));
-      if (diff === 0) {
-        streak++;
-        expectedDate = sessionDate - (1000 * 60 * 60 * 24);
-      } else if (diff > 0) {
-        break;
-      }
-    }
-    return streak;
-  };
 
   const getWeeklyActivity = (sessions) => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
