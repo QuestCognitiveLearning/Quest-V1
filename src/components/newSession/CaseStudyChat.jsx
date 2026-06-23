@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { quest } from "@/api/questClient";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Send, Sparkles } from "lucide-react";
 import { invokeLLM } from "@/components/utils/openai";

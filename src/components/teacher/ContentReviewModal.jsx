@@ -11,7 +11,6 @@ import QuestionEditor from "./QuestionEditor";
 import MathEditorButton from "./MathEditorButton";
 import MathEquationModal from "./MathEquationModal";
 import { useMathEditor } from "@/hooks/useMathEditor";
-import { createPageUrl } from "@/utils";
 import { generateImage } from "@/components/utils/openai";
 import { translateTranscriptWithCache, isEnglish } from "@/components/utils/translator";
 

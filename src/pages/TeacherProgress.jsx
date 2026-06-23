@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, CheckCircle, Clock, BarChart3 } from "lucide-react";
+import { Users, CheckCircle, Clock } from "lucide-react";
 
 export default function TeacherProgress({ selectedClassId: propClassId }) {
   const [teacher, setTeacher] = useState(null);

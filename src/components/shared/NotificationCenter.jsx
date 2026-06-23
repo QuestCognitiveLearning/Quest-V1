@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { quest } from "@/api/questClient";
-import { Bell, X, AlertCircle, CheckCircle2, BookOpen, Sparkles, ArrowRight } from "lucide-react";
+import { Bell, X, CheckCircle2, BookOpen, Sparkles, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function NotificationCenter() {

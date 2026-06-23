@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import TeacherLayout from "../components/teacher/TeacherLayout";
-import { Crown, Calendar, CreditCard, AlertCircle, Loader2, CheckCircle } from "lucide-react";
+import { Crown, Calendar, CreditCard, AlertCircle, Loader2 } from "lucide-react";
 
 export default function TeacherSettings() {
   const navigate = useNavigate();

@@ -22,7 +22,7 @@ import { quest } from "@/api/questClient";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ChevronLeft, Video, CheckCircle, Clock, Sparkles, Zap, BookOpen, ClipboardList, RefreshCw, FileText, Paperclip } from "lucide-react";
+import { Loader2, ChevronLeft, Video, CheckCircle, Clock, Sparkles, Zap, BookOpen, Paperclip } from "lucide-react";
 import VideoOnlyModal from "@/components/teacher/VideoOnlyModal";
 import ContentReviewModal from "@/components/teacher/ContentReviewModal";
 import { invokeLLM, generateImage } from "@/components/utils/openai";

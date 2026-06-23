@@ -15,7 +15,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
 import {
   Loader2,
   Trophy,

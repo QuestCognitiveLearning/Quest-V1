@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Page, Text, View } from "@react-pdf/renderer";
-import { styles, COLORS, SIZES } from "../shared/styles.js";
+import { styles, COLORS } from "../shared/styles.js";
 import Cover from "../shared/Cover.jsx";
 import Footer from "../shared/Footer.jsx";
 

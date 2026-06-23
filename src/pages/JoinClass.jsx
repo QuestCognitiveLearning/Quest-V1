@@ -5,7 +5,7 @@ import { quest } from "@/api/questClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Sparkles, CheckCircle } from "lucide-react";
+import { Users, Sparkles } from "lucide-react";
 import NotificationModal from "../components/shared/NotificationModal";
 import { useNotification } from "../components/shared/useNotification";
 

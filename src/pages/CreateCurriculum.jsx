@@ -9,7 +9,7 @@ import CurriculumMethodChooser from "@/components/teacher/CurriculumMethodChoose
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, BookOpen, CheckCircle, Plus, Trash2, ChevronLeft, PencilLine, GraduationCap } from "lucide-react";
+import { Loader2, BookOpen, CheckCircle, Plus, Trash2, ChevronLeft } from "lucide-react";
 
 export default function CreateCurriculum() {
   const navigate = useNavigate();
