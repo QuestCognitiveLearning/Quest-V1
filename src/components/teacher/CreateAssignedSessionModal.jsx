@@ -173,10 +173,14 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
           try {
             const { invokeLLM, generateImage } = await import("@/components/utils/openai");
             const { LLM_MODELS } = await import("@/lib/llmModels");
+            const inqTranscript = String(base?.transcript || "").slice(0, 8000);
             const inq = await invokeLLM({
               model: LLM_MODELS.INQUIRY_CONTENT,
               prompt:
-                `Create a curiosity hook for the topic "${title}". The student has NOT learned this concept yet — the hook question should be answerable through intuition.\n\n` +
+                `Create a curiosity hook for the topic "${title}". The student has NOT watched the video yet — the hook question should point at the core idea the video will teach but stay answerable through intuition (never require a fact only revealed in the video).\n\n` +
+                (inqTranscript
+                  ? `Use this video transcript as CONTEXT for what the lesson actually teaches, so the hook and discussion lead directly into the concepts the video covers, at the depth it treats them:\n"""\n${inqTranscript}\n"""\n\n`
+                  : "") +
                 `Return strict JSON:\n` +
                 `{ "hook_image_prompt": "Real-world cartoon illustration of ${title}. Style: cartoon-realistic, minimal, soft pastel, clean thin outlines, white background only, single centered scenario, no text or labels, 1792×1024.",` +
                 ` "hook_question": "(8-18 words) intuition-answerable question about ${title}",` +

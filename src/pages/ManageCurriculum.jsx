@@ -295,14 +295,26 @@ export default function ManageCurriculum() {
       
       // If video already has a transcript stored (text or URL), resolve to text.
       const existingTranscript = await resolveTranscript(video.video_transcript);
+      const hasRealTranscript = !!((fetchedTranscript && fetchedTranscript.length > 0) || (existingTranscript && existingTranscript.length > 0));
       let videoTranscript = fetchedTranscript || existingTranscript || `Educational video about ${subunit.subunit_name}`;
 
       // Append any PDF context the teacher attached for this subunit.
       const pdfContextText = pdfContextBySubunit?.[subunit.id];
-      if (pdfContextText && pdfContextText.length > 50) {
+      const hasPdfContext = !!(pdfContextText && pdfContextText.length > 50);
+      if (hasPdfContext) {
         const pdfBudget = 12000;
         videoTranscript = `${videoTranscript}\n\n--- ADDITIONAL CONTEXT FROM TEACHER-ATTACHED PDF ---\n${pdfContextText.slice(0, pdfBudget)}`;
         console.log("[GENERATION] Merged PDF context. Combined source length:", videoTranscript.length);
+      }
+
+      // No real source material → generation can only lean on the topic name,
+      // so the quiz/case study/inquiry may not match the actual video. Warn the
+      // teacher so they can add captions or attach a PDF.
+      if (!hasRealTranscript && !hasPdfContext) {
+        toast.warning(
+          `No transcript found for "${subunit.subunit_name}". Content will be based only on the topic name and may not match the video — add captions to the video or attach a PDF for video-specific questions.`,
+          { duration: 10000 }
+        );
       }
       const videoDuration = video.duration_seconds || 600;
       
@@ -361,9 +373,16 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
         Topic: "${subunit.subunit_name}"
         Learning Standard: "${subunit.learning_standard || 'Not specified'}"
 
-        Create a curiosity hook for this topic. IMPORTANT: The student has NOT learned this concept yet - they are encountering it for the first time. The hook question should relate directly to the topic but be answerable through intuition, prior knowledge, or everyday experience.
+        Use this video transcript as CONTEXT for what the lesson actually teaches. Craft the introduction (hook) and the discussion so they lead directly into the specific concepts this video covers, at the depth the video treats them:
+        """
+        ${videoTranscript}
+        """
 
-        The hook_image_prompt should show the ACTUAL REAL-WORLD application or example of "${subunit.subunit_name}" (not an analogy). Show what this concept looks like in real life.
+        Create a curiosity hook for this topic. IMPORTANT: The student has NOT watched the video yet - they are encountering these concepts for the first time. The hook question must point at the core idea the video will teach (per the transcript), but stay answerable through intuition, prior knowledge, or everyday experience — never require a fact that is only revealed in the video.
+
+        The hook_image_prompt should show the ACTUAL REAL-WORLD application or example of "${subunit.subunit_name}" as it appears in the video (not an analogy). Show what this concept looks like in real life.
+
+        The socratic discussion (socratic_system_prompt + tutor_first_message) should steer the student toward the specific concepts the transcript covers, so that when they watch, the video answers the very questions they were just wondering about.
 
         Return strict JSON:
         {
@@ -399,12 +418,22 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
           model: LLM_MODELS.QUIZ_GENERATION,
           prompt: `LANGUAGE: ALL output (every question and every answer choice) must be in clear, natural English. If the source material is in another language, translate the concepts into English — never output non-English text.
 
-Based on the topic "${subunit.subunit_name}" and learning standard "${subunit.learning_standard || 'Not specified'}", create 40 diverse multiple-choice quiz questions organized by difficulty.
+Create 40 multiple-choice quiz questions about the topic "${subunit.subunit_name}" (learning standard: "${subunit.learning_standard || 'Not specified'}").
 
-DIFFICULTY DISTRIBUTION:
-- 15 EASY questions (basic recall and understanding)
-- 15 MEDIUM questions (application and analysis)
-- 10 HARD questions (synthesis, evaluation, complex scenarios)
+Base EVERY question strictly on the concepts taught in this video transcript:
+"""
+${videoTranscript}
+"""
+
+GROUNDING RULES (apply to all 40 questions):
+- Every question must APPLY a concept the video actually teaches — never test recall of an isolated fact, date, name, or definition, and never introduce material the video does not cover.
+- Match the depth at which the video explains each concept. Do not go shallower (trivia) or deeper (advanced content beyond the video).
+- Difficulty varies only SLIGHTLY across the set: all 40 questions are application-level at the video's depth, differing only in how the concepts are applied (see distribution below).
+
+DIFFICULTY DISTRIBUTION (all application-level, varying only slightly):
+- 15 EASY questions (order 1-15): apply ONE concept from the video directly to a straightforward case.
+- 15 MEDIUM questions (order 16-30): combine two or more of the video's concepts, or apply one with a small twist.
+- 10 HARD questions (order 31-40): apply the video's concepts to a NEW situation not shown in the video (same depth, fresh context).
 
 Return a JSON object with exactly this structure:
 {
@@ -456,9 +485,17 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
           model: LLM_MODELS.CASE_STUDY_GENERATION,
           prompt: `LANGUAGE: ALL output (the scenario, every question, and every expected answer) must be in clear, natural English. If the source material is in another language, translate the concepts into English — never output non-English text.
 
-Create a case study for "${subunit.subunit_name}" with 4 free-response questions and expected answers.
+Create a case study for the topic "${subunit.subunit_name}" with 4 free-response questions and expected answers.
 
-Context: ${videoTranscript}
+Base it strictly on the concepts taught in this video transcript:
+"""
+${videoTranscript}
+"""
+
+REQUIREMENTS:
+- The scenario must APPLY the video's central concept(s) to a NEW, realistic situation not shown in the video — never restate the video or ask students to merely recall it.
+- Match the depth at which the video explains these concepts; do not require knowledge the video did not cover.
+- The four questions vary only slightly in difficulty: (a) applies one concept directly, (b) applies another concept or combines two, (c) extends to a changed condition, (d) asks the student to evaluate or critique a claim using the video's concepts.
 
 Return JSON:
 {

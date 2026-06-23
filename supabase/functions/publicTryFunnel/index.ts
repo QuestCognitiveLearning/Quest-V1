@@ -116,14 +116,26 @@ async function generateQuizAndCaseStudy(
     ? `Target audience: students at ${gradeLabel}. Calibrate vocabulary and complexity accordingly.`
     : 'Target audience: high school students.';
 
-  const difficultyLine = {
-    easy: 'Questions should test recall and basic comprehension of explicitly stated facts.',
-    medium: 'Questions should test comprehension, application, and light reasoning. Mix recall with inference.',
-    hard: 'Questions should test deeper reasoning, application to novel situations, and synthesis across multiple parts of the video.',
-  }[difficulty];
+  // Every question is an APPLICATION of what the video teaches, at the video's
+  // own depth — never recall/trivia, never material beyond the video. The
+  // difficulty knob only shifts where the set is centered; questions still vary
+  // just slightly along the application ladder below.
+  const difficultyLadder =
+    'DIFFICULTY: Every question must APPLY a concept the video actually teaches — never test recall of an isolated fact, date, name, or definition, and never introduce anything the video does not cover. Match the depth at which the video explains each idea (no shallower, no deeper). Vary difficulty only SLIGHTLY across the set, along this ladder:\n' +
+    "- easier: apply ONE concept from the video directly to a straightforward case.\n" +
+    "- moderate: combine two or more of the video's concepts, or apply one with a small twist.\n" +
+    "- harder: apply the video's concepts to a NEW situation not shown in the video (same depth, fresh context).";
+
+  const emphasis = ({
+    easy: 'Center the set on the "easier" rung, with a few "moderate" questions for slight variation.',
+    medium: 'Spread the questions evenly across the three rungs, centered on "moderate".',
+    hard: 'Center the set on the "harder" rung, with a few "moderate" questions for slight variation.',
+  } as Record<string, string>)[difficulty] ?? 'Spread the questions evenly across the three rungs.';
+
+  const difficultyLine = `${difficultyLadder}\n${emphasis}`;
 
   const caseStudyTask = includeCaseStudy
-    ? `\n\n2. A "case study" / discussion scenario. One realistic short scenario (3–6 sentences) that applies the video's central concept to a new situation, followed by 4 open-ended discussion questions a teacher can pose to students.`
+    ? `\n\n2. A "case study" / discussion scenario. Write ONE realistic short scenario (3–6 sentences) that applies the video's central concept(s) to a NEW situation not shown in the video, pitched at the same depth the video explains them. Follow it with 4 open-ended discussion questions that push students to APPLY those concepts (not merely recall them).`
     : '\n\n(Case study omitted at user request — return case_study with empty scenario and an empty discussion_questions array.)';
 
   const prompt = `You are a curriculum designer creating a printable classroom handout based on a YouTube video.
@@ -137,9 +149,10 @@ ${trimmed || '(No video transcript supplied. Use the PDF excerpt below as your s
 ${pdfSection}
 
 YOUR TASK:
-Produce ${includeCaseStudy ? 'TWO things' : 'ONE thing'}, both grounded only in the transcript above:
+Produce ${includeCaseStudy ? 'TWO things' : 'ONE thing'}, grounded strictly in the video transcript above:
 
-1. A ${count}-question multiple-choice quiz. Each question has 4 choices (A–D) and exactly one correct answer. ${difficultyLine} Do not include trivia from outside the transcript.${caseStudyTask}
+1. A ${count}-question multiple-choice quiz. Each question has 4 choices (A–D) and exactly one correct answer.
+${difficultyLine}${caseStudyTask}
 
 LANGUAGE: Write all output in clear English regardless of the transcript language.
 

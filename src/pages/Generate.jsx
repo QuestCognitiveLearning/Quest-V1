@@ -531,6 +531,13 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
       const { invokeLLM, generateImage } = await import("@/components/utils/openai");
       const { LLM_MODELS } = await import("@/lib/llmModels");
 
+      // Transcript context so the hook + discussion lead into what the video
+      // actually teaches (not just the title).
+      const inquiryTranscript = (baseData?.timestamped_segments || [])
+        .map((s) => s.text || "")
+        .join(" ")
+        .slice(0, 8000);
+
       tasks.push(
         (async () => {
           try {
@@ -544,10 +551,17 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
 
         Topic: "${topic}"
         Learning Standard: "Not specified"
+${inquiryTranscript ? `
+        Use this video transcript as CONTEXT for what the lesson actually teaches. Craft the introduction (hook) and the discussion so they lead directly into the specific concepts this video covers, at the depth the video treats them:
+        """
+        ${inquiryTranscript}
+        """
+` : ""}
+        Create a curiosity hook for this topic. IMPORTANT: The student has NOT watched the video yet - they are encountering these concepts for the first time. The hook question must point at the core idea the video will teach, but stay answerable through intuition, prior knowledge, or everyday experience — never require a fact that is only revealed in the video.
 
-        Create a curiosity hook for this topic. IMPORTANT: The student has NOT learned this concept yet - they are encountering it for the first time. The hook question should relate directly to the topic but be answerable through intuition, prior knowledge, or everyday experience.
+        The hook_image_prompt should show the ACTUAL REAL-WORLD application or example of "${topic}" as it appears in the video (not an analogy). Show what this concept looks like in real life.
 
-        The hook_image_prompt should show the ACTUAL REAL-WORLD application or example of "${topic}" (not an analogy). Show what this concept looks like in real life.
+        The socratic discussion (socratic_system_prompt + tutor_first_message) should steer the student toward the specific concepts the transcript covers, so that when they watch, the video answers the very questions they were just wondering about.
 
         Return strict JSON:
         {
