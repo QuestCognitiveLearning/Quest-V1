@@ -15,7 +15,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { quest } from "@/api/questClient";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, extractYouTubeId } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -113,19 +113,6 @@ function phaseReadiness(key, ctx) {
     default:
       return { ready: false, summary: "", hint: "" };
   }
-}
-
-function extractYouTubeId(url) {
-  if (!url) return null;
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /^([a-zA-Z0-9_-]{11})$/,
-  ];
-  for (const p of patterns) {
-    const m = url.match(p);
-    if (m) return m[1];
-  }
-  return null;
 }
 
 export default function LiveSessionBuilder() {

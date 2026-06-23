@@ -319,7 +319,6 @@ async function invokeFunction(name, payload = {}) {
 const integrations = {
   Core: {
     InvokeLLM: (args) => invokeFunction("invokeLLM", args).then((r) => r.data),
-    SendEmail: (args) => invokeFunction("sendEmail", args).then((r) => r.data),
     UploadFile: async ({ file }) => {
       const path = `uploads/${Date.now()}_${file.name}`;
       const { error } = await supabase.storage

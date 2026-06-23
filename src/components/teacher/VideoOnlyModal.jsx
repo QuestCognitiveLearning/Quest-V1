@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { quest } from "@/api/questClient";
 import { toast } from "sonner";
+import { extractYouTubeId as extractYouTubeVideoId } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -92,19 +93,6 @@ Description: ${description}`,
     const minutes = (parseInt(match[2]) || 0);
     const seconds = (parseInt(match[3]) || 0);
     return hours * 3600 + minutes * 60 + seconds;
-  };
-
-  const extractYouTubeVideoId = (url) => {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /^([a-zA-Z0-9_-]{11})$/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) return match[1];
-    }
-    return null;
   };
 
   const handleSelectVideo = async (video) => {

@@ -7,7 +7,6 @@
 
 import './App.css';
 import { Suspense } from 'react';
-import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import { ConfirmRoot } from '@/lib/confirm';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -26,9 +25,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
-const { Pages, Layout, mainPage } = pagesConfig;
-const mainPageKey = mainPage ?? Object.keys(Pages)[0];
-const MainPage = mainPageKey ? Pages[mainPageKey] : null;
+const { Pages, Layout } = pagesConfig;
 
 // Pages reachable without a signed-in user. Anything not in this list goes
 // through RequireAuth and gets redirected to /SignIn when unauthenticated.
@@ -173,7 +170,6 @@ export default function App() {
           <NavigationTracker />
           <AuthenticatedApp />
         </Router>
-        <Toaster />
         <SonnerToaster richColors closeButton position="top-center" />
         <ConfirmRoot />
         <VisualEditAgent />

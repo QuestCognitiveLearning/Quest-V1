@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, extractYouTubeId } from "@/utils";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
@@ -30,18 +30,6 @@ import {
   Youtube,
 } from "lucide-react";
 import { GenerationProgress, SessionContentReview } from "@/components/teacher/SessionContentReview";
-
-function extractYouTubeId(url) {
-  if (!url) return null;
-  for (const re of [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /^([a-zA-Z0-9_-]{11})$/,
-  ]) {
-    const m = url.match(re);
-    if (m) return m[1];
-  }
-  return null;
-}
 
 export default function CreateAssignedSessionModal({ open, onClose }) {
   const navigate = useNavigate();

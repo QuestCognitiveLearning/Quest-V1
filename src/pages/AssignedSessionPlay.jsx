@@ -21,7 +21,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl, extractYouTubeId as extractVideoId } from "@/utils";
 import { PASS_THRESHOLD, gradeLearnSession, gradeReview, addDays } from "@/lib/spacedRepetition";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
@@ -45,21 +45,6 @@ import {
 const LETTERS = ["A", "B", "C", "D"];
 
 // Pull the 11-char YouTube ID out of whatever the payload has.
-function extractVideoId(input) {
-  if (!input) return null;
-  if (typeof input === "string" && /^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
-  const url = typeof input === "string" ? input : "";
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /^([a-zA-Z0-9_-]{11})$/,
-  ];
-  for (const p of patterns) {
-    const m = url.match(p);
-    if (m) return m[1];
-  }
-  return null;
-}
-
 export default function AssignedSessionPlay() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
