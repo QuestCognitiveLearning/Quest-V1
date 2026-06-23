@@ -39,6 +39,49 @@ function subLayoutFor(m) {
   return { rS, step, arc, halfWidth };
 }
 
+// Leading filler we drop when shortening a title (never drop the whole thing).
+const LABEL_STOP = new Set([
+  "the", "a", "an", "and", "or", "of", "to", "with", "for", "in", "on", "&",
+  "its", "intro", "introduction", "basics", "basic", "overview",
+  "fundamentals", "general", "understanding"
+]);
+
+// Turn a unit/subunit title into a short label that actually describes the
+// topic — not just its first (often generic) word. Strips "Unit 1:" / numbering
+// prefixes and leading filler, then keeps up to ~3 meaningful words within a
+// tight character budget so it reads as the real topic ("Right Triangle",
+// "Pythagorean Theorem") instead of "Right" or "Square".
+function conciseLabel(text) {
+  if (!text) return "Topic";
+  let t = String(text).trim()
+    .replace(/^\s*(unit|chapter|lesson|part|section|module|topic|week|day)\b[\s:.\-)]*\d*[\s:.\-)]*/i, "")
+    .replace(/^\s*\d+(?:\.\d+)*[\s:.\-)]*/, "")
+    .trim();
+  if (!t) t = String(text).trim();
+
+  // Treat commas / slashes as separators so "Sine, Cosine, Tangent" tokenizes.
+  let words = t.replace(/[,/]+/g, " ").split(/\s+/).filter(Boolean);
+  // Drop leading filler words, but always keep at least one word.
+  let i = 0;
+  while (i < words.length - 1 && LABEL_STOP.has(words[i].toLowerCase())) i++;
+  words = words.slice(i);
+
+  // Build a short phrase: always allow up to 2 words, a 3rd if it still fits.
+  const out = [];
+  for (const w of words) {
+    if (out.length >= 3) break;
+    const next = out.concat(w).join(" ");
+    if (out.length >= 2 && next.length > 26) break;
+    out.push(w);
+  }
+  // Never end on a filler word ("Square Roots and" -> "Square Roots").
+  while (out.length > 1 && LABEL_STOP.has(out[out.length - 1].toLowerCase())) out.pop();
+
+  let label = out.join(" ") || words[0] || t;
+  if (label.length > 28) label = label.slice(0, 26).trim() + "…";
+  return label;
+}
+
 function Line({ x1, y1, x2, y2, stroke = "#93C5FD" }) {
   return (
     <line
@@ -108,31 +151,6 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
     return percentRemaining;
   };
 
-  const getOneWord = (text, usedWords = new Set()) => {
-    if (!text) return "Topic";
-    const words = text.split(/[\s\-_]+/).filter((w) => w.length > 2);
-
-    // Try each word until we find one that hasn't been used
-    for (const word of words) {
-      if (!usedWords.has(word.toLowerCase())) {
-        usedWords.add(word.toLowerCase());
-        return word;
-      }
-    }
-
-    // If all words are used, try first two words
-    if (words.length >= 2) {
-      const twoWords = `${words[0]} ${words[1]}`;
-      if (!usedWords.has(twoWords.toLowerCase())) {
-        usedWords.add(twoWords.toLowerCase());
-        return twoWords;
-      }
-    }
-
-    // Fallback to first word or original text
-    return words[0] || text.split(/[\s\-_]+/)[0] || "Topic";
-  };
-
   const getFontSize = (text, baseSize, containerSize) => {
     if (!text) return baseSize;
 
@@ -169,11 +187,8 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
     return dueDate <= today;
   };
 
-  // Track used words to avoid duplicates
-  const usedWords = new Set();
-
-  // Get display text for curriculum
-  const curriculumText = getOneWord(curriculum?.subject_name, usedWords);
+  // Concise, topic-describing label for the curriculum center node.
+  const curriculumText = conciseLabel(curriculum?.subject_name);
 
   // ---- Adaptive radial layout -------------------------------------------
   // Unit-ring radius grows with the unit count (so clusters never collide) and
@@ -189,7 +204,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
       lay,
       index,
       angle: (index / Math.max(1, N)) * 360 - 90, // start from top
-      displayText: getOneWord(unit.unit_name, usedWords)
+      displayText: conciseLabel(unit.unit_name)
     };
   });
 
@@ -216,7 +231,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
         unitId: unit.id,
         angle: angle + offset,
         rS: lay.rS,
-        displayText: getOneWord(sub.subunit_name, usedWords)
+        displayText: conciseLabel(sub.subunit_name)
       };
     });
   });
