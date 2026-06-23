@@ -1681,7 +1681,7 @@ LANGUAGE: All generated text (hook question, anchor question, bridge question, t
             onClassChange={() => {}}
             user={user}
           />
-          <div className="flex-1 overflow-auto bg-white" style={{ fontFamily: '"Inter", sans-serif' }}>
+          <div className="flex-1 overflow-auto bg-white pt-14 md:pt-0 min-w-0" style={{ fontFamily: '"Inter", sans-serif' }}>
             {pageBody}
           </div>
         </div>

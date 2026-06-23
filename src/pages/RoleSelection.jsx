@@ -102,10 +102,11 @@ export default function RoleSelection() {
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden"
+      className="min-h-screen flex flex-col"
       style={{
         background: 'linear-gradient(180deg, #eaf1ff 0%, #f5f7fc 50%, #f0eafc 100%)',
         color: '#0b1020',
+        fontFamily: "'Geist', -apple-system, system-ui, sans-serif",
       }}
     >
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -115,37 +116,19 @@ export default function RoleSelection() {
         rel="stylesheet"
       />
 
-      {/* Top-left brand lockup */}
-      <div className="absolute top-7 left-8 z-10 flex items-center gap-2.5">
-        <img
-          src="/quest-logo-on-white.png"
-          alt="Quest Learning"
-          width="32"
-          height="32"
-          className="rounded-lg"
-        />
-        <span
-          className="text-[18px] font-bold tracking-tight"
-          style={{ fontFamily: "'Geist', system-ui, sans-serif" }}
-        >
-          Quest Learning
-        </span>
-      </div>
+      {/* Header — in-flow so it never collides on small screens */}
+      <header className="flex items-center justify-between px-5 sm:px-8 py-5">
+        <div className="flex items-center gap-2.5">
+          <img src="/quest-logo-on-white.png" alt="Quest Learning" width="32" height="32" className="rounded-lg" />
+          <span className="text-[17px] font-bold tracking-tight">Quest Learning</span>
+        </div>
+        <a href="#" onClick={handleSignInClick} className="text-sm text-gray-500 hover:text-gray-700 transition">
+          <span className="hidden sm:inline">Already have an account? </span>
+          <span className="font-semibold" style={{ color: '#1e4fe0' }}>Sign in</span>
+        </a>
+      </header>
 
-      {/* Top-right Sign in */}
-      <a
-        href="#"
-        onClick={handleSignInClick}
-        className="absolute top-8 right-9 z-10 text-sm text-gray-500 hover:text-gray-700 transition"
-      >
-        Already have an account?{" "}
-        <span className="font-semibold" style={{ color: '#1e4fe0' }}>Sign in</span>
-      </a>
-
-      <div
-        className="flex flex-col items-center justify-center min-h-screen px-6 pt-24 pb-16"
-        style={{ fontFamily: "'Geist', -apple-system, system-ui, sans-serif" }}
-      >
+      <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-6 pb-12">
         {/* Heading block */}
         <div className="text-center mb-12 max-w-[760px]">
           <span
@@ -431,125 +414,103 @@ function RoleCard({
   );
 }
 
-/** Student card's "Today's Quest" micro-preview. */
+/** Student card preview — a mini Knowledge Map (matches the real student view). */
 function StudentMicro() {
+  const nodes = [
+    { x: 50, y: 14, done: true },
+    { x: 85, y: 40, done: true },
+    { x: 72, y: 82, done: false },
+    { x: 28, y: 82, done: true },
+    { x: 15, y: 40, done: false },
+  ];
   return (
     <div className="mt-5">
       <div
         className="px-3.5 py-3"
-        style={{
-          background: 'linear-gradient(180deg, #fff 0%, #fbfcff 100%)',
-          border: '1px solid #eef1f7',
-          borderRadius: 12,
-        }}
+        style={{ background: 'linear-gradient(180deg, #fff 0%, #fbfcff 100%)', border: '1px solid #eef1f7', borderRadius: 12 }}
       >
-        <div className="flex items-center gap-2 mb-2">
-          <span
-            style={{
-              fontFamily: FONT_MONO,
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#9aa0b6',
-              letterSpacing: '.1em',
-            }}
-          >
-            TODAY'S QUEST
+        <div className="flex items-center justify-between mb-1.5">
+          <span style={{ fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, color: '#9aa0b6', letterSpacing: '.1em' }}>
+            KNOWLEDGE MAP
           </span>
-          <span className="flex-1 h-px" style={{ background: '#eef1f7' }} />
-          <span
-            style={{
-              fontFamily: FONT_MONO,
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#1e4fe0',
-            }}
-          >
-            + 60 XP
-          </span>
+          <span style={{ fontFamily: FONT_MONO, fontSize: 11, fontWeight: 700, color: '#1e4fe0' }}>3 / 5</span>
         </div>
-        <div className="text-[13.5px] font-semibold text-gray-900">
-          Photosynthesis · adaptive set
-        </div>
-        <div className="flex gap-[3px] mt-2">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <span
+        <div className="relative" style={{ height: 104 }}>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
+            {nodes.map((n, i) => (
+              <line key={i} x1="50" y1="50" x2={n.x} y2={n.y} stroke="#cdd9f5" strokeWidth="1.2" />
+            ))}
+          </svg>
+          <div
+            className="absolute rounded-full -translate-x-1/2 -translate-y-1/2"
+            style={{ left: '50%', top: '50%', width: 34, height: 34, background: GRAD_STUDENT, boxShadow: '0 6px 14px -6px rgba(30,79,224,.6)' }}
+          />
+          {nodes.map((n, i) => (
+            <div
               key={i}
-              className="flex-1 h-[5px] rounded-full"
-              style={{ background: i < 6 ? '#2f66f1' : '#e7ecf5' }}
+              className="absolute rounded-full -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: `${n.x}%`,
+                top: `${n.y}%`,
+                width: 18,
+                height: 18,
+                border: '2.5px solid',
+                borderColor: n.done ? '#2f66f1' : '#cdd9f5',
+                background: n.done ? '#2f66f1' : '#fff',
+              }}
             />
           ))}
-        </div>
-        <div className="flex justify-between text-[11px] text-gray-400 mt-1.5 font-medium">
-          <span>6 / 10</span>
-          <span>~3 min left</span>
         </div>
       </div>
     </div>
   );
 }
 
-/** Teacher card's classroom-mastery micro-preview. */
+/** Teacher card preview — a class-mastery roster (matches the real teacher view). */
 function TeacherMicro() {
-  const bars = [0.95, 0.88, 0.7, 0.6, 0.92, 0.4, 0.78, 0.85, 0.95, 0.55, 0.7, 0.82];
+  const rows = [
+    { n: "Ava R.", p: 92 },
+    { n: "Liam K.", p: 78 },
+    { n: "Noah P.", p: 54 },
+  ];
+  const tone = (p) => (p >= 75 ? "#16a34a" : p >= 50 ? "#d97706" : "#ef4444");
   return (
     <div className="mt-5">
       <div
         className="px-3.5 py-3"
-        style={{
-          background: 'linear-gradient(180deg, #fff 0%, #fbfaff 100%)',
-          border: '1px solid #f0eaf7',
-          borderRadius: 12,
-        }}
+        style={{ background: 'linear-gradient(180deg, #fff 0%, #fbfaff 100%)', border: '1px solid #f0eaf7', borderRadius: 12 }}
       >
-        <div className="flex items-center gap-2 mb-2">
-          <span
-            style={{
-              fontFamily: FONT_MONO,
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#9aa0b6',
-              letterSpacing: '.1em',
-            }}
-          >
-            BIOLOGY 101 · P3
+        <div className="flex items-center justify-between mb-2.5">
+          <span style={{ fontFamily: FONT_MONO, fontSize: 10, fontWeight: 700, color: '#9aa0b6', letterSpacing: '.1em' }}>
+            BIOLOGY 101 · MASTERY
           </span>
-          <span className="flex-1 h-px" style={{ background: '#f0eaf7' }} />
           <span className="text-[11px] font-bold inline-flex items-center gap-1" style={{ color: '#7c3aed' }}>
-            <span
-              aria-hidden
-              className="w-[5px] h-[5px] rounded-full"
-              style={{ background: '#7c3aed', boxShadow: '0 0 6px #a855f7' }}
-            />
+            <span aria-hidden className="w-[5px] h-[5px] rounded-full" style={{ background: '#7c3aed', boxShadow: '0 0 6px #a855f7' }} />
             LIVE
           </span>
         </div>
-        <div className="grid grid-cols-12 gap-[3px]">
-          {bars.map((v, i) => {
-            const c = v > 0.85 ? '#22c55e' : v > 0.6 ? '#a855f7' : v > 0.5 ? '#f59e0b' : '#ef4444';
-            return (
+        <div className="space-y-2">
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center gap-2.5">
               <div
-                key={i}
-                className="h-[22px] rounded relative overflow-hidden"
-                style={{ background: '#f3f0fb' }}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                style={{ background: GRAD_TEACHER }}
               >
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: `${v * 100}%`,
-                    background: c,
-                    borderRadius: 4,
-                  }}
-                />
+                {r.n.charAt(0)}
               </div>
-            );
-          })}
+              <span className="text-[12.5px] text-gray-700 flex-1 truncate">{r.n}</span>
+              <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${r.p}%`, background: tone(r.p) }} />
+              </div>
+              <span className="text-[11px] font-bold tabular-nums w-8 text-right" style={{ color: tone(r.p) }}>
+                {r.p}%
+              </span>
+            </div>
+          ))}
         </div>
-        <div className="flex justify-between text-[11px] text-gray-400 mt-1.5 font-medium">
-          <span>24 students · mastery</span>
-          <span className="font-bold" style={{ color: '#22c55e' }}>78% avg</span>
+        <div className="flex justify-between text-[11px] text-gray-400 mt-2.5 font-medium">
+          <span>24 students</span>
+          <span className="font-bold" style={{ color: '#16a34a' }}>78% avg</span>
         </div>
       </div>
     </div>

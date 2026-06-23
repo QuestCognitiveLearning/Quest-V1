@@ -287,7 +287,7 @@ export default function KnowledgeMap() {
         user={user} />
 
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0">
         <style>{`
           @keyframes audioWave {
             0%, 100% { height: 8px; }

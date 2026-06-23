@@ -123,7 +123,7 @@ export default function StudentLiveSessions() {
         user={user}
       />
 
-      <div className="flex-1 overflow-auto bg-white" style={{ fontFamily: '"Inter", sans-serif' }}>
+      <div className="flex-1 overflow-auto bg-white pt-14 md:pt-0 min-w-0" style={{ fontFamily: '"Inter", sans-serif' }}>
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-12 h-12 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin"></div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
-import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio } from "lucide-react";
+import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio, Menu, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -20,17 +20,24 @@ export default function StudentSidebar({
   user
 }) {
   const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleSignOut = () => {
     quest.auth.logout();
   };
 
-  const handleNavigation = (_tab, route) => {
+  const go = (_tab, route) => {
     if (route) navigate(createPageUrl(route));
+    setMobileOpen(false);
   };
 
-  return (
-    <div className="w-64 bg-[#1E40AF] text-white flex flex-col border-r border-[#1E40AF]" style={{ fontFamily: '"Inter", sans-serif' }}>
+  const navItem = (active) =>
+    `w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
+      active ? "bg-white/20" : "hover:bg-white/10"
+    }`;
+
+  const inner = (
+    <>
       <div className="p-4 flex items-center justify-between">
         <button onClick={handleSignOut} className="hover:bg-white/10 transition-all flex items-center gap-2 p-2 rounded">
           <ChevronLeft className="w-5 h-5" />
@@ -39,16 +46,8 @@ export default function StudentSidebar({
       </div>
 
       <div className="px-5 pb-5 border-b border-white/10">
-        {/* Centered lockup: logo + "Quest Learning" wordmark, with extra
-            horizontal breathing room (gap-5) between them. */}
         <div className="flex items-center gap-1 mb-2 -ml-2">
-          <img
-            src="/quest-logo-on-blue.png"
-            alt="Quest Learning"
-            width="96"
-            height="96"
-            className="w-24 h-auto"
-          />
+          <img src="/quest-logo-on-blue.png" alt="Quest Learning" width="96" height="96" className="w-24 h-auto" />
           <div className="-ml-[23px]">
             <h1 className="text-sm font-bold tracking-tight">Quest Learning</h1>
             <p className="text-xs text-white/70">Redefining Education</p>
@@ -74,54 +73,20 @@ export default function StudentSidebar({
       }
 
       <nav className="flex-1 overflow-y-auto py-2 px-2">
-        <button
-          onClick={() => handleNavigation("knowledge-map", "KnowledgeMap")}
-          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
-            activeNav === "knowledge-map" ? "bg-white/20" : "hover:bg-white/10"
-          }`}
-        >
-          <BookOpen className="w-4 h-4 flex-shrink-0" />
-          <span>Knowledge Map</span>
+        <button onClick={() => go("knowledge-map", "KnowledgeMap")} className={navItem(activeNav === "knowledge-map")}>
+          <BookOpen className="w-4 h-4 flex-shrink-0" /><span>Knowledge Map</span>
         </button>
-
-        <button
-          onClick={() => handleNavigation("learning-hub", "LearningHub")}
-          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
-            activeNav === "learning-hub" ? "bg-white/20" : "hover:bg-white/10"
-          }`}
-        >
-          <Home className="w-4 h-4 flex-shrink-0" />
-          <span>Learning Hub</span>
+        <button onClick={() => go("learning-hub", "LearningHub")} className={navItem(activeNav === "learning-hub")}>
+          <Home className="w-4 h-4 flex-shrink-0" /><span>Learning Hub</span>
         </button>
-
-        <button
-          onClick={() => handleNavigation("progress", "Progress")}
-          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
-            activeNav === "progress" ? "bg-white/20" : "hover:bg-white/10"
-          }`}
-        >
-          <BarChart3 className="w-4 h-4 flex-shrink-0" />
-          <span>Progress</span>
+        <button onClick={() => go("progress", "Progress")} className={navItem(activeNav === "progress")}>
+          <BarChart3 className="w-4 h-4 flex-shrink-0" /><span>Progress</span>
         </button>
-
-        <button
-          onClick={() => handleNavigation("classes", "Classes")}
-          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
-            activeNav === "classes" ? "bg-white/20" : "hover:bg-white/10"
-          }`}
-        >
-          <Users className="w-4 h-4 flex-shrink-0" />
-          <span>Classes</span>
+        <button onClick={() => go("classes", "Classes")} className={navItem(activeNav === "classes")}>
+          <Users className="w-4 h-4 flex-shrink-0" /><span>Classes</span>
         </button>
-
-        <button
-          onClick={() => handleNavigation("live-sessions", "StudentLiveSessions")}
-          className={`w-full px-4 py-2.5 flex items-center gap-3 transition-all text-sm font-medium rounded-lg mb-1 ${
-            activeNav === "live-sessions" ? "bg-white/20" : "hover:bg-white/10"
-          }`}
-        >
-          <Radio className="w-4 h-4 flex-shrink-0" />
-          <span>Live Sessions</span>
+        <button onClick={() => go("live-sessions", "StudentLiveSessions")} className={navItem(activeNav === "live-sessions")}>
+          <Radio className="w-4 h-4 flex-shrink-0" /><span>Live Sessions</span>
         </button>
       </nav>
 
@@ -140,6 +105,37 @@ export default function StudentSidebar({
           Sign Out
         </button>
       </div>
-    </div>);
+    </>
+  );
 
+  return (
+    <>
+      {/* Desktop sidebar column */}
+      <div className="hidden md:flex w-64 bg-[#1E40AF] text-white md:flex-col border-r border-[#1E40AF]" style={{ fontFamily: '"Inter", sans-serif' }}>
+        {inner}
+      </div>
+
+      {/* Mobile top bar (fixed; pages add pt-14 md:pt-0 so content clears it) */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-40 h-14 px-3 flex items-center gap-3 bg-[#1E40AF] text-white" style={{ fontFamily: '"Inter", sans-serif' }}>
+        <button onClick={() => setMobileOpen(true)} aria-label="Open menu" className="p-1.5 rounded-lg hover:bg-white/10">
+          <Menu className="w-6 h-6" />
+        </button>
+        <img src="/quest-logo-on-blue.png" alt="" className="h-7 w-auto" />
+        <span className="font-bold tracking-tight">Quest Learning</span>
+      </div>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+          <div className="relative w-64 max-w-[82%] h-full bg-[#1E40AF] text-white flex flex-col" style={{ fontFamily: '"Inter", sans-serif' }}>
+            <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="absolute top-3 right-3 z-10 p-1.5 rounded-lg hover:bg-white/10">
+              <X className="w-5 h-5" />
+            </button>
+            {inner}
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
