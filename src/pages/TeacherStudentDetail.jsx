@@ -23,6 +23,20 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// Resolve a stored choice value (could be 1–4 or "A"/"a" depending on era /
+// quiz schema) into the actual choice text. Mirrors the attention-check
+// helper so quiz responses display the chosen answer reliably.
+const resolveChoice = (question, value) => {
+  if (!question || value === undefined || value === null || value === "") return "";
+  const v = String(value).toLowerCase().trim();
+  const letterToNum = { a: "1", b: "2", c: "3", d: "4" };
+  const numToLetter = { "1": "a", "2": "b", "3": "c", "4": "d" };
+  if (question[`choice_${v}`] != null) return question[`choice_${v}`];
+  if (letterToNum[v] && question[`choice_${letterToNum[v]}`] != null) return question[`choice_${letterToNum[v]}`];
+  if (numToLetter[v] && question[`choice_${numToLetter[v]}`] != null) return question[`choice_${numToLetter[v]}`];
+  return String(value);
+};
+
 export default function TeacherStudentDetail() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
@@ -329,6 +343,9 @@ export default function TeacherStudentDetail() {
                           const sessionData = getSessionData(subunit.id, currentSessionType);
                           const responses = getSubunitResponses(subunit.id, currentSessionType);
                           const inquiry = getInquiryResponse(subunit.id);
+                          // Count both the learn session and any review sessions.
+                          const sessionCount =
+                            (progress?.new_session_completed ? 1 : 0) + (progress?.review_count || 0);
 
                           return (
                             <Card key={subunit.id} className="border border-gray-200 shadow-sm">
@@ -353,7 +370,7 @@ export default function TeacherStudentDetail() {
                                         <XCircle className="w-5 h-5 text-gray-300" />
                                       )}
                                       <Badge variant="outline" className="text-xs">
-                                        {progress?.review_count || 0} reviews
+                                        {sessionCount} session{sessionCount === 1 ? "" : "s"}
                                       </Badge>
                                     </div>
                                   </div>
@@ -544,12 +561,14 @@ export default function TeacherStudentDetail() {
                                               <p className="text-sm text-gray-900 font-medium">
                                                 {question?.question_text || `Question ${idx + 1}`}
                                               </p>
-                                              {question && !response.is_correct && (
+                                              {question && (
                                                 <p className="text-xs text-gray-600 mt-1">
-                                                  Selected: {question[`choice_${response.selected_choice}`]}
-                                                  <span className="text-green-600 ml-2">
-                                                    (Correct: {question[`choice_${question.correct_choice}`]})
-                                                  </span>
+                                                  Selected: {resolveChoice(question, response.selected_choice)}
+                                                  {!response.is_correct && (
+                                                    <span className="text-green-600 ml-2">
+                                                      (Correct: {resolveChoice(question, question.correct_choice)})
+                                                    </span>
+                                                  )}
                                                 </p>
                                               )}
                                             </div>
@@ -690,10 +709,10 @@ export default function TeacherStudentDetail() {
                                             </p>
                                             {question && (
                                               <p className="text-xs text-gray-600 mt-1">
-                                                Selected: {question[`choice_${response.selected_choice}`]}
+                                                Selected: {resolveChoice(question, response.selected_choice)}
                                                 {!response.is_correct && (
                                                   <span className="text-green-600 ml-2">
-                                                    (Correct: {question[`choice_${question.correct_choice}`]})
+                                                    (Correct: {resolveChoice(question, question.correct_choice)})
                                                   </span>
                                                 )}
                                               </p>

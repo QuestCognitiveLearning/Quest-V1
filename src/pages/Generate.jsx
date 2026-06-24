@@ -733,7 +733,7 @@ ${inquiryTranscript ? `
             body: {
               action: "generate",
               pdfText: pdfMeta.text,
-              topic: pdfTopic || "Uploaded Single Session",
+              topic: pdfTopic || "Uploaded handout",
               options,
             },
           }
@@ -777,7 +777,7 @@ ${inquiryTranscript ? `
       : (payload?.video?.url || null);
     const row = await quest.entities.GeneratedHandout.create({
       teacher_id: me.id,
-      title: payload?.video?.title || "Untitled Single Session",
+      title: payload?.video?.title || "Untitled handout",
       source_type: tab === "pdf" ? "pdf" : "youtube",
       source_url: url,
       payload,
@@ -837,6 +837,12 @@ ${inquiryTranscript ? `
 
   const handleRunLive = async () => {
     if (!result) return;
+    // A live session plays the video + mid-video attention checks, so it needs
+    // a real video. PDF-only generations have no video and can only be printed.
+    if (!result.video?.videoId) {
+      toast.error("A live session needs a video. A PDF-only generation can only be printed as a handout.");
+      return;
+    }
     setSaving(true);
     try {
       // Auto-save so the live session builder can seed from a real handout id.
@@ -854,6 +860,10 @@ ${inquiryTranscript ? `
   };
 
   const handleRunLiveFromLibrary = (row) => {
+    if (!row?.payload?.video?.videoId) {
+      toast.error("A live session needs a video. This PDF-only handout can only be printed.");
+      return;
+    }
     navigate(createPageUrl("LiveSessionBuilder") + `?fromHandout=${row.id}`);
   };
 
@@ -871,10 +881,10 @@ ${inquiryTranscript ? `
     setEditSaving(true);
     try {
       await quest.entities.GeneratedHandout.update(editTarget.id, {
-        title: draft?.video?.title || editTarget.title || "Untitled Single Session",
+        title: draft?.video?.title || editTarget.title || "Untitled handout",
         payload: draft,
       });
-      toast.success("Single Session updated");
+      toast.success("Handout updated");
       if (user?.id) loadLibrary(user.id);
       setEditTarget(null);
     } catch (err) {
@@ -887,7 +897,7 @@ ${inquiryTranscript ? `
 
   const handleDeleteFromLibrary = (rowId) => {
     setConfirmDialog({
-      title: "Delete Single Session?",
+      title: "Delete handout?",
       message: "This removes it from your library. This can't be undone.",
       confirmLabel: "Delete",
       onConfirm: async () => {
@@ -928,7 +938,7 @@ ${inquiryTranscript ? `
     if (selectedIds.size === 0) return;
     const n = selectedIds.size;
     setConfirmDialog({
-      title: `Delete ${n} Single Session${n === 1 ? "" : "s"}?`,
+      title: `Delete ${n} handout${n === 1 ? "" : "s"}?`,
       message: "This can't be undone.",
       confirmLabel: "Delete",
       onConfirm: runBulkDelete,
@@ -946,7 +956,7 @@ ${inquiryTranscript ? `
       );
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed > 0) toast.error(`${failed} delete${failed === 1 ? "" : "s"} failed.`);
-      else toast.success(`Deleted ${n} Single Session${n === 1 ? "" : "s"}.`);
+      else toast.success(`Deleted ${n} handout${n === 1 ? "" : "s"}.`);
       setSelectedIds(new Set());
       setSelectMode(false);
       if (user?.id) loadLibrary(user.id);
@@ -964,7 +974,7 @@ ${inquiryTranscript ? `
       const blob = await generateTryPDF(result);
       downloadBlobLocally(
         blob,
-        `${(result.video?.title || "Quest-Single-Session").replace(/[^a-z0-9-]+/gi, "-")}.pdf`
+        `${(result.video?.title || "Quest-Handout").replace(/[^a-z0-9-]+/gi, "-")}.pdf`
       );
     } catch (err) {
       toast.error("Could not generate PDF");
@@ -1009,7 +1019,7 @@ ${inquiryTranscript ? `
         )}
 
         {/* Mode toggle — pick the outcome up front. Students choose
-            Flashcards vs Learning Session; teachers choose Live vs Single Session.
+            Flashcards vs Learning Session; teachers choose Live vs Handout.
             Only shown while building (input stage) so the result/preview
             views stay uncluttered. */}
         {stage === "input" && (
@@ -1017,7 +1027,7 @@ ${inquiryTranscript ? `
             <StepHeader
               n={1}
               label="Choose what to create"
-              hint={isStudent ? "Flashcards or a full learning session." : "Run it live, or make a Single Session."}
+              hint={isStudent ? "Flashcards or a full learning session." : "Run it live, or make a handout."}
             />
             {isStudent ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
@@ -1074,7 +1084,9 @@ ${inquiryTranscript ? `
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
             <button
               type="button"
+              disabled={tab === "pdf"}
               onClick={() => {
+                if (tab === "pdf") return;
                 setMode("live");
                 setOptions((o) => ({
                   ...o,
@@ -1083,16 +1095,20 @@ ${inquiryTranscript ? `
                 }));
               }}
               className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
-                mode === "live"
+                tab === "pdf"
+                  ? "opacity-40 cursor-not-allowed border-2 border-transparent"
+                  : mode === "live"
                   ? "bg-emerald-50 border-2 border-emerald-500"
                   : "border-2 border-transparent hover:bg-slate-50"
               }`}
             >
-              <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "live" ? "text-emerald-600" : "text-slate-400"}`} />
+              <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "live" && tab !== "pdf" ? "text-emerald-600" : "text-slate-400"}`} />
               <div>
                 <div className="text-sm font-semibold text-slate-900">Live session</div>
                 <div className="text-[11.5px] text-slate-500 mt-0.5">
-                  Generate then run it as a game. Students join with a code, earn points.
+                  {tab === "pdf"
+                    ? "Needs a video — a PDF can only make a printed handout."
+                    : "Generate then run it as a game. Students join with a code, earn points."}
                 </div>
               </div>
             </button>
@@ -1114,7 +1130,7 @@ ${inquiryTranscript ? `
             >
               <FileText className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "handout" ? "text-[#2563EB]" : "text-slate-400"}`} />
               <div>
-                <div className="text-sm font-semibold text-slate-900">Single Session</div>
+                <div className="text-sm font-semibold text-slate-900">Handout</div>
                 <div className="text-[11.5px] text-slate-500 mt-0.5">
                   Print-ready PDF + editable Word.
                 </div>
@@ -1139,7 +1155,15 @@ ${inquiryTranscript ? `
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => setTab(t.id)}
+                    onClick={() => {
+                      setTab(t.id);
+                      // A PDF has no video, so it can't drive a live session —
+                      // force the printable Handout mode when PDF is picked.
+                      if (t.id === "pdf" && mode === "live") {
+                        setMode("handout");
+                        setOptions((o) => ({ ...o, includeInquiry: false, includeAttentionChecks: false }));
+                      }
+                    }}
                     className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
                       tab === t.id
                         ? "bg-white text-[#2563EB] shadow-sm"
@@ -1381,7 +1405,7 @@ ${inquiryTranscript ? `
 
         {stage === "generating" && (
           <GenerationProgress
-            title="Building your Single Session"
+            title="Building your handout"
             started={!!result}
             steps={[
               { label: "Quiz + case study", done: !!result?.quiz?.length },
@@ -1415,9 +1439,11 @@ ${inquiryTranscript ? `
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Save to library
               </Button>
-              <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                <PlayCircle className="w-4 h-4" /> Use in live session
-              </Button>
+              {result.video?.videoId && (
+                <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <PlayCircle className="w-4 h-4" /> Use in live session
+                </Button>
+              )}
               <Button onClick={handleDownloadPDF} variant="outline" className="gap-2">
                 <Download className="w-4 h-4" /> PDF
               </Button>
@@ -1517,7 +1543,7 @@ ${inquiryTranscript ? `
                   Your library
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Single Sessions you can run live anytime &mdash; no class required.
+                  Generated handouts you can run live anytime &mdash; no class required.
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -1601,7 +1627,7 @@ ${inquiryTranscript ? `
                       </p>
                       {!selectMode && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {!isStudent && (
+                          {!isStudent && row.payload?.video?.videoId && (
                             <Button
                               size="sm"
                               onClick={() => handleRunLiveFromLibrary(row)}
@@ -2126,7 +2152,7 @@ function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: 
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
       <div className="p-6 border-b border-slate-100">
         <p className="text-xs uppercase tracking-wider text-[#2563EB] font-semibold">
-          Single Session
+          Generated handout
         </p>
         <h2 className="text-2xl font-bold text-slate-900 leading-tight mt-1">
           {video?.title}

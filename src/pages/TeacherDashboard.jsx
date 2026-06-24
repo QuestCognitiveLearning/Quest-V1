@@ -581,7 +581,7 @@ export default function TeacherDashboard() {
             sublabel={`${resourceStats.quizzes} quizzes · ${resourceStats.caseStudies} case studies`}
           />
           <StatCard
-            label="Single Sessions"
+            label="Handouts"
             value={resourceStats.generatedHandouts}
             icon={BookOpen}
             color="amber"

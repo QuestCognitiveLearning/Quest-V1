@@ -8,15 +8,14 @@ function welcomeHtml(name: string): string {
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
   <h1 style="color: #1a1a1a; text-align: center; margin-bottom: 30px;">Welcome to Quest Learning, ${name}! 🚀</h1>
   <p style="font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-    We're excited to have you join our learning community! Quest Learning is a personalized platform designed to help you learn effectively using science-backed techniques.
+    You're all set. Quest helps you actually understand each topic &mdash; with a short video, a quiz, and a tutor that thinks through ideas with you.
   </p>
-  <h2 style="color: #1a1a1a; font-size: 18px; margin-top: 30px; margin-bottom: 15px;">Here's what you can do:</h2>
+  <h2 style="color: #1a1a1a; font-size: 18px; margin-top: 30px; margin-bottom: 15px;">Here's how it works:</h2>
   <ul style="font-size: 15px; line-height: 1.8; margin-left: 20px;">
-    <li><strong>Join Classes:</strong> Enter your class code to get started with your curriculum</li>
-    <li><strong>Learn Topics:</strong> Work through interactive lessons with videos, articles, and quizzes</li>
-    <li><strong>Track Progress:</strong> See your learning journey mapped out visually on your knowledge map</li>
-    <li><strong>Get Feedback:</strong> Receive personalized guidance from our AI-powered tutor</li>
-    <li><strong>Build Streaks:</strong> Stay consistent and earn achievements as you progress</li>
+    <li><strong>Join your class</strong> with the code from your teacher</li>
+    <li><strong>Learn each topic</strong> through a video, quiz, and case study</li>
+    <li><strong>Chat with the Panda Tutor</strong> &mdash; it guides you with questions, not answers</li>
+    <li><strong>Watch your knowledge map</strong> fill in as you complete topics</li>
   </ul>
   ${keepUsingQuestHtml()}
   <p style="font-size: 15px; margin-top: 25px; color: #666;">Happy learning!<br><strong>&mdash; ${signOff()}</strong></p>

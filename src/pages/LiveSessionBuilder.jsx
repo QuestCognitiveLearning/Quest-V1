@@ -82,7 +82,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: "Hook ready",
-        hint: "No hook yet — start from a saved Single Session above.",
+        hint: "No hook yet — start from a saved handout above.",
       };
     }
     case "video": {
@@ -91,7 +91,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: n > 0 ? `Video · ${n} check${n === 1 ? "" : "s"}` : "Video ready",
-        hint: "No video yet — start from a saved Single Session above.",
+        hint: "No video yet — start from a saved handout above.",
       };
     }
     case "quiz": {
@@ -99,7 +99,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready: n > 0,
         summary: `${n} question${n === 1 ? "" : "s"}`,
-        hint: "No quiz yet — start from a saved Single Session above.",
+        hint: "No quiz yet — start from a saved handout above.",
       };
     }
     case "case_study": {
@@ -107,7 +107,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: "Case study ready",
-        hint: "No case study yet — start from a saved Single Session above.",
+        hint: "No case study yet — start from a saved handout above.",
       };
     }
     default:
@@ -180,6 +180,12 @@ export default function LiveSessionBuilder() {
 
   const applyHandout = (row) => {
     const p = row?.payload || {};
+    // A live session plays the video + attention checks, so a video is required.
+    // PDF-only handouts (no video) can't seed a live session.
+    if (!p.video?.videoId && !p.video?.url) {
+      toast.error("This handout has no video, so it can't become a live session. Live sessions need a video.");
+      return;
+    }
     setSelectedHandoutId(row.id);
     if (!sessionName) setSessionName(row.title || p?.video?.title || "");
     if (!topic) setTopic(p?.video?.title || row.title || "");
@@ -323,7 +329,7 @@ export default function LiveSessionBuilder() {
             {library.length > 0 && (
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Start from a saved Single Session (optional)
+                  Start from a saved handout (optional)
                 </label>
                 <select
                   value={selectedHandoutId}
@@ -341,7 +347,7 @@ export default function LiveSessionBuilder() {
                   <option value="">— Start from scratch —</option>
                   {library.map((row) => (
                     <option key={row.id} value={row.id}>
-                      {row.title || "Untitled Single Session"}
+                      {row.title || "Untitled handout"}
                     </option>
                   ))}
                 </select>

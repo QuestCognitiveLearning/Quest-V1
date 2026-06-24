@@ -63,27 +63,18 @@ const wrap = (innerHtml: string, unsubscribeUrl: string): string => `
 // also want A1 to attach a PDF, render PDF base64 client-side and pass it as
 // the attachment when calling sendSequenceEmail.
 export const A1: Template = (ctx) => ({
-  subject: 'Your quiz is ready (plus 4 more on the house)',
+  subject: 'Your quiz is ready (plus 4 more free)',
   html: wrap(
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Your quiz is ready</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Here's your AI-generated quiz packet${ctx.videoTitle ? ` for <strong>${escape(ctx.videoTitle)}</strong>` : ''}.
-      PDF attached, with the Word doc downloadable from your account.</p>
-    <h2 style="font-size:16px;margin:22px 0 6px;">Three ways teachers use this</h2>
-    <ol style="padding-left:18px;">
-      <li>Print and hand out as a worksheet (5 min)</li>
-      <li>Project on your screen for whole-class review (no prep)</li>
-      <li>Assign it to your students online &mdash; auto-graded, full
-          analytics, students take it on phones or laptops</li>
-    </ol>
-    <p>Option 3 needs a free Quest account. When you sign up, this quiz and
-       any others you generate will be saved to your account &mdash; ready
-       to assign to a class.</p>
+    <p>Your quiz packet${ctx.videoTitle ? ` for <strong>${escape(ctx.videoTitle)}</strong>` : ''}
+       is attached as a PDF (Word version is in your account).</p>
+    <p>Print it, project it, or assign it online &mdash; Quest auto-grades and
+       shows you each student's results. Assigning online needs a free account.</p>
     ${cta('Save my quizzes + start free trial', ctx.ctaUrl)}
-    <p style="font-size:13px;color:#475569;">You have ${ctx.remainingGens ?? 4}
-       free PDF generations left at <a href="https://www.questlearning.co/try">questlearning.co/try</a>
-       &mdash; use them whenever.</p>`,
+    <p style="font-size:13px;color:#475569;">${ctx.remainingGens ?? 4} free
+       generations left at <a href="https://www.questlearning.co/try">questlearning.co/try</a>.</p>`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -95,18 +86,11 @@ export const B: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">The part most teachers miss about Quest</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Glad you came back. Most teachers use Quest just for printable PDFs &mdash;
-       but the real time-saver is letting students take the same quizzes online:</p>
-    <ul style="padding-left:18px;">
-      <li><strong>Auto-grading</strong> &mdash; no more marking 30 papers</li>
-      <li><strong>Per-student analytics</strong> &mdash; see exactly which questions
-          tripped them up, which kids need help</li>
-      <li><strong>Topic mastery tracking</strong> &mdash; Quest builds a knowledge
-          map of what each student actually knows</li>
-    </ul>
-    <p>Same quizzes you're already generating. Just digital, with the grading
-       done for you.</p>
-    <p>14-day free trial. No card. Your generated quizzes save to your account.</p>
+    <p>Most teachers stop at the printable PDF. The real time-saver is assigning
+       the same quiz online: Quest auto-grades it, shows you which questions
+       tripped each student up, and builds a knowledge map of what they know.</p>
+    <p>Same quizzes you're already making &mdash; just graded for you.
+       14-day trial, no card.</p>
     ${cta('Start trial', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
@@ -119,15 +103,12 @@ export const C: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">You've saved about 3 hours so far</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Quick math &mdash; 3 quiz packets in your account.</p>
-    <p>Each one would've taken about an hour to build from scratch
-       (write questions, find answers, format, build case study, write rubric).
-       You just got 3 hours back.</p>
-    <p><strong>What if you didn't have to do it ever again?</strong></p>
-    <p>14-day trial &mdash; unlimited PDF generations plus everything else Quest
-       does for your class.</p>
+    <p>3 quiz packets in your account &mdash; roughly 3 hours you didn't spend
+       building them from scratch.</p>
+    <p>Want unlimited generations plus online auto-graded quizzes for your class?
+       14-day trial, no card.</p>
     ${cta('Start trial — no card', ctx.ctaUrl)}
-    <p style="font-size:13px;color:#475569;">${ctx.remainingGens ?? 2} free PDFs left.</p>`,
+    <p style="font-size:13px;color:#475569;">${ctx.remainingGens ?? 2} free generations left.</p>`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -139,20 +120,14 @@ export const E1: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">That was your 5th &mdash; want unlimited?</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>5 quiz packets in your account. You clearly got value from this.</p>
-    <p><strong>Here's what's on the other side of the trial wall:</strong></p>
+    <p>5 quiz packets in. Here's what the trial unlocks:</p>
     <ul style="padding-left:18px;line-height:1.7;">
-      <li>Unlimited quiz, case study, attention check, and inquiry session generation</li>
-      <li>Real classrooms with unlimited students each</li>
-      <li>Students take quizzes online &mdash; auto-graded, with per-student analytics</li>
-      <li>AI Panda Tutor working 1-on-1 with every student</li>
-      <li>Standards alignment (NGSS, Common Core, AP, state)</li>
-      <li>Auto-curriculum from any state standard</li>
+      <li>Unlimited quizzes, case studies, attention checks &amp; inquiry sessions</li>
+      <li>Online quizzes &mdash; auto-graded, with per-student analytics</li>
+      <li>An AI Panda Tutor for every enrolled student</li>
+      <li>Curriculum builder aligned to NGSS, Common Core, AP &amp; state standards</li>
     </ul>
-    <p>All 5 quizzes you've already generated transfer to your account
-       automatically. Nothing lost.</p>
-    <p><strong>14 days. No card. Cancel any time.</strong> Most teachers know within
-       3 days whether Quest is for them.</p>
+    <p>Your 5 quizzes carry over automatically. 14 days, no card, cancel anytime.</p>
     ${cta('Start your free trial', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
@@ -165,18 +140,12 @@ export const E4: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Last note from me</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>You tried Quest, got 5 free quizzes, didn't continue. That's totally
-       fine &mdash; I'm not going to keep pestering you.</p>
-    <p><strong>Two things before I go quiet:</strong></p>
-    <ol style="padding-left:18px;">
-      <li>The trial is still there if you change your mind:
-        <a href="${ctx.ctaUrl}">questlearning.co/Pricing</a>
-        (your 5 quizzes will still be waiting).</li>
-      <li>You'll get one short note per quarter about big Quest updates &mdash;
-        major features, new integrations. If you don't even want that,
-        <a href="${ctx.unsubscribeUrl}">unsubscribe with one click</a>.</li>
-    </ol>
-    <p>Thanks for trying it out.</p>`,
+    <p>You got your 5 free quizzes and didn't continue &mdash; totally fine, no
+       more nudging.</p>
+    <p>The <a href="${ctx.ctaUrl}">trial</a> is there if you change your mind
+       (your quizzes are still saved). Otherwise I'll send one short update per
+       quarter &mdash; <a href="${ctx.unsubscribeUrl}">unsubscribe anytime</a>.</p>
+    <p>Thanks for trying it.</p>`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -188,20 +157,12 @@ export const T0: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Welcome to your 14-day trial</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Your trial is active. Two things to know:</p>
-    <p><strong>Your generated quizzes are already in your account.</strong>
-       Anything you made through the public tool has been imported. They're
+    <p>Your trial's active and the quizzes you already generated are imported and
        ready to assign.</p>
-    <h2 style="font-size:16px;margin:22px 0 6px;">Fastest path to value (3 steps, ~15 min)</h2>
-    <ol style="padding-left:18px;">
-      <li>Open your dashboard</li>
-      <li>Create your first class and grab the join code</li>
-      <li>Assign one of your imported quizzes &mdash; students take it online,
-          Quest grades it</li>
-    </ol>
-    ${cta('Open my dashboard', ctx.ctaUrl)}
-    <p>Stuck? Reply to this email &mdash; I personally help every trialer set up
-       in the first 24 hours.</p>`,
+    <p><strong>Fastest path (~15 min):</strong> open your dashboard → create a
+       class and grab the join code → assign a quiz. Students take it online and
+       Quest grades it.</p>
+    ${cta('Open my dashboard', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -213,13 +174,10 @@ export const T7: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Your trial just wrapped</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Your 14-day trial ended a few hours ago. Your account is paused but
-       everything's preserved &mdash; classes, students, generated content,
-       the whole setup. <strong>Nothing is deleted.</strong></p>
-    <p>If you decide later, you can pick up exactly where you left off:</p>
-    ${cta('Resume my account', ctx.ctaUrl)}
-    <p>If something didn't click during the trial, I'd love to know what.
-       Hit reply.</p>`,
+    <p>Your trial ended. Your account's paused but nothing's deleted &mdash;
+       classes, students, and content are all preserved.</p>
+    <p>Pick up where you left off whenever you're ready:</p>
+    ${cta('Resume my account', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -231,20 +189,12 @@ export const P1: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Honest question</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Real founder asking real question &mdash; why didn't Quest stick during
-       your trial?</p>
-    <p><strong>Most common reasons teachers tell me:</strong></p>
-    <ol style="padding-left:18px;line-height:1.8;">
-      <li>Too busy to set it up properly during trial weeks</li>
-      <li>Wanted features that aren't built yet</li>
-      <li>Wasn't sure if students would actually use it</li>
-      <li>Price wasn't right</li>
-      <li>Just forgot</li>
-    </ol>
-    <p>Hit reply with a number, or write what's actually going on. It takes
-       you 30 seconds and directly affects what I build next.</p>
-    <p style="font-size:13px;color:#475569;">PS &mdash; if it was reason #1,
-       just ask and I'll restart your trial. No catch.</p>`,
+    <p>Why didn't Quest stick? Usually it's one of: too busy to set up, missing
+       a feature, unsure students would use it, price, or just forgot.</p>
+    <p>Reply with which one (or what's really going on) &mdash; it directly
+       shapes what I build next.</p>
+    <p style="font-size:13px;color:#475569;">PS &mdash; if it was "too busy,"
+       just ask and I'll restart your trial.</p>`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -276,18 +226,11 @@ export const D: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">One free PDF left</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>You're on generation #4 &mdash; one more on the free plan.</p>
-    <p><strong>When you want #6, two options:</strong></p>
-    <ul style="padding-left:18px;line-height:1.7;">
-      <li><strong>Wait</strong> &mdash; your free generations don't reset
-        (they're lifetime, not monthly).</li>
-      <li><strong>Start a trial</strong> &mdash; 14 days of unlimited generations
-        + your students can take quizzes online. No card. Cancel any time.</li>
-    </ul>
-    <p>All 4 quizzes you've generated so far automatically transfer to your
-       account when you sign up. Nothing lost.</p>
-    ${cta('Start trial', ctx.ctaUrl)}
-    <p style="font-size:13px;color:#475569;">Either is fine.</p>`,
+    <p>You're on generation #4 &mdash; one left (free generations are lifetime,
+       not monthly, so no rush).</p>
+    <p>Or start a trial for unlimited generations + online auto-graded quizzes.
+       No card, and your quizzes carry over.</p>
+    ${cta('Start trial', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -335,17 +278,9 @@ export const T1: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Need a hand getting set up?</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Noticed you haven't opened your starter class yet &mdash; probably
-       because life happens.</p>
-    <p><strong>If you want, reply with:</strong></p>
-    <ul style="padding-left:18px;line-height:1.7;">
-      <li>Your class name</li>
-      <li>The subject you teach</li>
-      <li>Your school name (or "homeschool")</li>
-    </ul>
-    <p>I'll set up the class, link your imported quizzes, generate a join
-       code, and send everything back in a single Loom video. Takes me
-       5 minutes.</p>
+    <p>You haven't opened your starter class yet. Want me to do it? Reply with
+       your class name and subject, and I'll set it up, link your imported
+       quizzes, and send back a join code.</p>
     ${cta('Or DIY — open my dashboard', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
@@ -358,21 +293,14 @@ export const T2: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Class is live</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p><strong>Single most important next step: get one student to join.</strong>
-       Even one. Doesn't matter if it's your own kid, a TA, or a student you
-       trust to test things.</p>
-    <p>Why: the moment you see Quest grade a student's quiz, you understand
-       the value in your bones. Until then it's theoretical.</p>
-    <p>Your join code is in your class settings.</p>
-    ${cta('Open my class', ctx.ctaUrl)}
-    <p><strong>Once you have a student enrolled, two features to turn on:</strong></p>
-    <ol style="padding-left:18px;line-height:1.7;">
-      <li><strong>AI Panda Tutor</strong> &mdash; every enrolled student can talk
-        to an AI Socratic tutor that helps them think through concepts without
-        giving direct answers.</li>
-      <li><strong>Knowledge map</strong> &mdash; auto-builds as students complete
-        work.</li>
-    </ol>`,
+    <p><strong>Next step: get one student to join</strong> &mdash; even your own
+       kid or a TA. The moment you watch Quest grade their quiz, it clicks. The
+       join code's in your class settings.</p>
+    <p>Once a student's enrolled, it just works: every student automatically gets
+       the AI Panda Tutor (a Socratic tutor that guides with questions, not
+       answers) and a knowledge map that fills in as they go &mdash; nothing to
+       switch on.</p>
+    ${cta('Open my class', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -384,40 +312,29 @@ export const T3: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">A student just finished a quiz</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>Just saw a student in your class complete their first quiz on Quest.
-       <strong>That's the moment most teachers go "oh &mdash; this actually
-       works."</strong></p>
-    <p><strong>Two things to check right now:</strong></p>
-    <ol style="padding-left:18px;line-height:1.7;">
-      <li><strong>Per-student analytics</strong> &mdash; already loading in your
-        dashboard. See exactly which questions they got wrong and why.</li>
-      <li><strong>Knowledge map for that student</strong> &mdash; shows what
-        they've mastered vs. what they need to review.</li>
-    </ol>
-    ${cta('Open dashboard', ctx.ctaUrl)}
-    <p>And &mdash; quick gut check &mdash; how was the experience for you and
-       the student? Any friction? Any "wait, why does it do that?" moments?</p>
-    <p>Genuinely asking. Replies shape what I build next.</p>`,
+    <p>A student in your class just finished their first quiz. Two things to look
+       at in your dashboard: their <strong>per-student analytics</strong> (which
+       questions they missed) and their <strong>knowledge map</strong> (mastered
+       vs. needs review).</p>
+    ${cta('Open dashboard', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });
 
 // -------------------- T4 — Day 5 (Panda Tutor push) --------------------
 export const T4: Template = (ctx) => ({
-  subject: '9 days left — turn on the Panda Tutor today',
+  subject: '9 days left — have your students meet Panda',
   html: wrap(
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Don't sleep on the Panda Tutor</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>A third of your trial down.</p>
-    <p>One thing 90% of teachers wait too long to try: <strong>the AI Panda
-       Tutor.</strong></p>
-    <p>Every enrolled student gets their own AI tutor that walks them through
-       concepts via Socratic dialogue &mdash; never giving direct answers,
-       always asking the question that gets them to figure it out.</p>
-    <p>It's the thing that differentiates Quest from MagicSchool, SchoolAI,
-       and the other AI quiz tools. They generate content. Quest teaches.</p>
-    ${cta('Turn on Panda Tutor', ctx.ctaUrl)}`,
+    <p>A third of your trial's gone. The feature teachers try too late: the
+       <strong>AI Panda Tutor.</strong></p>
+    <p>Every enrolled student already has it &mdash; a Socratic tutor that guides
+       them with questions instead of answers. It's what sets Quest apart from
+       the AI quiz tools: they generate content, Quest teaches.</p>
+    <p>Have a student log in and start a session to see it.</p>
+    ${cta('Open my dashboard', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -457,20 +374,9 @@ export const T6: Template = (ctx) => ({
     <h1 style="font-size:22px;margin:0 0 14px;">Trial ends tomorrow</h1>
     <p>${greet(ctx.firstName)}</p>
     <p>Your trial ends tomorrow${ctx.trialEndsAt ? ` at ${escape(ctx.trialEndsAt)}` : ''}.</p>
-    <p><strong>If you upgrade today:</strong></p>
-    <ul style="padding-left:18px;line-height:1.7;">
-      <li>All your classes, students, and generated content stay live</li>
-      <li>Founding member price locked in ($29/mo &mdash; will go to $49 once
-        we're out of founding cohort)</li>
-      <li>Nothing breaks for your students mid-week</li>
-    </ul>
-    <p><strong>If you don't:</strong></p>
-    <ul style="padding-left:18px;line-height:1.7;">
-      <li>Account pauses (everything preserved for 12 months &mdash; nothing
-        is deleted)</li>
-      <li>Students see "Quest is being upgraded" when they log in</li>
-      <li>You can resume any time</li>
-    </ul>
+    <p>Upgrade today and your classes, students, and content stay live at the
+       locked-in $29/mo founding rate. Skip it and your account just pauses
+       (everything's preserved &mdash; resume anytime).</p>
     ${cta('Upgrade — $29/mo', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
@@ -538,20 +444,17 @@ export const W0: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Welcome to Quest</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>You're in. Your account is live, your founding member price is locked
-       in for life.</p>
-    <p><strong>Your first 30 minutes (5 quick wins):</strong></p>
+    <p>You're in, founding price locked in for life.</p>
+    <p><strong>Your first 30 minutes:</strong></p>
     <ol style="padding-left:18px;line-height:1.8;">
-      <li>Open your dashboard and check that all trial classes carried over</li>
-      <li>Turn on the AI Panda Tutor in your class settings</li>
-      <li>Generate a new quiz from a YouTube video your students already
-        watched (zero ramp-up)</li>
-      <li>Share the join code with your students</li>
-      <li>Watch the analytics fill in as students complete the first quiz</li>
+      <li>Check your trial classes carried over</li>
+      <li>Generate a quiz from a YouTube video your students already watched</li>
+      <li>Share the join code and assign the quiz</li>
+      <li>Watch the analytics and each student's knowledge map fill in</li>
     </ol>
-    ${cta('Open my dashboard', ctx.ctaUrl)}
-    <p>Anything confusing in the first few days? Hit reply &mdash; I'd
-       rather you ping me than wonder.</p>`,
+    <p>The AI Panda Tutor is already on for every enrolled student &mdash;
+       nothing to flip on.</p>
+    ${cta('Open my dashboard', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -563,16 +466,10 @@ export const W1: Template = (ctx) => ({
     `
     <h1 style="font-size:22px;margin:0 0 14px;">Week 1 check-in</h1>
     <p>${greet(ctx.firstName)}</p>
-    <p>You've been on Quest for a week. Quick founder check-in &mdash; how
-       has it actually fit into your routine?</p>
-    <p>Three things I always want to know from new paid users:</p>
-    <ol style="padding-left:18px;line-height:1.7;">
-      <li>What's the first thing that surprised you (good or bad)?</li>
-      <li>What's one feature you wish existed?</li>
-      <li>Anything broken or confusing?</li>
-    </ol>
-    <p>Hit reply with even one-line answers. I read every reply and your
-       feedback directly shapes the next two weeks of work.</p>`,
+    <p>A week in &mdash; how's Quest fitting your routine? In one line each:
+       what surprised you, what feature do you wish existed, and what's
+       broken or confusing?</p>
+    <p>Reply with even short answers &mdash; it shapes what I build next.</p>`,
     ctx.unsubscribeUrl,
   ),
 });
@@ -592,11 +489,9 @@ export const W2: Template = (ctx) => ({
       <li>Students enrolled: ${ctx.studentCount ?? '—'}</li>
       <li>Auto-graded submissions: ${ctx.gradingCount ?? '—'}</li>
     </ul>
-    <p>Reasonable rough math: that's somewhere between 8 and 20 hours of
-       grading + prep that the platform handled instead of you.</p>
-    ${cta('Open my dashboard', ctx.ctaUrl)}
-    <p>If you want a 15-minute call to talk about scaling this to more
-       classes, hit reply.</p>`,
+    <p>Rough math: that's 8&ndash;20 hours of grading + prep the platform handled
+       instead of you.</p>
+    ${cta('Open my dashboard', ctx.ctaUrl)}`,
     ctx.unsubscribeUrl,
   ),
 });

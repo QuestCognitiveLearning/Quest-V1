@@ -86,23 +86,41 @@ export default function ContentReviewModal({ subunit, content, onClose, onSave }
         }
       }
 
-      // Update quiz questions only if they were modified
+      // Update quiz questions only if they were modified.
       if (editedContent.questions && content.quiz && JSON.stringify(editedContent.questions) !== JSON.stringify(content.questions)) {
-        const [reviewQuiz, oldQuestions] = await Promise.all([
-          quest.entities.Quiz.filter({ subunit_id: subunit.id, quiz_type: "review" }),
-          quest.entities.Question.filter({ quiz_id: content.quiz.id })
+        const reviewQuiz = await quest.entities.Quiz.filter({ subunit_id: subunit.id, quiz_type: "review" });
+        const reviewQuizId = reviewQuiz.length > 0 ? reviewQuiz[0].id : null;
+        const [newTopicOld, reviewOld] = await Promise.all([
+          quest.entities.Question.filter({ quiz_id: content.quiz.id }),
+          reviewQuizId ? quest.entities.Question.filter({ quiz_id: reviewQuizId }) : Promise.resolve([]),
         ]);
-        
-        // Delete old questions in parallel
-        await Promise.all(oldQuestions.map(q => quest.entities.Question.delete(q.id)));
-        
-        // Create new questions for both quizzes in parallel
-        const newQuestionPromises = editedContent.questions.flatMap(q => [
-          quest.entities.Question.create({ quiz_id: content.quiz.id, ...q }),
-          ...(reviewQuiz.length > 0 ? [quest.entities.Question.create({ quiz_id: reviewQuiz[0].id, ...q })] : [])
-        ]);
-        
-        await Promise.all(newQuestionPromises);
+
+        // Strip identity fields before writing so a spread can't overwrite the
+        // row id / quiz_id.
+        const sanitize = ({ id, quiz_id, ...rest }) => rest;
+        const byOrder = (a, b) => (a.question_order ?? 0) - (b.question_order ?? 0);
+
+        // Update existing rows IN PLACE (keeps question ids stable) so edits
+        // flow live into already-assigned tests, which reference question_ids.
+        // Create/delete only when the question count changed.
+        const syncQuiz = (quizId, existing) => {
+          const sorted = [...existing].sort(byOrder);
+          const ops = [];
+          editedContent.questions.forEach((q, i) => {
+            if (sorted[i]) ops.push(quest.entities.Question.update(sorted[i].id, sanitize(q)));
+            else ops.push(quest.entities.Question.create({ quiz_id: quizId, ...sanitize(q) }));
+          });
+          sorted.slice(editedContent.questions.length).forEach((old) =>
+            ops.push(quest.entities.Question.delete(old.id))
+          );
+          return ops;
+        };
+
+        const allOps = [
+          ...syncQuiz(content.quiz.id, newTopicOld),
+          ...(reviewQuizId ? syncQuiz(reviewQuizId, reviewOld) : []),
+        ];
+        await Promise.all(allOps);
       }
 
       // Only update case study fields that were edited
