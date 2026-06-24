@@ -22,7 +22,7 @@ import { quest } from "@/api/questClient";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ChevronLeft, Video, CheckCircle, Clock, Sparkles, Zap, BookOpen, Paperclip } from "lucide-react";
+import { Loader2, ChevronLeft, Video, CheckCircle, AlertCircle, Clock, Sparkles, Zap, BookOpen, Paperclip } from "lucide-react";
 import VideoOnlyModal from "@/components/teacher/VideoOnlyModal";
 import ContentReviewModal from "@/components/teacher/ContentReviewModal";
 import { invokeLLM, generateImage } from "@/components/utils/openai";
@@ -55,11 +55,17 @@ export default function ManageCurriculum() {
   const [queueProgress, setQueueProgress] = useState({ current: 0, total: 0 });
   const [currentGeneratingSubunit, setCurrentGeneratingSubunit] = useState(null);
   const [generatingTests, setGeneratingTests] = useState(false);
-  // Live ETA for bulk generation: timestamp when it started + a 1s ticker so
-  // the remaining-time estimate recomputes from real throughput.
-  const [queueStartedAt, setQueueStartedAt] = useState(null);
+  // Per-subunit status during a bulk run, so the queue list checks items off
+  // as they finish (the loaded curriculum data isn't refreshed until the end).
+  const [completedSubunitIds, setCompletedSubunitIds] = useState([]);
+  const [failedSubunitIds, setFailedSubunitIds] = useState([]);
+  const [activeSubunitIds, setActiveSubunitIds] = useState([]);
+  // Live ETA for bulk generation. Anchored at each completion (smoothed
+  // throughput rate + how many remain) and counted down by a 1s ticker, so the
+  // estimate decreases smoothly instead of jumping between/at completions.
+  const [etaModel, setEtaModel] = useState(null); // { rate, anchorAt, remainingAtAnchor }
   const [, setEtaTick] = useState(0);
-  const GEN_CONCURRENCY = 2;
+  const GEN_CONCURRENCY = 4;
 
   useEffect(() => {
     if (!generatingQueue) return;
@@ -67,22 +73,18 @@ export default function ManageCurriculum() {
     return () => clearInterval(id);
   }, [generatingQueue]);
 
-  // Estimate remaining time from how long completed subunits actually took
-  // (wall-clock per completed subunit already accounts for the concurrency).
+  // Estimate remaining time. We anchor a target (subunits left × smoothed
+  // wall-clock rate per subunit) at each completion, then subtract the time
+  // elapsed since that anchor — so the displayed value counts steadily DOWN
+  // between completions instead of inflating and snapping back.
   const estimateRemaining = () => {
-    const { current, total } = queueProgress;
-    const remaining = Math.max(0, total - current);
-    if (remaining === 0) return "finishing up…";
-    const perSubunitMs =
-      current > 0 && queueStartedAt
-        ? (Date.now() - queueStartedAt) / current
-        : 45000 / GEN_CONCURRENCY; // initial guess before the first one lands
-    const secs = Math.max(5, Math.round((remaining * perSubunitMs) / 1000));
+    if (!etaModel || etaModel.remainingAtAnchor <= 0) return "finishing up…";
+    const projectedMs =
+      etaModel.remainingAtAnchor * etaModel.rate - (Date.now() - etaModel.anchorAt);
+    const secs = Math.max(5, Math.round(projectedMs / 1000));
     const m = Math.floor(secs / 60);
     const s = secs % 60;
-    return m > 0
-      ? `${m} min ${s} sec`
-      : `${s} sec`;
+    return m > 0 ? `${m} min ${s} sec` : `${s} sec`;
   };
 
 
@@ -212,7 +214,14 @@ export default function ManageCurriculum() {
 
     setGeneratingQueue(true);
     setQueueProgress({ current: 0, total: subunitsNeedingContent.length });
-    setQueueStartedAt(Date.now());
+    setCompletedSubunitIds([]);
+    setFailedSubunitIds([]);
+    setActiveSubunitIds([]);
+    setEtaModel({
+      rate: 45000 / GEN_CONCURRENCY, // initial guess before the first one lands
+      anchorAt: Date.now(),
+      remainingAtAnchor: subunitsNeedingContent.length,
+    });
 
     // Generate a few subunits at a time, not ALL at once. Each subunit fires
     // several heavy gpt-5-mini calls, so running every subunit concurrently
@@ -221,23 +230,45 @@ export default function ManageCurriculum() {
     // throughput high while staying under the limits; the LLM client also
     // retries transient failures with backoff.
     const CONCURRENCY = GEN_CONCURRENCY;
+    const total = subunitsNeedingContent.length;
     const queue = [...subunitsNeedingContent];
+    const startTs = Date.now();
+    let completed = 0;
+    let smoothRate = 45000 / CONCURRENCY; // ms of wall-clock per subunit
     const worker = async () => {
       while (queue.length > 0) {
         const sub = queue.shift();
         console.log(`\n🚀 Starting generation for: ${sub.subunit_name}`);
+        setActiveSubunitIds(prev => [...prev, sub.id]);
+        let ok = false;
         try {
           await generateContentForSubunit(sub);
           console.log(`✅ Completed: ${sub.subunit_name}`);
+          ok = true;
         } catch (err) {
           console.error(`❌ Failed: ${sub.subunit_name}`, err?.message);
         }
-        // Update progress counter as each one finishes
-        setQueueProgress(prev => ({ ...prev, current: prev.current + 1 }));
+        // Re-anchor the ETA on each completion using real throughput, blended
+        // with the running estimate so a single slow/fast subunit doesn't make
+        // it lurch. perSubunitMs is wall-clock per finished subunit, which
+        // already bakes in the concurrency.
+        completed += 1;
+        const instRate = (Date.now() - startTs) / completed;
+        smoothRate = 0.6 * smoothRate + 0.4 * instRate;
+        setQueueProgress({ current: completed, total });
+        setEtaModel({
+          rate: smoothRate,
+          anchorAt: Date.now(),
+          remainingAtAnchor: Math.max(0, total - completed),
+        });
+        // Check the subunit off (or flag it) and clear its spinner.
+        setActiveSubunitIds(prev => prev.filter(id => id !== sub.id));
+        if (ok) setCompletedSubunitIds(prev => [...prev, sub.id]);
+        else setFailedSubunitIds(prev => [...prev, sub.id]);
       }
     };
     await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, subunitsNeedingContent.length) }, worker)
+      Array.from({ length: Math.min(CONCURRENCY, total) }, worker)
     );
 
     await loadCurriculumData();
@@ -881,17 +912,50 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 <h4 className="text-sm font-semibold text-gray-900 mb-3">{queueProgress.total} subunit{queueProgress.total === 1 ? "" : "s"} in the queue</h4>
-                {subunits.filter(sub => getSubunitStatus(sub.id) === "video_only").map((sub) => (
-                  <div 
-                    key={sub.id}
-                    className="p-3 rounded-lg border-2 bg-blue-50 border-blue-300"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-blue-700">{sub.subunit_name}</span>
-                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                {subunits.filter(sub => getSubunitStatus(sub.id) === "video_only").map((sub) => {
+                  const done = completedSubunitIds.includes(sub.id);
+                  const failed = failedSubunitIds.includes(sub.id);
+                  const active = activeSubunitIds.includes(sub.id);
+                  return (
+                    <div
+                      key={sub.id}
+                      className={`p-3 rounded-lg border-2 ${
+                        done
+                          ? "bg-green-50 border-green-300"
+                          : failed
+                          ? "bg-red-50 border-red-300"
+                          : active
+                          ? "bg-blue-50 border-blue-300"
+                          : "bg-gray-50 border-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-sm font-medium ${
+                            done
+                              ? "text-green-700"
+                              : failed
+                              ? "text-red-700"
+                              : active
+                              ? "text-blue-700"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {sub.subunit_name}
+                        </span>
+                        {done ? (
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        ) : failed ? (
+                          <AlertCircle className="w-5 h-5 text-red-600" />
+                        ) : active ? (
+                          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        ) : (
+                          <Clock className="w-5 h-5 text-gray-300" />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
