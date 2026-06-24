@@ -225,7 +225,7 @@ export default function TeacherCurricula() {
                 <div className="w-10 h-10 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                   <Sparkles className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-slate-900 mb-1">Create one learning session</h3>
+                <h3 className="font-bold text-slate-900 mb-1">Create a single session</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   Single subunit from a YouTube video — pick which parts to include, assign to a class with a due date.
                 </p>

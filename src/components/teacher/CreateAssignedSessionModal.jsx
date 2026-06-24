@@ -252,7 +252,7 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
       setReviewPayload(payload);
     } catch (err) {
       console.error("Create assigned session failed:", err);
-      toast.error(err?.message || "Could not create the learning session.");
+      toast.error(err?.message || "Could not create the single session.");
     } finally {
       setWorking(false);
     }
@@ -285,12 +285,12 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
         });
       if (aErr) throw aErr;
 
-      toast.success("Learning session assigned");
+      toast.success("Single session assigned");
       onClose?.();
       navigate(createPageUrl("TeacherDashboard"));
     } catch (err) {
       console.error("Assign learning session failed:", err);
-      toast.error(err?.message || "Could not assign the learning session.");
+      toast.error(err?.message || "Could not assign the single session.");
       setSavingReview(false);
     }
   };
@@ -325,7 +325,7 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Create a learning session</h2>
+            <h2 className="text-xl font-bold text-slate-900">Create a single session</h2>
             <p className="text-sm text-slate-500 mt-1">
               Pick a video and which parts to include. Students get it as an assignment on the due date.
             </p>
@@ -567,7 +567,7 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
           // curriculum). We'll reveal the review step the moment it's ready.
           <div className="p-6">
             <GenerationProgress
-              title="Generating your learning session"
+              title="Generating your single session"
               subtitle="This usually takes 30–90 seconds. You'll review it before it's assigned."
               started={baseDone}
               steps={[

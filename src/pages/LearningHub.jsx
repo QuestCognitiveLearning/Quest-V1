@@ -179,7 +179,7 @@ export default function LearningHub() {
           setAssignedBundles(
             (bundleAssns || []).map(a => ({
               ...a,
-              bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
+              bundle_title: bundleMap.get(a.bundle_id)?.title || "Single session",
               source_type: bundleMap.get(a.bundle_id)?.source_type || null,
               completion: completionMap.get(a.id) || null,
             }))
@@ -367,7 +367,7 @@ export default function LearningHub() {
         return {
           id: `bundle_${b.id}`,
           topic: b.bundle_title,
-          unit: "Assigned session",
+          unit: "Single session",
           reviewNumber: (b.completion.review_count || 0) + 1,
           daysLate,
           dueDate: b.completion.next_review_date,

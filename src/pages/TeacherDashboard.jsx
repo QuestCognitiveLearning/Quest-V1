@@ -177,7 +177,7 @@ export default function TeacherDashboard() {
             setBundleAssignments(
               (assignments || []).map(a => ({
                 ...a,
-                bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
+                bundle_title: bundleMap.get(a.bundle_id)?.title || "Single session",
               }))
             );
 
@@ -749,7 +749,7 @@ export default function TeacherDashboard() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={async () => {
-                                    if (!(await confirmDialog({ title: "Unassign session?", message: "Students will no longer see this learning session.", tone: "danger", confirmLabel: "Unassign" }))) return;
+                                    if (!(await confirmDialog({ title: "Unassign session?", message: "Students will no longer see this single session.", tone: "danger", confirmLabel: "Unassign" }))) return;
                                     try {
                                       await quest.entities.LearningSessionAssignment.delete(a.id);
                                       setBundleAssignments((prev) => prev.filter((x) => x.id !== a.id));

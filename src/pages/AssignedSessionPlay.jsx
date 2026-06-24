@@ -602,7 +602,7 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
 
   return (
     <Wrapper
-      title={bundle?.title || video?.title || "Learning session"}
+      title={bundle?.title || video?.title || "Single session"}
       phaseIdx={phaseIdx}
       phases={phases}
       due={assignment?.due_at}
@@ -732,7 +732,7 @@ function Wrapper({ title, phaseIdx, phases, due, onBack, children }) {
 
         <div className="mb-4">
           <div className="inline-flex items-center gap-1.5 bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2">
-            <Sparkles className="w-3 h-3" /> Assigned session
+            <Sparkles className="w-3 h-3" /> Single session
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
             {title}

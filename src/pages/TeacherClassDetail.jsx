@@ -194,7 +194,7 @@ export default function TeacherClassDetail() {
           setAssignedBundles(
             (bundleAssns || []).map(a => ({
               ...a,
-              bundle_title: bundleMap.get(a.bundle_id)?.title || "Learning session",
+              bundle_title: bundleMap.get(a.bundle_id)?.title || "Single session",
               completions: byAssignment.get(a.id) || [],
             }))
           );
@@ -839,13 +839,13 @@ function AssignedSessionsTab({ assignedBundles, students, onAssign }) {
         <CardContent className="py-12 text-center">
           <Sparkles className="w-10 h-10 text-slate-300 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-900 mb-1">
-            No learning sessions assigned to this class yet
+            No single sessions assigned to this class yet
           </h3>
           <p className="text-sm text-gray-500 mb-5">
             Turn a video into a quiz, case study, and more — then assign it to this class.
           </p>
           <Button onClick={onAssign} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
-            <Sparkles className="w-4 h-4" /> Assign a learning session
+            <Sparkles className="w-4 h-4" /> Assign a single session
           </Button>
         </CardContent>
       </Card>
