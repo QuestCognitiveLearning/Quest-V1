@@ -671,9 +671,13 @@ function Panel({ icon, tag, tagClass, children }) {
 }
 
 function PhaseDots({ phases, current }) {
+  // The terminal "done" screen isn't a session phase, so it isn't counted here
+  // (display only — the flow still advances to it). "done" is always last, so
+  // content-phase indices and `current` still align.
+  const shown = phases.filter((p) => p !== "done");
   return (
     <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm w-fit">
-      {phases.map((p, i) => (
+      {shown.map((p, i) => (
         <span
           key={i}
           className={`h-1.5 rounded-full transition-all ${

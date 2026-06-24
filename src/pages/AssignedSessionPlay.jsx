@@ -751,9 +751,14 @@ function Wrapper({ title, phaseIdx, phases, due, onBack, children }) {
 }
 
 function PhaseDots({ phases, current }) {
+  // A session has 4 phases: inquiry, video, quiz, case study. The trailing
+  // "results" screen is not a phase, so it isn't counted here (the flow still
+  // navigates to it — this is display only). "results" is always last, so
+  // content-phase indices are unchanged and `current` still aligns.
+  const shown = phases.filter((p) => p !== "results");
   return (
     <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm">
-      {phases.map((p, i) => (
+      {shown.map((p, i) => (
         <span
           key={i}
           className={`h-1.5 rounded-full transition-all ${

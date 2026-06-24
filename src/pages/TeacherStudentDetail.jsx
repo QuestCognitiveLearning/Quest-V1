@@ -115,8 +115,15 @@ export default function TeacherStudentDetail() {
       const inquiries = await quest.entities.InquiryResponse.filter({ student_id: studentId });
       setInquiryResponses(inquiries);
 
-      // Load all questions and quizzes
-      const allQuestions = await quest.entities.Question.list();
+      // Load only the questions referenced by this student's responses, by id.
+      // A blanket .list() is capped at ~1000 rows by PostgREST, so for a large
+      // curriculum the needed questions can fall outside the page and the
+      // lookup silently fails. (Newer responses also carry denormalized text,
+      // so this is just a fallback for older rows.)
+      const neededQuestionIds = [...new Set(responses.map((r) => r.question_id).filter(Boolean))];
+      const allQuestions = neededQuestionIds.length
+        ? await quest.entities.Question.filter({ id: neededQuestionIds })
+        : [];
       setQuestions(allQuestions);
 
       const allQuizzes = await quest.entities.Quiz.list();
@@ -559,14 +566,14 @@ export default function TeacherStudentDetail() {
                                             )}
                                             <div className="flex-1">
                                               <p className="text-sm text-gray-900 font-medium">
-                                                {question?.question_text || `Question ${idx + 1}`}
+                                                {response.question_text || question?.question_text || `Question ${idx + 1}`}
                                               </p>
-                                              {question && (
+                                              {(response.selected_choice_text || question) && (
                                                 <p className="text-xs text-gray-600 mt-1">
-                                                  Selected: {resolveChoice(question, response.selected_choice)}
+                                                  Selected: {response.selected_choice_text || resolveChoice(question, response.selected_choice)}
                                                   {!response.is_correct && (
                                                     <span className="text-green-600 ml-2">
-                                                      (Correct: {resolveChoice(question, question.correct_choice)})
+                                                      (Correct: {response.correct_choice_text || resolveChoice(question, question?.correct_choice)})
                                                     </span>
                                                   )}
                                                 </p>
@@ -705,14 +712,14 @@ export default function TeacherStudentDetail() {
                                           )}
                                           <div className="flex-1">
                                             <p className="text-sm text-gray-900 font-medium">
-                                              {question?.question_text || `Question ${idx + 1}`}
+                                              {response.question_text || question?.question_text || `Question ${idx + 1}`}
                                             </p>
-                                            {question && (
+                                            {(response.selected_choice_text || question) && (
                                               <p className="text-xs text-gray-600 mt-1">
-                                                Selected: {resolveChoice(question, response.selected_choice)}
+                                                Selected: {response.selected_choice_text || resolveChoice(question, response.selected_choice)}
                                                 {!response.is_correct && (
                                                   <span className="text-green-600 ml-2">
-                                                    (Correct: {resolveChoice(question, question.correct_choice)})
+                                                    (Correct: {response.correct_choice_text || resolveChoice(question, question?.correct_choice)})
                                                   </span>
                                                 )}
                                               </p>

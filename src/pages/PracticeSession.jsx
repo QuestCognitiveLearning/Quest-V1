@@ -205,6 +205,7 @@ export default function PracticeSession() {
       const newCorrectIndex = shuffledIndices.indexOf(correctChoice);
       
       return {
+        id: q.id,
         question: q.question_text,
         options: shuffledChoices,
         correctIndex: newCorrectIndex,
@@ -220,17 +221,22 @@ export default function PracticeSession() {
     setAnsweredCorrectly(correct);
     setResults([...results, { question: currentQuestion, mcqCorrect: correct, frqSubmitted: false, selectedChoice: selectedAnswer }]);
     
-    // Save question response
-    if (user && quiz && dbQuestions[currentQuestion]) {
+    // Save question response with the actual text shown (choices are shuffled
+    // per attempt, so the stored index alone can't be resolved later).
+    if (user && quiz && questions[currentQuestion]) {
+      const q = questions[currentQuestion];
       try {
         await quest.entities.QuestionResponse.create({
           student_id: user.id,
           quiz_id: quiz.id,
-          question_id: dbQuestions[currentQuestion].id,
+          question_id: q.id,
           selected_choice: selectedAnswer + 1,
           is_correct: correct,
           session_type: "review",
-          subunit_id: subunitId
+          subunit_id: subunitId,
+          question_text: q.question,
+          selected_choice_text: q.options?.[selectedAnswer] ?? "",
+          correct_choice_text: q.options?.[q.correctIndex] ?? "",
         });
       } catch (err) {
         console.error("Failed to save question response:", err);

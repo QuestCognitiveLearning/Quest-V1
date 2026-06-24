@@ -426,6 +426,7 @@ export default function NewSession() {
       const newCorrectIndex = shuffledIndices.indexOf(correctChoice);
       
       return {
+        id: q.id,
         question: q.question_text,
         options: shuffledChoices,
         correctIndex: newCorrectIndex,
@@ -623,17 +624,24 @@ export default function NewSession() {
     const correct = selectedAnswer === questions[currentQuestion].correctIndex;
     setResults([...results, { correct, selectedChoice: selectedAnswer }]);
     
-    // Save question response
-    if (user && quiz && dbQuestions[currentQuestion]) {
+    // Save question response. Store the actual text the student saw — choices
+    // are shuffled per attempt (so the index can't be resolved later) and the
+    // displayed question (`questions[currentQuestion]`) is a selected/shuffled
+    // entry, not `dbQuestions[currentQuestion]`.
+    if (user && quiz && questions[currentQuestion]) {
+      const q = questions[currentQuestion];
       try {
         await quest.entities.QuestionResponse.create({
           student_id: user.id,
           quiz_id: quiz.id,
-          question_id: dbQuestions[currentQuestion].id,
+          question_id: q.id,
           selected_choice: selectedAnswer + 1,
           is_correct: correct,
           session_type: "new_topic",
-          subunit_id: subunitId
+          subunit_id: subunitId,
+          question_text: q.question,
+          selected_choice_text: q.options?.[selectedAnswer] ?? "",
+          correct_choice_text: q.options?.[q.correctIndex] ?? "",
         });
       } catch (err) {
         console.error("Failed to save question response:", err);
