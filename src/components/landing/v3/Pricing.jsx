@@ -21,7 +21,7 @@ const buildTiers = (navigate, openContact, billing) => [
       "Unlimited AI quiz + case study generation",
       "Live classroom sessions with leaderboards",
       "AI Panda Tutor for every student",
-      "Print-ready PDF + Word handouts",
+      "Print-ready PDF + Word exports",
       "Priority email support",
     ],
     action: () => {

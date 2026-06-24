@@ -17,7 +17,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/components/lib/supabase-client';
-import { ArrowRight, Sparkles, Youtube, FileText, Rocket, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Youtube, FileText, Rocket, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import VideoPicker from '@/components/try/VideoPicker';
 import GenerationLoader from '@/components/try/GenerationLoader';
@@ -202,22 +202,23 @@ export default function Try() {
 
         {stage === 'pick' && (
           <>
-            <div className="text-center max-w-3xl mx-auto mb-10">
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-700 bg-indigo-100 rounded-full px-3 py-1 mb-4">
-                <Sparkles className="w-3.5 h-3.5" /> Free tool
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-700 bg-indigo-100 rounded-full px-3 py-1 mb-5">
+                <Sparkles className="w-3.5 h-3.5" /> Free — no signup
               </span>
-              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900">
-                Turn any YouTube video into a quiz + case study
+              <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-slate-900 leading-[1.05]">
+                Turn any video into a{' '}
+                <span className="bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">
+                  quiz&nbsp;+&nbsp;case&nbsp;study
+                </span>
               </h1>
               <p className="mt-4 text-lg text-slate-600">
-                Paste a link or search YouTube. We'll generate a 10-question
-                multiple-choice quiz and a discussion case study — ready to
-                print as PDF or Word.
+                Paste a YouTube link — print it as PDF or Word.
               </p>
-              <div className="mt-5 flex items-center justify-center gap-5 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5"><Youtube className="w-4 h-4" /> Any YouTube video</span>
-                <span className="flex items-center gap-1.5"><FileText className="w-4 h-4" /> PDF + Word export</span>
-                <span className="flex items-center gap-1.5"><ArrowRight className="w-4 h-4" /> No signup to preview</span>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 text-sm font-medium text-slate-600">
+                <span className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm"><Youtube className="w-4 h-4 text-rose-500" /> Any YouTube video</span>
+                <span className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm"><FileText className="w-4 h-4 text-blue-500" /> PDF + Word</span>
+                <span className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm"><Sparkles className="w-4 h-4 text-indigo-500" /> ~60 seconds</span>
               </div>
             </div>
             <div className="max-w-3xl mx-auto space-y-5">
@@ -231,11 +232,10 @@ export default function Try() {
           <div className="space-y-6">
             <div className="text-center max-w-2xl mx-auto">
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                Generating your handout
+                Building your handout
               </h2>
               <p className="mt-2 text-slate-600">
-                This usually takes about a minute. While you wait — here's how
-                Quest Learning works.
+                About a minute. Here's how Quest works while you wait.
               </p>
             </div>
             <GenerationLoader

@@ -288,6 +288,16 @@ export default function TeacherDashboard() {
         }
       };
 
+      const safeList = async (fetcher) => {
+        try {
+          const rows = await fetcher();
+          return Array.isArray(rows) ? rows : [];
+        } catch (err) {
+          console.warn("[dashboard] list failed:", err);
+          return [];
+        }
+      };
+
       // Library handouts (no curriculum link) — explicit teacher_id filter
       // because the underlying table is jsonb-heavy and we want only this
       // teacher's rows.
@@ -304,23 +314,44 @@ export default function TeacherDashboard() {
           )
       );
 
-      // Quizzes / case studies / inquiry sessions / subunits — scope strictly
-      // to rows this teacher created. .list() returns anything RLS permits,
-      // which on these tables can include other teachers' rows reachable via
-      // shared curricula or class membership — that would inflate Hours Saved
-      // by crediting work this teacher didn't do.
-      counts.quizzes = await safeCount("quizzes", () =>
-        quest.entities.Quiz.filter({ created_by_id: currentUser.id })
+      // Quizzes / case studies / inquiry sessions / subunits are saved by the
+      // curriculum generator WITHOUT a created_by_id, so the old
+      // created_by_id filter returned 0 for them. Count them by ownership
+      // instead: this teacher's own curricula → units → subunits → resources.
+      // That counts existing rows and stays strictly scoped to this teacher's
+      // work (the subunit-id filter excludes other teachers' shared curricula).
+      const ownedCurriculumIds = new Set(
+        allCurricula.filter((c) => c.teacher_id === currentUser.id).map((c) => c.id)
       );
-      counts.caseStudies = await safeCount("case studies", () =>
-        quest.entities.CaseStudy.filter({ created_by_id: currentUser.id })
-      );
-      counts.inquirySessions = await safeCount("inquiry sessions", () =>
-        quest.entities.InquirySession.filter({ created_by_id: currentUser.id })
-      );
-      counts.subunits = await safeCount("subunits", () =>
-        quest.entities.Subunit.filter({ created_by_id: currentUser.id })
-      );
+      if (ownedCurriculumIds.size > 0) {
+        const [units, subunitsAll, quizzesAll, caseStudiesAll, inquiryAll] =
+          await Promise.all([
+            safeList(() => quest.entities.Unit.list()),
+            safeList(() => quest.entities.Subunit.list()),
+            safeList(() => quest.entities.Quiz.list()),
+            safeList(() => quest.entities.CaseStudy.list()),
+            safeList(() => quest.entities.InquirySession.list()),
+          ]);
+        const ownedUnitIds = new Set(
+          units.filter((u) => ownedCurriculumIds.has(u.curriculum_id)).map((u) => u.id)
+        );
+        const ownedSubunitIds = new Set(
+          subunitsAll.filter((s) => ownedUnitIds.has(s.unit_id)).map((s) => s.id)
+        );
+        counts.subunits = ownedSubunitIds.size;
+        // Each subunit gets a paired "new_topic" + "review" quiz; count the
+        // new_topic one so "quizzes" reads as one per subunit (matches the
+        // case-study count), not double.
+        counts.quizzes = quizzesAll.filter(
+          (q) => ownedSubunitIds.has(q.subunit_id) && q.quiz_type === "new_topic"
+        ).length;
+        counts.caseStudies = caseStudiesAll.filter((c) =>
+          ownedSubunitIds.has(c.subunit_id)
+        ).length;
+        counts.inquirySessions = inquiryAll.filter((i) =>
+          ownedSubunitIds.has(i.subunit_id)
+        ).length;
+      }
 
       console.log("[dashboard] resource stats:", counts);
       setResourceStats(counts);
@@ -550,7 +581,7 @@ export default function TeacherDashboard() {
             sublabel={`${resourceStats.quizzes} quizzes · ${resourceStats.caseStudies} case studies`}
           />
           <StatCard
-            label="Handouts"
+            label="Single Sessions"
             value={resourceStats.generatedHandouts}
             icon={BookOpen}
             color="amber"

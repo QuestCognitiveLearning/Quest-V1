@@ -82,7 +82,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: "Hook ready",
-        hint: "No hook yet — start from a saved handout above.",
+        hint: "No hook yet — start from a saved Single Session above.",
       };
     }
     case "video": {
@@ -91,7 +91,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: n > 0 ? `Video · ${n} check${n === 1 ? "" : "s"}` : "Video ready",
-        hint: "No video yet — start from a saved handout above.",
+        hint: "No video yet — start from a saved Single Session above.",
       };
     }
     case "quiz": {
@@ -99,7 +99,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready: n > 0,
         summary: `${n} question${n === 1 ? "" : "s"}`,
-        hint: "No quiz yet — start from a saved handout above.",
+        hint: "No quiz yet — start from a saved Single Session above.",
       };
     }
     case "case_study": {
@@ -107,7 +107,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: "Case study ready",
-        hint: "No case study yet — start from a saved handout above.",
+        hint: "No case study yet — start from a saved Single Session above.",
       };
     }
     default:
@@ -323,7 +323,7 @@ export default function LiveSessionBuilder() {
             {library.length > 0 && (
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Start from a saved handout (optional)
+                  Start from a saved Single Session (optional)
                 </label>
                 <select
                   value={selectedHandoutId}
@@ -341,7 +341,7 @@ export default function LiveSessionBuilder() {
                   <option value="">— Start from scratch —</option>
                   {library.map((row) => (
                     <option key={row.id} value={row.id}>
-                      {row.title || "Untitled handout"}
+                      {row.title || "Untitled Single Session"}
                     </option>
                   ))}
                 </select>

@@ -60,7 +60,7 @@ const FEATURES = [
   },
   {
     icon: Sparkles,
-    head: "YouTube → handout in 90 seconds",
+    head: "YouTube → Single Session in 90 seconds",
     body:
       "Paste a YouTube link, get a multiple-choice quiz, case study, and discussion prompts. Try the free tool at /Try.",
   },

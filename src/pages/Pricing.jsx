@@ -153,7 +153,7 @@ export default function Pricing() {
         "Unlimited AI quiz + case study generation",
         "Live classroom sessions with leaderboards",
         "AI Panda Tutor for every student",
-        "Print-ready PDF + Word handouts",
+        "Print-ready PDF + Word exports",
         "Standards alignment for K-12 + College",
         "Priority email support",
       ],
