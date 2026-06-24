@@ -81,8 +81,8 @@ export default function ManageCurriculum() {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return m > 0
-      ? `~${m} min ${String(s).padStart(2, "0")} sec remaining`
-      : `~${s} sec remaining`;
+      ? `${m} min ${s} sec`
+      : `${s} sec`;
   };
 
 
@@ -875,7 +875,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                   />
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  Generating {GEN_CONCURRENCY} at a time so nothing gets rate-limited — {estimateRemaining()}
+                  Time Remaining: {estimateRemaining()}
                 </p>
               </div>
 
