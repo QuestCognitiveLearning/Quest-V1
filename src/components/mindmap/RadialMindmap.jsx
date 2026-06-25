@@ -7,19 +7,21 @@ import { PASS_THRESHOLD } from "@/lib/spacedRepetition";
 // Minimum ring radii. Kept just large enough to clear the inner node so small
 // curricula pull in tight to the center; the no-overlap math below pushes them
 // outward as the unit / subunit counts grow, so spacing scales with size.
-const UNIT_RADIUS = 150;     // minimum unit-ring radius (clears the center node)
-const SUBUNIT_RADIUS = 92;   // minimum subunit-ring radius (clears its unit node)
+const UNIT_RADIUS = 132;     // minimum unit-ring radius (clears the center node)
+const SUBUNIT_RADIUS = 100;  // minimum subunit-ring radius (clears its unit node)
 
-const CENTER_SIZE = 130;
-const UNIT_SIZE = 85;
-const SUBUNIT_SIZE = 65;
+// Bigger nodes + tighter clearances → larger circles, smaller gaps. The whole
+// map is scaled to fit, so these only set the look/proportions, not the size.
+const CENTER_SIZE = 140;
+const UNIT_SIZE = 104;
+const SUBUNIT_SIZE = 80;
 
 // Spacing knobs for the adaptive layout.
-const SUB_MIN_CHORD = SUBUNIT_SIZE + 16; // min center-to-center between subunits
+const SUB_MIN_CHORD = SUBUNIT_SIZE + 10; // min center-to-center between subunits
 const SUB_MAX_ARC = 160;                 // cap on a unit's outward subunit fan (deg)
 const SUB_ARC_PER = 38;                  // fan degrees added per extra subunit
-const UNIT_GAP = 30;                     // clearance between adjacent unit clusters
-const PADDING = 70;                      // canvas breathing room
+const UNIT_GAP = 18;                     // clearance between adjacent unit clusters
+const PADDING = 30;                      // canvas breathing room
 
 function polarToXY(center, radius, angleDeg) {
   const rad = angleDeg * Math.PI / 180;
@@ -250,7 +252,9 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
     const compute = () => {
       const w = el.clientWidth || canvas;
       const h = el.clientHeight || canvas;
-      setScale(Math.min(1, w / canvas, h / canvas));
+      // Grow to fill the region (no upper cap) — uniform scaling never causes
+      // overlap, so this just makes the map as large as the viewport allows.
+      setScale(Math.min(w / canvas, h / canvas));
     };
     compute();
     const ro = new ResizeObserver(compute);
@@ -302,7 +306,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
             className="absolute flex items-center justify-center rounded-full text-white font-semibold">
 
             <div
-              className={`w-full h-full rounded-full bg-gradient-to-br ${colors.bg} flex items-center justify-center px-2`}
+              className={`w-full h-full rounded-full bg-gradient-to-br ${colors.bg} flex items-center justify-center text-center leading-tight px-2`}
               style={{ fontSize: `${getFontSize(curriculumText, 20, CENTER_SIZE)}px`, boxShadow: `0 8px 32px ${colors.shadow}` }}>
 
               {curriculumText}
@@ -397,7 +401,7 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
                       style={{
                         fontSize: `${getFontSize(sub.displayText, 12, SUBUNIT_SIZE)}px`
                       }}
-                      className={`w-full h-full flex items-center justify-center rounded-full bg-white border-[2.5px] ${borderColor} ${textColor} font-medium shadow-md px-2`}>
+                      className={`w-full h-full flex items-center justify-center text-center leading-tight rounded-full bg-white border-[2.5px] ${borderColor} ${textColor} font-medium shadow-md px-2`}>
 
                       {sub.displayText}
                     </div>

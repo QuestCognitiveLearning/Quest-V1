@@ -26,7 +26,6 @@ import { Loader2, ChevronLeft, Video, CheckCircle, AlertCircle, Clock, Sparkles,
 import VideoOnlyModal from "@/components/teacher/VideoOnlyModal";
 import ContentReviewModal from "@/components/teacher/ContentReviewModal";
 import { invokeLLM, generateImage } from "@/components/utils/openai";
-import DownloadPDFButton from "@/components/shared/pdf/DownloadPDFButton";
 import { LLM_MODELS } from "@/lib/llmModels";
 import { resolveTranscript } from "@/lib/transcript";
 
@@ -787,19 +786,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
                               </>
                             )}
                           </Button>
-                          {status === "complete" ? (
-                            <div className="mt-2">
-                              <DownloadPDFButton
-                                type="subunit"
-                                contentId={subunit.id}
-                                label={subunit.subunit_name}
-                                size="sm"
-                                variant="secondary"
-                              >
-                                Download packet
-                              </DownloadPDFButton>
-                            </div>
-                          ) : (
+                          {status !== "complete" && (
                             <div className="mt-2">
                               <label
                                 className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors ${
