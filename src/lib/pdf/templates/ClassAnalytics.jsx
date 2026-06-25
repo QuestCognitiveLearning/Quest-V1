@@ -16,14 +16,26 @@ function StatCard({ label, value, sub }) {
         backgroundColor: COLORS.brandSoft,
         borderRadius: 8,
         padding: 12,
-        marginRight: 8,
+        minHeight: 84,
       }}
     >
-      <Text style={{ fontSize: 22, fontFamily: "Helvetica-Bold", color: COLORS.brandDeep }}>
+      <Text
+        style={{
+          fontSize: 20,
+          fontFamily: "Helvetica-Bold",
+          color: COLORS.brandDeep,
+          lineHeight: 1.1,
+          marginBottom: 6,
+        }}
+      >
         {value}
       </Text>
-      <Text style={{ fontSize: 9, color: COLORS.ink2, marginTop: 2 }}>{label}</Text>
-      {sub ? <Text style={{ fontSize: 8, color: COLORS.ink3 || "#6B7280", marginTop: 1 }}>{sub}</Text> : null}
+      <Text style={{ fontSize: 8.5, color: COLORS.ink2, lineHeight: 1.25 }}>{label}</Text>
+      {sub ? (
+        <Text style={{ fontSize: 7.5, color: "#6B7280", marginTop: 3, lineHeight: 1.25 }}>
+          {sub}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -122,7 +134,7 @@ export default function ClassAnalytics({
         <Text style={styles.sectionEyebrow}>Overview</Text>
         <Text style={styles.h1}>How the class is doing</Text>
 
-        <View style={{ flexDirection: "row", marginTop: 14, marginBottom: 6 }}>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 14, marginBottom: 6 }}>
           <StatCard label="Class average score" value={pct(classAvg)} sub="across completed work" />
           <StatCard label="Avg. completion" value={pct(completionPct)} sub="of assigned topics" />
           <StatCard label="Students" value={String(studentCount)} />
