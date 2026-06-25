@@ -19,6 +19,19 @@ import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
 import { supabase } from "@/components/lib/supabase-client";
 
+// Render **bold** markers from Panda's replies as actual bold text.
+function renderRich(text) {
+  return String(text)
+    .split(/(\*\*[^*]+\*\*)/g)
+    .map((part, i) =>
+      part.startsWith("**") && part.endsWith("**") ? (
+        <strong key={i}>{part.slice(2, -2)}</strong>
+      ) : (
+        <React.Fragment key={i}>{part}</React.Fragment>
+      )
+    );
+}
+
 export default function PandaChatWidget({ topic, phase, currentPrompt }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]); // { role: "user" | "panda", content }
@@ -64,16 +77,18 @@ export default function PandaChatWidget({ topic, phase, currentPrompt }) {
         .join("\n");
 
       const guard = currentPrompt
-        ? `RIGHT NOW the student is being asked to answer this themselves:\n"""\n${currentPrompt}\n"""\nNEVER reveal the answer, NEVER say or hint which option is correct, and NEVER give away so much that they don't have to think it through. Nudge with ONE guiding question or point them to a concept to review, then let them answer it.`
-        : `Help them explore the idea, but never do their thinking for them on something they're being graded on.`;
+        ? `RIGHT NOW the student is being asked to answer this themselves:\n"""\n${currentPrompt}\n"""\nDo NOT reveal the answer and do NOT say or hint which option is correct. Instead, explain the underlying concept(s) they need so they can work it out themselves — but never state the final answer.`
+        : `Explain the idea directly and clearly, but never do their thinking for them on something they're being graded on.`;
 
-      const prompt = `You are Quest Panda, a warm, encouraging Socratic study buddy embedded inside a learning session about "${topic || "this topic"}". The student can ask you anything while they work${phase ? ` (they are currently on the ${String(phase).replace(/_/g, " ")} step)` : ""}.
+      const prompt = `You are Quest Panda, a warm, encouraging study buddy embedded inside a learning session about "${topic || "this topic"}". The student can ask you anything while they work${phase ? ` (they are currently on the ${String(phase).replace(/_/g, " ")} step)` : ""}.
 
-Your job: help them UNDERSTAND — explain concepts simply, give analogies, define terms, and point them at what to focus on. This is a chance for them to ask a question mid-session.
+Your job: ANSWER their question directly and explain it clearly — give plain-language explanations, analogies, and definitions.
 
-ANTI-CHEATING RULE (critical): ${guard} If they ask outright for the answer, kindly refuse and guide them to think instead.
+STYLE RULES:
+- Do NOT ask the student questions back or quiz them, unless they explicitly ask you to test/quiz them. Just help.
+- Be concise. If your reply runs longer than ~2 sentences, put the single most important takeaway in **bold** (wrap it in **double asterisks**) so it stands out.
 
-Keep every reply short (2–4 sentences), friendly, and in plain language.
+ANTI-CHEATING RULE (critical): ${guard} If they ask outright for the answer to the graded question, kindly decline and explain the concept instead.
 
 Conversation so far:
 ${history}
@@ -131,7 +146,7 @@ Panda:`;
           className="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full bg-white border border-slate-200 shadow-lg flex items-center justify-center text-2xl hover:scale-105 transition-transform"
         >
           <span role="img" aria-hidden="true">🐼</span>
-          <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5">
+          <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[7px] font-bold leading-none rounded-full px-1 py-0.5">
             Ask
           </span>
         </button>
@@ -163,13 +178,13 @@ Panda:`;
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm leading-snug ${
+                  className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm leading-snug whitespace-pre-wrap ${
                     m.role === "user"
                       ? "bg-indigo-600 text-white rounded-br-sm"
                       : "bg-white border border-slate-200 text-slate-800 rounded-bl-sm"
                   }`}
                 >
-                  {m.content}
+                  {m.role === "panda" ? renderRich(m.content) : m.content}
                 </div>
               </div>
             ))}
