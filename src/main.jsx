@@ -5,6 +5,12 @@
  * @author Quest Learning core team
  */
 
+// @react-pdf/renderer (PDF generation) expects Node's Buffer global, which the
+// browser doesn't provide — without this, downloads throw "Buffer is not
+// defined". Polyfill it before anything else loads.
+import { Buffer } from 'buffer'
+if (typeof globalThis.Buffer === 'undefined') globalThis.Buffer = Buffer
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { Analytics } from '@vercel/analytics/react'

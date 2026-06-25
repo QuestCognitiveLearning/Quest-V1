@@ -261,13 +261,11 @@ export default function KnowledgeMap() {
             </div> :
           hasClass ?
           curriculum && units.length > 0 ?
-          <div className="bg-slate-50 w-full h-full flex flex-col overflow-y-auto">
-            <div className="flex-1 flex items-center justify-center">
-                <div className="w-full max-w-6xl px-4 py-8">
-                  <div data-tour="progress-stats" className="mb-8">
-                    <AchievementsDisplay studentId={user?.id} />
-                  </div>
-                  <div className="flex items-center justify-center" data-tour="topic-card">
+          <div className="bg-slate-50 w-full h-full flex flex-col overflow-hidden">
+            <div data-tour="progress-stats" className="shrink-0 w-full max-w-6xl mx-auto px-4 pt-4">
+              <AchievementsDisplay studentId={user?.id} />
+            </div>
+            <div className="flex-1 min-h-0 w-full flex items-center justify-center px-4 pb-4" data-tour="topic-card">
                     <RadialMindmap
               curriculum={curriculum}
               units={units.filter(u => u.unit_name !== "Assessments")}
@@ -281,10 +279,8 @@ export default function KnowledgeMap() {
                   navigate(createPageUrl("NewSession") + `?topic=${subunit.id}`);
                 }
               }} />
-                   </div>
-                 </div>
-               </div>
-              </div> :
+            </div>
+          </div> :
 
           <div className="flex items-center justify-center h-full">
                 <p className="text-gray-600">Loading curriculum...</p>

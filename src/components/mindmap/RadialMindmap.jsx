@@ -4,8 +4,11 @@ import { PASS_THRESHOLD } from "@/lib/spacedRepetition";
 // Base node sizes (virtual px). The whole map is scaled to fit the container,
 // so these stay fixed and the layout math below spaces nodes apart based on
 // the actual unit / subunit counts — no overlap at any size.
-const UNIT_RADIUS = 220;     // minimum unit-ring radius
-const SUBUNIT_RADIUS = 130;  // minimum subunit-ring radius
+// Minimum ring radii. Kept just large enough to clear the inner node so small
+// curricula pull in tight to the center; the no-overlap math below pushes them
+// outward as the unit / subunit counts grow, so spacing scales with size.
+const UNIT_RADIUS = 150;     // minimum unit-ring radius (clears the center node)
+const SUBUNIT_RADIUS = 92;   // minimum subunit-ring radius (clears its unit node)
 
 const CENTER_SIZE = 130;
 const UNIT_SIZE = 85;
@@ -237,21 +240,30 @@ export default function RadialMindmap({ curriculum, units, subunits, studentProg
     });
   });
 
+  // Fit the virtual canvas to BOTH the available width and height of the region
+  // we're mounted in, so the map is always fully visible without scrolling on
+  // any screen. The wrapper fills its (bounded) parent, so its client size is
+  // stable and there's no shrink-to-zero feedback loop.
   React.useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const compute = () => {
       const w = el.clientWidth || canvas;
-      setScale(Math.min(1, w / canvas));
+      const h = el.clientHeight || canvas;
+      setScale(Math.min(1, w / canvas, h / canvas));
     };
     compute();
     const ro = new ResizeObserver(compute);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener("resize", compute);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", compute);
+    };
   }, [canvas]);
 
   return (
-    <div ref={wrapRef} className="w-full flex justify-center" style={{ fontFamily: '"Poppins", sans-serif' }}>
+    <div ref={wrapRef} className="w-full h-full flex items-center justify-center" style={{ fontFamily: '"Poppins", sans-serif' }}>
       <div style={{ width: canvas * scale, height: canvas * scale, position: "relative" }}>
         <div
           className="absolute top-0 left-0 bg-zinc-50 rounded-2xl"
