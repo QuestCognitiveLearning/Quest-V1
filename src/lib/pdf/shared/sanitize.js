@@ -37,11 +37,17 @@ export function sanitizePdfText(str) {
   if (typeof str !== "string") return str;
   return str
     .replace(RE, (m) => REPLACEMENTS[m])
-    // Keep ASCII printable + the safe Latin-1 range, but drop DEL + the C1
-    // control block (\x7F-\x9F) — those have gaps the built-in WinAnsi font
-    // can't measure, which can yield a NaN glyph width. Anything else (emoji,
-    // CJK, combining marks) is also dropped so it can never break the render.
-    .replace(/[^\t\n\r\x20-\x7E\xA0-\xFF]/g, "");
+    // Strip diacritics so accented Latin letters degrade to their ASCII base
+    // (é→e, ñ→n) instead of vanishing.
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    // Then keep ONLY ASCII printable (+ tab/newline). The built-in PDF font's
+    // metrics return a garbage advance width for some non-ASCII glyphs in the
+    // browser, which surfaces as "unsupported number: -1.7e+21" and aborts the
+    // whole download. Restricting to ASCII guarantees every glyph is
+    // measurable. (Platform output is English; symbols/Greek are already
+    // mapped to ASCII by the table above.)
+    .replace(/[^\t\n\r\x20-\x7E]/g, "");
 }
 
 // Recursively clean every string in a data object/array passed to a template.
