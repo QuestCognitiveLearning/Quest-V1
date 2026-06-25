@@ -1,4 +1,4 @@
-import { StyleSheet, Font } from "@react-pdf/renderer";
+import { StyleSheet } from "@react-pdf/renderer";
 
 export const COLORS = {
   ink: "#1A1A1A",
@@ -29,27 +29,11 @@ export const PAGE = {
   margins: { top: 54, right: 54, bottom: 54, left: 54 },
 };
 
-const FONT_BASE = "https://fonts.gstatic.com/s/inter/v18";
-let interRegistered = false;
-
-export function ensureFonts() {
-  if (interRegistered) return;
-  try {
-    Font.register({
-      family: "Inter",
-      fonts: [
-        { src: `${FONT_BASE}/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa1ZL7.ttf`, fontWeight: 400 },
-        { src: `${FONT_BASE}/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa1ZL7.ttf`, fontWeight: 500 },
-        { src: `${FONT_BASE}/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa1ZL7.ttf`, fontWeight: 700 },
-      ],
-    });
-    interRegistered = true;
-  } catch {
-    interRegistered = true;
-  }
-}
-
-ensureFonts();
+// The templates render entirely with the PDF built-in fonts (Helvetica /
+// Helvetica-Bold), so no remote font registration is needed. A previous
+// version registered an "Inter" font from a gstatic URL that now 404s — never
+// referenced, but a needless runtime fetch/footgun, so it's removed.
+export function ensureFonts() {}
 
 export const styles = StyleSheet.create({
   page: {

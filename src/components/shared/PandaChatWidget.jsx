@@ -17,21 +17,41 @@ import React, { useState, useRef, useEffect } from "react";
 import { X, Send, Loader2 } from "lucide-react";
 import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
+import { supabase } from "@/components/lib/supabase-client";
 
 export default function PandaChatWidget({ topic, phase, currentPrompt }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]); // { role: "user" | "panda", content }
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(null); // null = still resolving
   const endRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth
+      .getUser()
+      .then(({ data }) => active && setLoggedIn(!!data?.user))
+      .catch(() => active && setLoggedIn(false));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy, open]);
 
+  // Per-session message cap: 6 for signed-in students, 4 for anonymous (e.g.
+  // a guest in a live session). Treated conservatively as 4 until auth resolves.
+  const maxChats = loggedIn ? 6 : 4;
+  const used = messages.filter((m) => m.role === "user").length;
+  const remaining = Math.max(0, maxChats - used);
+  const limitReached = remaining <= 0;
+
   const send = async () => {
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text || busy || limitReached) return;
     const next = [...messages, { role: "user", content: text }];
     setMessages(next);
     setInput("");
@@ -60,9 +80,20 @@ ${history}
 
 Panda:`;
 
-      const reply = await invokeLLM({ model: LLM_MODELS.SOCRATIC_TUTOR, prompt });
-      const content =
-        typeof reply === "string" ? reply : reply?.content || reply?.text || "";
+      // Signed-in students use the authed LLM path; anonymous students (e.g.
+      // live-session guests with no account) can't, so they go through the
+      // public, rate-limited publicTryFunnel "panda" action.
+      let content = "";
+      if (loggedIn) {
+        const reply = await invokeLLM({ model: LLM_MODELS.SOCRATIC_TUTOR, prompt });
+        content = typeof reply === "string" ? reply : reply?.content || reply?.text || "";
+      } else {
+        const { data, error } = await supabase.functions.invoke("publicTryFunnel", {
+          body: { action: "panda", prompt },
+        });
+        if (error) throw error;
+        content = data?.text || "";
+      }
       setMessages((m) => [
         ...m,
         {
@@ -112,6 +143,9 @@ Panda:`;
             <div className="flex items-center gap-2">
               <span className="text-lg" role="img" aria-hidden="true">🐼</span>
               <span className="font-bold text-sm">Quest Panda</span>
+              <span className="text-[10px] font-semibold bg-white/20 rounded-full px-2 py-0.5">
+                {remaining} left
+              </span>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="text-white/80 hover:text-white">
               <X className="w-5 h-5" />
@@ -149,25 +183,32 @@ Panda:`;
             <div ref={endRef} />
           </div>
 
-          <div className="border-t border-slate-200 p-2.5 flex items-end gap-2 bg-white">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              rows={1}
-              placeholder="Ask Panda a question…"
-              className="flex-1 resize-none max-h-24 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              type="button"
-              onClick={send}
-              disabled={busy || !input.trim()}
-              aria-label="Send"
-              className="w-9 h-9 shrink-0 rounded-xl bg-indigo-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-indigo-700"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
+          {limitReached ? (
+            <div className="border-t border-slate-200 p-3 bg-white text-center text-xs text-slate-500">
+              You&apos;ve used all your Panda questions for this session. Give it
+              your best shot! 🐼
+            </div>
+          ) : (
+            <div className="border-t border-slate-200 p-2.5 flex items-end gap-2 bg-white">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={1}
+                placeholder="Ask Panda a question…"
+                className="flex-1 resize-none max-h-24 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={send}
+                disabled={busy || !input.trim()}
+                aria-label="Send"
+                className="w-9 h-9 shrink-0 rounded-xl bg-indigo-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-indigo-700"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>

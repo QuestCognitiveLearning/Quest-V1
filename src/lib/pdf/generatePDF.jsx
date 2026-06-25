@@ -5,6 +5,7 @@ import QuizPacket from "./templates/QuizPacket.jsx";
 import CaseStudyPacket from "./templates/CaseStudyPacket.jsx";
 import SubunitPacket from "./templates/SubunitPacket.jsx";
 import ClassWorkbook from "./templates/ClassWorkbook.jsx";
+import ClassAnalytics from "./templates/ClassAnalytics.jsx";
 import ParentReport from "./templates/ParentReport.jsx";
 import { deepSanitizePdf, sanitizePdfText } from "./shared/sanitize.js";
 
@@ -189,6 +190,129 @@ async function loadClassData(classId) {
   };
 }
 
+// Class analytics — averages + completion computed from StudentProgress across
+// the enrolled roster, rolled up by unit and by student, plus a "needs
+// attention" list. Used by the teacher's "Download Analytics" button.
+async function loadAnalyticsData(classId) {
+  const klass = await quest.entities.Class.get(classId);
+  if (!klass) throw new Error("Class not found");
+  const curriculum = klass.curriculum_id
+    ? await quest.entities.Curriculum.get(klass.curriculum_id)
+    : null;
+
+  const unitRows = klass.curriculum_id
+    ? await quest.entities.Unit.filter({ curriculum_id: klass.curriculum_id }, "unit_order", null)
+    : [];
+
+  const unitsWithSubs = [];
+  const allSubunits = [];
+  for (const u of unitRows || []) {
+    const subs = await quest.entities.Subunit.filter({ unit_id: u.id }, "subunit_order", null);
+    const list = subs || [];
+    unitsWithSubs.push({ unit: u, subs: list });
+    for (const s of list) allSubunits.push({ ...s, unit_name: u.unit_name });
+  }
+  const subunitIds = new Set(allSubunits.map((s) => s.id));
+
+  const enrollments = await quest.entities.StudentEnrollment.filter({ class_id: classId });
+  const roster = enrollments || [];
+  const studentIds = roster.map((e) => e.student_id).filter(Boolean);
+
+  let progress = [];
+  if (studentIds.length) {
+    const rows = await quest.entities.StudentProgress.filter({ student_id: studentIds });
+    progress = (rows || []).filter((p) => subunitIds.has(p.subunit_id));
+  }
+
+  // A single completed score per student+subunit (prefer learn, fall back to
+  // the latest review score).
+  const scoreOf = (p) =>
+    p.new_session_completed
+      ? (typeof p.new_session_score === "number" ? p.new_session_score : null)
+      : (typeof p.last_review_score === "number" ? p.last_review_score : null);
+  const isDone = (p) => !!p.new_session_completed;
+
+  const studentCount = roster.length;
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+
+  // Per-subunit rollup.
+  const subStats = new Map(); // subunitId -> { scores:[], completed:0 }
+  for (const p of progress) {
+    const st = subStats.get(p.subunit_id) || { scores: [], completed: 0 };
+    const sc = scoreOf(p);
+    if (sc != null) st.scores.push(sc);
+    if (isDone(p)) st.completed += 1;
+    subStats.set(p.subunit_id, st);
+  }
+
+  const units = unitsWithSubs
+    .filter((g) => g.subs.length > 0)
+    .map((g) => {
+      const scores = [];
+      let completed = 0;
+      for (const s of g.subs) {
+        const st = subStats.get(s.id);
+        if (st) {
+          scores.push(...st.scores);
+          completed += st.completed;
+        }
+      }
+      const denom = g.subs.length * (studentCount || 1);
+      return {
+        name: g.unit.unit_name,
+        avg: avg(scores),
+        completionPct: studentCount ? (completed / denom) * 100 : null,
+      };
+    });
+
+  const strugglingSubunits = allSubunits
+    .map((s) => ({ name: s.subunit_name, unit: s.unit_name, avg: avg((subStats.get(s.id) || {}).scores || []) }))
+    .filter((s) => s.avg != null && s.avg < 70)
+    .sort((a, b) => a.avg - b.avg)
+    .slice(0, 12);
+
+  // Per-student rollup.
+  const byStudent = new Map(); // student_id -> scores[], completed
+  for (const p of progress) {
+    const st = byStudent.get(p.student_id) || { scores: [], completed: 0 };
+    const sc = scoreOf(p);
+    if (sc != null) st.scores.push(sc);
+    if (isDone(p)) st.completed += 1;
+    byStudent.set(p.student_id, st);
+  }
+  const students = roster
+    .map((e) => {
+      const st = byStudent.get(e.student_id) || { scores: [], completed: 0 };
+      return {
+        name: e.student_full_name || e.student_email || "Student",
+        avg: avg(st.scores),
+        completedCount: st.completed,
+      };
+    })
+    .sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1));
+
+  const allScores = [];
+  let allCompleted = 0;
+  for (const st of subStats.values()) {
+    allScores.push(...st.scores);
+    allCompleted += st.completed;
+  }
+  const completionDenom = allSubunits.length * (studentCount || 1);
+
+  return {
+    className: klass.class_name,
+    curriculumName: curriculum?.subject_name,
+    gradeLevel: curriculum ? GRADE_LABEL[curriculum.curriculum_difficulty] : null,
+    studentCount,
+    subunitCount: allSubunits.length,
+    classAvg: avg(allScores),
+    completionPct: completionDenom ? (allCompleted / completionDenom) * 100 : null,
+    units,
+    strugglingSubunits,
+    students,
+  };
+}
+
 export async function generatePDF({ type, contentId, branding, data }) {
   // Strip glyphs the built-in PDF font can't render (math symbols etc.) so the
   // render never aborts with "unsupported number".
@@ -206,6 +330,9 @@ export async function generatePDF({ type, contentId, branding, data }) {
   } else if (type === "classWorkbook") {
     const d = deepSanitizePdf(await loadClassData(contentId));
     doc = <ClassWorkbook {...d} branding={b} />;
+  } else if (type === "classAnalytics") {
+    const d = deepSanitizePdf(await loadAnalyticsData(contentId));
+    doc = <ClassAnalytics {...d} branding={b} />;
   } else if (type === "parentReport") {
     if (!data) throw new Error("parentReport requires data");
     doc = <ParentReport {...deepSanitizePdf(data)} branding={b} />;
@@ -294,6 +421,7 @@ export function buildFileName(type, label) {
     caseStudy: "Case-Study",
     subunit: "Packet",
     classWorkbook: "Workbook",
+    classAnalytics: "Analytics",
     parentReport: "Progress-Report",
   }[type] || "Packet";
   return `${safe}-${typeLabel}-${date}.pdf`;

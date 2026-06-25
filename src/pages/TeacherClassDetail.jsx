@@ -316,12 +316,12 @@ export default function TeacherClassDetail() {
               <div className="flex items-center gap-3">
                 {classId ? (
                   <DownloadPDFButton
-                    type="classWorkbook"
+                    type="classAnalytics"
                     contentId={classId}
                     label={classData?.class_name}
                     size="md"
                   >
-                    Download Workbook
+                    Download Analytics
                   </DownloadPDFButton>
                 ) : null}
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-lg px-4 py-2">

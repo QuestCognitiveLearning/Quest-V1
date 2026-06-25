@@ -23,7 +23,12 @@ export default function DownloadPDFButton({
       toast.success("PDF downloaded");
     } catch (err) {
       console.error("PDF generation failed:", err);
-      toast.error(err?.message || "Could not generate PDF");
+      const msg =
+        err?.message ||
+        err?.error?.message ||
+        (typeof err === "string" ? err : "") ||
+        "Could not generate PDF. Please try again.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

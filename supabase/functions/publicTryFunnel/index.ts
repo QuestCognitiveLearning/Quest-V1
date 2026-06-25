@@ -426,6 +426,19 @@ Deno.serve(async (req) => {
       return json(details, 200, req);
     }
 
+    // Quest Panda mid-session chat for students NOT logged in (logged-in
+    // students go through the authed invokeLLM path). Per-IP rate limited above;
+    // the client also caps the number of messages per session.
+    if (action === 'panda') {
+      const prompt = String(body.prompt ?? '').slice(0, 6000);
+      if (!prompt) return json({ error: 'prompt is required' }, 400, req);
+      const result = await invokeLLMWithUsage({ prompt, model: QUIZ_MODEL });
+      const text = typeof result?.content === 'string'
+        ? result.content
+        : String(result?.content ?? '');
+      return json({ text }, 200, req);
+    }
+
     if (action === 'generate') {
       // PDF text can supplement OR replace a video. videoId is now optional
       // when pdfText + topic are present.
