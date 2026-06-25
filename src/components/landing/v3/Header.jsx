@@ -77,10 +77,10 @@ export default function Header() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => navigate("/SignIn?mode=signup")}
+              onClick={() => navigate("/SignIn")}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563EB] text-white font-semibold text-sm hover:bg-[#1D4ED8] transition-colors lp-v3-cta-shadow"
             >
-              Get Started
+              Log in
               <ArrowRight size={14} strokeWidth={2.2} />
             </button>
           </div>
