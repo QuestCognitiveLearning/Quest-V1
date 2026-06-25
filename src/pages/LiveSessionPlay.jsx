@@ -261,26 +261,34 @@ export default function LiveSessionPlay() {
         return;
       }
 
-      // Prevent seeking forward past checks
-      if (t > lastTimeRef.current + 2) {
-        ytPlayer.seekTo(lastTimeRef.current, true);
+      // Native controls drive play/pause/scrub; only block skipping PAST an
+      // unanswered check (snap back to it).
+      const next = checks[checkIdx];
+      if (next && !checksDone.includes(checkIdx) && t >= next.timestamp - 0.3) {
+        ytPlayer.pauseVideo();
+        if (t > next.timestamp + 0.75) ytPlayer.seekTo(next.timestamp, true);
+        setActiveCheck(next);
+        setCheckSelected(null);
+        setCheckFeedback(null);
         return;
       }
-      if (state === 1) {
-        setVideoProgress(Math.floor(t));
-        lastTimeRef.current = t;
-
-        const next = checks[checkIdx];
-        if (next && Math.abs(t - next.timestamp) <= 1 && !checksDone.includes(checkIdx)) {
-          ytPlayer.pauseVideo();
-          setActiveCheck(next);
-          setCheckSelected(null);
-          setCheckFeedback(null);
-        }
-      }
+      setVideoProgress(Math.floor(t));
+      lastTimeRef.current = t;
     }, 500);
     return () => clearInterval(id);
   }, [phase, ytPlayer, activeCheck, checkIdx, checksDone, session?.attention_checks]);
+
+  // Pause when the student leaves the page (switches tab / minimizes).
+  useEffect(() => {
+    if (phase !== "video") return;
+    const onHidden = () => {
+      if (document.hidden && ytPlayer?.pauseVideo) {
+        try { ytPlayer.pauseVideo(); } catch { /* ignore */ }
+      }
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    return () => document.removeEventListener("visibilitychange", onHidden);
+  }, [phase, ytPlayer]);
 
   // ---- Scoring helpers --------------------------------------------------
   const bumpScore = async (delta) => {

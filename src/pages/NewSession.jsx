@@ -457,81 +457,63 @@ export default function NewSession() {
     }
   }, [step, user?.id, subunitId, lastKnownTime]);
 
-  // Track video progress and prevent seeking (matching live session logic)
+  // Watch progress + attention checks. We let YouTube's native controls drive
+  // play/pause/scrub; we only step in to (a) hold the video paused while a
+  // check is open and (b) stop the student from skipping PAST an unanswered
+  // check (snap back to it). Scrubbing anywhere before the next check is fine.
   useEffect(() => {
-    if (step === "video" && youtubePlayer) {
-      const interval = setInterval(() => {
-        if (youtubePlayer && typeof youtubePlayer.getCurrentTime === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
-          const playerState = youtubePlayer.getPlayerState();
-          const currentTime = youtubePlayer.getCurrentTime();
-          
-          // If there's an active check, keep video paused
-          if (currentCheck) {
-            if (playerState === 1) {
-              youtubePlayer.pauseVideo();
-            }
-            return;
-          }
-          
-          // Check if user tried to seek forward
-          if (currentTime > lastKnownTime + 1.5) {
-            console.warn("⚠️ [ANTI-CHEAT] User attempted to seek forward. Current:", currentTime, "Last known:", lastKnownTime);
-            youtubePlayer.seekTo(lastKnownTime, true);
-            return;
-          }
-          
-          // Only update progress if video is playing (playerState === 1)
-          if (playerState === 1) {
-            setVideoProgress(Math.floor(currentTime));
-            setLastKnownTime(currentTime);
-            // Persist video position for resume — cheap localStorage write.
-            try {
-              if (user?.id && subunitId) {
-                saveResume(user.id, subunitId, "new_topic", { step, videoTime: currentTime });
-              }
-            } catch { /* ignore */ }
+    if (step !== "video" || !youtubePlayer) return;
+    const interval = setInterval(() => {
+      if (!youtubePlayer || typeof youtubePlayer.getCurrentTime !== "function") return;
+      const playerState = typeof youtubePlayer.getPlayerState === "function" ? youtubePlayer.getPlayerState() : -1;
+      const currentTime = youtubePlayer.getCurrentTime();
 
-            // Check if we need to show an attention check (using ±1 second window like live session)
-            if (attentionChecks && attentionChecks.length > 0) {
-              const nextCheck = attentionChecks[currentCheckIndex];
-              // Trigger when within ±1 second of exact timestamp
-              if (nextCheck && Math.abs(currentTime - nextCheck.timestamp) <= 1 && !checksCompleted.includes(currentCheckIndex)) {
-                console.log("\n" + "=".repeat(80));
-                console.log("🔔 ATTENTION CHECK TRIGGERED");
-                console.log("=".repeat(80));
-                console.log(`⏱️  Current time: ${currentTime.toFixed(1)}s`);
-                console.log(`🎯 Target timestamp: ${nextCheck.timestamp}s`);
-                console.log(`📍 Check #${currentCheckIndex + 1} of ${attentionChecks.length}`);
-                console.log(`❓ Question: "${nextCheck.question.substring(0, 50)}..."`);
-                console.log(`✓ Correct answer: ${nextCheck.correct_choice}`);
-                console.log("=".repeat(80) + "\n");
-                youtubePlayer.pauseVideo();
-                setCurrentCheck(nextCheck);
-                setSelectedCheckAnswer(null);
-                setShowCheckFeedback(false);
-                return;
-              }
-            }
-            
-            // Video complete - require all checks AND completion
-            const totalChecks = attentionChecks?.length || 0;
-            if (currentTime >= videoTotalDuration - 2 && checksCompleted.length === totalChecks) {
-              console.log("\n" + "=".repeat(80));
-              console.log("✅ VIDEO COMPLETE");
-              console.log("=".repeat(80));
-              console.log(`⏱️  Final time: ${currentTime.toFixed(1)}s / ${videoTotalDuration}s`);
-              console.log(`✓ Checks completed: ${checksCompleted.length}/${totalChecks}`);
-              console.log("=".repeat(80) + "\n");
-              setCanProceed(true);
-              clearInterval(interval);
-            }
-          }
+      // Keep the video paused while a check is open.
+      if (currentCheck) {
+        if (playerState === 1) youtubePlayer.pauseVideo();
+        return;
+      }
+
+      // Block skipping past an unanswered check: if playback or a scrub
+      // reaches/passes it, pause, snap back to the check, and open it.
+      if (attentionChecks && attentionChecks.length > 0) {
+        const nextCheck = attentionChecks[currentCheckIndex];
+        if (nextCheck && !checksCompleted.includes(currentCheckIndex) && currentTime >= nextCheck.timestamp - 0.3) {
+          youtubePlayer.pauseVideo();
+          if (currentTime > nextCheck.timestamp + 0.75) youtubePlayer.seekTo(nextCheck.timestamp, true);
+          setCurrentCheck(nextCheck);
+          setSelectedCheckAnswer(null);
+          setShowCheckFeedback(false);
+          return;
         }
-      }, 500);
+      }
 
-      return () => clearInterval(interval);
-    }
-  }, [step, currentCheckIndex, checksCompleted, canProceed, currentCheck, youtubePlayer, videoTotalDuration, lastKnownTime, attentionChecks]);
+      setVideoProgress(Math.floor(currentTime));
+      setLastKnownTime(currentTime);
+      try {
+        if (user?.id && subunitId) saveResume(user.id, subunitId, "new_topic", { step, videoTime: currentTime });
+      } catch { /* ignore */ }
+
+      const totalChecks = attentionChecks?.length || 0;
+      if (currentTime >= videoTotalDuration - 2 && checksCompleted.length === totalChecks) {
+        setCanProceed(true);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [step, currentCheckIndex, checksCompleted, currentCheck, youtubePlayer, videoTotalDuration, attentionChecks, user?.id, subunitId]);
+
+  // Pause when the student leaves the page (switches tab / minimizes).
+  useEffect(() => {
+    if (step !== "video") return;
+    const onHidden = () => {
+      if (document.hidden && youtubePlayer && typeof youtubePlayer.pauseVideo === "function") {
+        try { youtubePlayer.pauseVideo(); } catch { /* ignore */ }
+      }
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    return () => document.removeEventListener("visibilitychange", onHidden);
+  }, [step, youtubePlayer]);
 
   const handleCheckSubmit = async () => {
     if (!selectedCheckAnswer || !currentCheck) return;
@@ -937,42 +919,8 @@ export default function NewSession() {
               <div className="relative bg-black aspect-video">
                 {getYouTubeVideoId(video?.video_url) ? (
                   <>
+                    {/* Native YouTube controls only — no custom overlay. */}
                     <div id="youtube-player" className="w-full h-full"></div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 z-10">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              if (youtubePlayer) {
-                                if (isVideoPlaying) {
-                                  youtubePlayer.pauseVideo();
-                                } else {
-                                  youtubePlayer.playVideo();
-                                }
-                              }
-                            }}
-                            className="text-white hover:text-gray-300 transition-colors pointer-events-auto p-1"
-                          >
-                            {isVideoPlaying ? (
-                              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                              </svg>
-                            ) : (
-                              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                          </button>
-                          <span className="text-white text-xs">
-                            {Math.floor(videoProgress / 60)}:{String(Math.floor(videoProgress % 60)).padStart(2, '0')} / {Math.floor(videoTotalDuration / 60)}:{String(Math.floor(videoTotalDuration % 60)).padStart(2, '0')}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="h-1 bg-white/30 rounded-full overflow-hidden pointer-events-none">
-                        <div className="h-full bg-white rounded-full transition-all" style={{ width: `${(videoProgress / videoTotalDuration) * 100}%` }}></div>
-                      </div>
-                    </div>
-                    <div className="absolute inset-0 pointer-events-auto" style={{cursor: 'default'}}></div>
                   </>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -998,13 +946,11 @@ export default function NewSession() {
                   onSubmit={handleCheckSubmit}
                 />
 
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium text-[#1A1A1A]">Progress: {Math.floor((videoProgress / videoTotalDuration) * 100)}%</span>
-                  <span className="text-sm text-[#1A1A1A]/60">Checks: {checksCompleted.length}/{attentionChecks.length}</span>
-                </div>
-                <div className="h-2 bg-[#C4B5FD]/20 rounded-full overflow-hidden mb-4">
-                  <div className="h-full bg-[#3B82F6] rounded-full transition-all" style={{ width: `${(videoProgress / videoTotalDuration) * 100}%` }}></div>
-                </div>
+                {attentionChecks.length > 0 && (
+                  <div className="flex items-center justify-end mb-4">
+                    <span className="text-sm text-[#1A1A1A]/60">Checks: {checksCompleted.length}/{attentionChecks.length}</span>
+                  </div>
+                )}
 
                 <div className="bg-[#2563EB]/5 border border-[#2563EB]/20 rounded-[20px] p-4 mb-4">
                   <p className="text-sm text-[#1A1A1A] font-medium mb-1">Active Learning Required</p>
