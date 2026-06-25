@@ -132,7 +132,10 @@ export const styles = StyleSheet.create({
   choiceBubble: {
     width: 11,
     height: 11,
-    borderRadius: 999,
+    // Half the box = a perfect circle. A radius far larger than the element
+    // (was 999) makes @react-pdf's browser path math emit a garbage number,
+    // which aborts the whole render with "unsupported number".
+    borderRadius: 5.5,
     borderWidth: 1,
     borderColor: COLORS.ink3,
     marginTop: 2,
