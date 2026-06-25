@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
+import PandaChatWidget from "@/components/shared/PandaChatWidget";
 import {
   ArrowLeft,
   Loader2,
@@ -608,6 +609,17 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
       due={assignment?.due_at}
       onBack={() => navigate(createPageUrl("LearningHub"))}
     >
+      <PandaChatWidget
+        topic={bundle?.title || video?.title}
+        phase={phase}
+        currentPrompt={
+          phase === "quiz" && quiz[qIdx]
+            ? `Question: ${quiz[qIdx].question}\nA) ${quiz[qIdx].choice_a}\nB) ${quiz[qIdx].choice_b}\nC) ${quiz[qIdx].choice_c}\nD) ${quiz[qIdx].choice_d}\nCorrect: ${quiz[qIdx].correct_choice}`
+            : phase === "case_study" && caseStudy
+            ? `Case study scenario: ${caseStudy.scenario}\nCurrent question: ${caseStudy.discussion_questions?.[csQIdx] ?? ""}`
+            : null
+        }
+      />
       {phase === "inquiry" && (
         <InquiryView inquiry={inquiry} onContinue={goNextPhase} />
       )}

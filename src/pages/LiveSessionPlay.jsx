@@ -11,6 +11,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shuffleQuestionList } from "@/lib/shuffleChoices";
+import PandaChatWidget from "@/components/shared/PandaChatWidget";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
@@ -456,8 +457,19 @@ export default function LiveSessionPlay() {
     );
   }
 
+  const pandaQ = phase === "quiz" ? session?.questions?.[qIdx] : null;
+  const pandaPrompt = pandaQ
+    ? `Question: ${pandaQ.question_text || pandaQ.question}\nOptions: ${[pandaQ.choice_1, pandaQ.choice_2, pandaQ.choice_3, pandaQ.choice_4]
+        .map((c, i) => c ?? [pandaQ.choice_a, pandaQ.choice_b, pandaQ.choice_c, pandaQ.choice_d][i])
+        .filter(Boolean)
+        .join(" | ")}`
+    : phase === "case_study" && session?.case_study?.scenario
+    ? `Case study scenario: ${session.case_study.scenario}`
+    : null;
+
   return (
     <Wrapper code={code} joinCtx={joinCtx} participant={participant} progress={{ phaseIdx, total: phases.length, label: PHASE_LABELS[phase] || "" }}>
+        <PandaChatWidget topic={session?.title} phase={phase} currentPrompt={pandaPrompt} />
         {phase === "inquiry" && (
           <InquiryView
             inquiry={session.inquiry_session}

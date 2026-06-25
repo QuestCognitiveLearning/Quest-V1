@@ -11,6 +11,7 @@ import SocraticTutor from "../components/newSession/SocraticTutor";
 import CaseStudyChat from "../components/newSession/CaseStudyChat";
 import LofiMusicPlayer from "../components/shared/LofiMusicPlayer";
 import AttentionCheckDisplay from "../components/shared/AttentionCheckDisplay";
+import PandaChatWidget from "../components/shared/PandaChatWidget";
 import MathRenderer from "@/components/utils/MathRenderer";
 import { resolveTranscript } from "@/lib/transcript";
 import SessionFeedbackModal from "../components/newSession/SessionFeedbackModal";
@@ -820,6 +821,17 @@ export default function NewSession() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      {/* Ask-Panda chat — mounted at the root so the conversation persists
+          across the inquiry → video → quiz → case study phases. */}
+      <PandaChatWidget
+        topic={topic}
+        phase={step}
+        currentPrompt={
+          step === "quiz" && questions[currentQuestion]
+            ? `Question: ${questions[currentQuestion].question}\nOptions: ${(questions[currentQuestion].options || []).join(" | ")}\nCorrect answer: ${questions[currentQuestion].options?.[questions[currentQuestion].correctIndex] ?? ""}`
+            : null
+        }
+      />
       {/* Clean white background */}
       <div className="fixed inset-0 bg-white"></div>
       

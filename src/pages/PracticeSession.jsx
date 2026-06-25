@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Award, RefreshCw, Play, Clock } from "lucide-react";
 import LofiMusicPlayer from "../components/shared/LofiMusicPlayer";
+import PandaChatWidget from "../components/shared/PandaChatWidget";
 import CaseStudyChat from "../components/newSession/CaseStudyChat";
 import SessionFeedbackModal from "../components/newSession/SessionFeedbackModal";
 import { loadResume, saveResume, clearResume } from "@/lib/sessionResume";
@@ -373,6 +374,15 @@ export default function PracticeSession() {
 
   return (
     <div className="min-h-screen bg-white p-8">
+      <PandaChatWidget
+        topic={topic}
+        phase="review quiz"
+        currentPrompt={
+          step === "quiz" && questions[currentQuestion]
+            ? `Question: ${questions[currentQuestion].question}\nOptions: ${(questions[currentQuestion].options || []).join(" | ")}\nCorrect answer: ${questions[currentQuestion].options?.[questions[currentQuestion].correctIndex] ?? ""}`
+            : null
+        }
+      />
       <LofiMusicPlayer />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

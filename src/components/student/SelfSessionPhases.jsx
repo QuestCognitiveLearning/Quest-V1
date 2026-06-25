@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
 import { shuffleQuestionList } from "@/lib/shuffleChoices";
+import PandaChatWidget from "@/components/shared/PandaChatWidget";
 import {
   CheckCircle,
   XCircle,
@@ -368,6 +369,17 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
   // ===== Render =====
   return (
     <div className="space-y-4">
+      <PandaChatWidget
+        topic={video?.title}
+        phase={phase}
+        currentPrompt={
+          phase === "quiz" && quiz[qIdx]
+            ? `Question: ${quiz[qIdx].question}\nA) ${quiz[qIdx].choice_a}\nB) ${quiz[qIdx].choice_b}\nC) ${quiz[qIdx].choice_c}\nD) ${quiz[qIdx].choice_d}\nCorrect: ${quiz[qIdx].correct_choice}`
+            : phase === "case_study" && caseStudy
+            ? `Case study scenario: ${caseStudy.scenario}`
+            : null
+        }
+      />
       <PhaseDots phases={phases} current={phaseIdx} />
 
       {phase === "summary" && summary && (
