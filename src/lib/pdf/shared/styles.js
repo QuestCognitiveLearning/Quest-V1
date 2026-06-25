@@ -132,10 +132,10 @@ export const styles = StyleSheet.create({
   choiceBubble: {
     width: 11,
     height: 11,
-    // Half the box = a perfect circle. A radius far larger than the element
-    // (was 999) makes @react-pdf's browser path math emit a garbage number,
-    // which aborts the whole render with "unsupported number".
-    borderRadius: 5.5,
+    // Plain square outline — NO borderRadius. A bordered + rounded box makes
+    // @react-pdf's browser rounded-stroke path emit a garbage coordinate
+    // ("unsupported number: -1.7e+21"), which aborts the whole download. A
+    // square answer box sidesteps the arc-path math entirely.
     borderWidth: 1,
     borderColor: COLORS.ink3,
     marginTop: 2,

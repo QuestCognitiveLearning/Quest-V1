@@ -37,9 +37,11 @@ export function sanitizePdfText(str) {
   if (typeof str !== "string") return str;
   return str
     .replace(RE, (m) => REPLACEMENTS[m])
-    // Drop anything still outside tab/newline + the single-byte printable range
-    // so it can never produce a NaN glyph width in a built-in font.
-    .replace(/[^\t\n\r\x20-\xFF]/g, "");
+    // Keep ASCII printable + the safe Latin-1 range, but drop DEL + the C1
+    // control block (\x7F-\x9F) — those have gaps the built-in WinAnsi font
+    // can't measure, which can yield a NaN glyph width. Anything else (emoji,
+    // CJK, combining marks) is also dropped so it can never break the render.
+    .replace(/[^\t\n\r\x20-\x7E\xA0-\xFF]/g, "");
 }
 
 // Recursively clean every string in a data object/array passed to a template.
