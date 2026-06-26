@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
+import { REVIEW_INTERVALS } from "@/lib/spacedRepetition";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -402,16 +403,16 @@ export default function TeacherStudentDetail() {
                                         value={currentSessionType}
                                         onValueChange={(val) => setSubunitSessionType(prev => ({ ...prev, [subunit.id]: val }))}
                                       >
-                                        <SelectTrigger className="w-40 h-9 text-sm bg-white">
+                                        <SelectTrigger className="w-48 h-9 text-sm bg-white">
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
                                           <SelectItem value="new_topic">Learn Session</SelectItem>
-                                          <SelectItem value="review_1">Review 1</SelectItem>
-                                          <SelectItem value="review_2">Review 2</SelectItem>
-                                          <SelectItem value="review_3">Review 3</SelectItem>
-                                          <SelectItem value="review_4">Review 4</SelectItem>
-                                          <SelectItem value="review_5">Review 5</SelectItem>
+                                          {REVIEW_INTERVALS.map((days, i) => (
+                                            <SelectItem key={i} value={`review_${i + 1}`}>
+                                              Review {i + 1} · {days} {days === 1 ? "day" : "days"}
+                                            </SelectItem>
+                                          ))}
                                         </SelectContent>
                                       </Select>
                                       
