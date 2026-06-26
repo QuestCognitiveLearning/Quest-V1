@@ -344,9 +344,11 @@ ${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description ||
         model: LLM_MODELS.STANDARDS_PICKER,
         prompt: `You are organizing subunits into a clean curriculum for "${subjectName}".
 
-HARD LIMITS you MUST obey: AT MOST 12 units total, and AT MOST 7 subunits per unit. These are ceilings, not targets — most curricula need fewer. Merge subunits that cover essentially the same concept into ONE final subunit, and group related subunits into coherent units with clear, specific names (e.g. "Cell Structure & Function").
+HARD LIMITS you MUST obey: AT MOST 12 units total, and AT MOST 7 subunits per unit. These are ceilings, not targets — most curricula need fewer.
 
-Every input subunit index must be placed in exactly ONE final subunit — never drop one. A final subunit may merge several input indices.
+Units are BROAD, GENERAL themes (big buckets like "Cells", "Genetics", "Ecology", "Forces & Motion") — NOT narrow topics. Within each unit, the subunits are the SPECIFIC concepts that belong to that theme. Merge subunits that cover essentially the same concept into ONE final subunit.
+
+Every input subunit index must be placed in exactly ONE final subunit — never drop or skip any index. A final subunit may merge several input indices.
 
 Subunits (index: name):
 ${subNames.map((s) => `${s.i}: ${s.name}`).join("\n")}
@@ -415,8 +417,20 @@ Return JSON only: { "units": [ { "unit_name": "Specific Unit Name", "subunits": 
     const worker = async () => {
       while (queue.length) {
         const { c, i } = queue.shift();
-        try { results[i] = await extractSubunits(c); }
-        catch (e) { if (!firstError) firstError = e; }
+        try {
+          const subs = await extractSubunits(c);
+          // Reconcile: keep only this chunk's real IDs, then sweep up any
+          // standard the model forgot so the chunk is always fully covered.
+          const chunkIds = new Set(c.map((s) => s.id));
+          subs.forEach((su) => { su.covered_ids = [...new Set((su.covered_ids || []).filter((id) => chunkIds.has(id)))]; });
+          const covered = new Set(subs.flatMap((su) => su.covered_ids));
+          const missing = c.filter((s) => !covered.has(s.id)).map((s) => s.id);
+          if (missing.length) {
+            if (subs.length) subs[subs.length - 1].covered_ids.push(...missing);
+            else subs.push({ name: "Additional standards", covered_ids: missing });
+          }
+          results[i] = subs;
+        } catch (e) { if (!firstError) firstError = e; }
         done += 1;
         setProgress({ current: done, total: totalSteps });
         // Re-anchor the countdown from real throughput (smoothed).
@@ -435,14 +449,40 @@ Return JSON only: { "units": [ { "unit_name": "Specific Unit Name", "subunits": 
       const organized = await organizeUnits(rawSubs.map((s, i) => ({ i, name: s.name })));
       setProgress((p) => ({ current: p.total, total: p.total }));
 
+      const used = new Set();
       const units = (organized || []).map((u) => ({
         unit_name: u.unit_name,
-        subunits: (u.subunits || []).map((fs) => ({
-          name: fs.name,
-          // Union the source subunits' standard IDs so coverage is preserved.
-          covered_ids: [...new Set((fs.members || []).flatMap((m) => rawSubs[m]?.covered_ids || []))],
-        })),
+        subunits: (u.subunits || []).map((fs) => {
+          (fs.members || []).forEach((m) => { if (rawSubs[m]) used.add(m); });
+          return {
+            name: fs.name,
+            // Union the source subunits' standard IDs so coverage is preserved.
+            covered_ids: [...new Set((fs.members || []).flatMap((m) => rawSubs[m]?.covered_ids || []))],
+          };
+        }),
       }));
+
+      // Coverage guarantee: any subunit the organizer didn't place lands in an
+      // "Additional Concepts" unit — so every standard is ALWAYS covered.
+      const unused = rawSubs.map((_, i) => i).filter((i) => !used.has(i));
+      if (unused.length) {
+        units.push({
+          unit_name: "Additional Concepts",
+          subunits: unused.map((i) => ({ name: rawSubs[i].name, covered_ids: rawSubs[i].covered_ids || [] })),
+        });
+      }
+
+      // Total-failure fallback: if the organizer returned nothing usable, group
+      // the extracted subunits into units of 7 so the result is still valid.
+      if (units.length === 0 || units.every((u) => (u.subunits || []).length === 0)) {
+        units.length = 0;
+        for (let i = 0; i < rawSubs.length; i += 7) {
+          units.push({
+            unit_name: `Unit ${units.length + 1}`,
+            subunits: rawSubs.slice(i, i + 7).map((s) => ({ name: s.name, covered_ids: s.covered_ids || [] })),
+          });
+        }
+      }
 
       setTranslatedUnits(units);
       setRevealedCount(0);
