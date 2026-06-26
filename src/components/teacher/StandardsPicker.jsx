@@ -257,6 +257,7 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
   // out and the teacher sees time-left, like curriculum generation).
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [startedAt, setStartedAt] = useState(null);
+  const [etaAnchor, setEtaAnchor] = useState(null); // { rate, anchorAt, remaining }
   const [, setEtaTick] = useState(0);
   // revealedCount = how many subunits (in flat order across all units) have
   // been "stepped in" so far. Drives both the right-side card reveal and the
@@ -280,14 +281,14 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
   }, [translating]);
 
   // Live "time left" while chunks process — throughput from completed chunks.
+  // Anchored countdown: re-anchored at each completion (smoothed rate × steps
+  // left), then it just subtracts elapsed-since-anchor — so it only ticks DOWN
+  // between completions instead of climbing then snapping back.
   const estimateRemaining = () => {
-    const { current, total } = progress;
-    if (!total || !startedAt) return "";
-    if (current === 0) return "Estimating time…"; // no throughput yet — avoid a wild guess
-    const remaining = Math.max(0, total - current);
-    if (remaining === 0) return "finishing up…";
-    const perMs = (Date.now() - startedAt) / current; // already throughput-adjusted
-    const secs = Math.max(3, Math.round((remaining * perMs) / 1000));
+    if (!etaAnchor) return progress.current === 0 ? "Estimating time…" : "";
+    if (etaAnchor.remaining <= 0) return "finishing up…";
+    const projMs = etaAnchor.remaining * etaAnchor.rate - (Date.now() - etaAnchor.anchorAt);
+    const secs = Math.max(3, Math.round(projMs / 1000));
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return m > 0 ? `~${m} min ${s} sec left` : `~${s} sec left`;
@@ -400,20 +401,28 @@ Return JSON only: { "units": [ { "unit_name": "Specific Unit Name", "subunits": 
     for (let i = 0; i < rawStandards.length; i += CHUNK) chunks.push(rawStandards.slice(i, i + CHUNK));
     if (chunks.length === 0) { setTranslatedUnits([]); setTranslating(false); return; }
 
-    setProgress({ current: 0, total: chunks.length + 1 });
-    setStartedAt(Date.now());
+    const totalSteps = chunks.length + 1; // +1 = the final organize pass
+    const start = Date.now();
+    setProgress({ current: 0, total: totalSteps });
+    setStartedAt(start);
+    setEtaAnchor(null);
 
     const results = new Array(chunks.length).fill(null);
     const queue = chunks.map((c, i) => ({ c, i }));
     let done = 0;
     let firstError = null;
+    let smoothRate = 0; // ms per step, EMA-smoothed so the ETA doesn't lurch
     const worker = async () => {
       while (queue.length) {
         const { c, i } = queue.shift();
         try { results[i] = await extractSubunits(c); }
         catch (e) { if (!firstError) firstError = e; }
         done += 1;
-        setProgress({ current: done, total: chunks.length + 1 });
+        setProgress({ current: done, total: totalSteps });
+        // Re-anchor the countdown from real throughput (smoothed).
+        const inst = (Date.now() - start) / done;
+        smoothRate = smoothRate ? 0.6 * smoothRate + 0.4 * inst : inst;
+        setEtaAnchor({ rate: smoothRate, anchorAt: Date.now(), remaining: Math.max(0, totalSteps - done) });
       }
     };
 
