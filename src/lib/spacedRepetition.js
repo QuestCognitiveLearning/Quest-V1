@@ -11,9 +11,10 @@
 export const PASS_THRESHOLD = 80;
 
 // Below this, a review failed hard — the topic isn't retained, so we reset it
-// and send the student back to relearn. Between this and PASS_THRESHOLD is the
-// "borderline" band: retry the same review soon without advancing.
-export const RELEARN_THRESHOLD = 50;
+// and send the student back to relearn (a new learn session that same day).
+// Between this and PASS_THRESHOLD is the "borderline" band: repeat the same
+// review without advancing. So: >=80 completed, 60-79 repeat, <60 restart.
+export const RELEARN_THRESHOLD = 60;
 
 // Days between successive reviews. After the last entry, the final interval
 // repeats indefinitely.

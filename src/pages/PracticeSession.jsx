@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { toast } from "sonner";
-import { PASS_THRESHOLD, gradeReview } from "@/lib/spacedRepetition";
+import { PASS_THRESHOLD, RELEARN_THRESHOLD, gradeReview } from "@/lib/spacedRepetition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Award, RefreshCw, Play, Clock } from "lucide-react";
@@ -368,8 +368,8 @@ export default function PracticeSession() {
 
       // Clear the resume snapshot — session is done.
       try { clearResume(user.id, subunitId, "review"); } catch { /* ignore */ }
-      // Below 50%: send them straight into the learn session to relearn the
-      // topic; otherwise back to the hub. Force refresh either way.
+      // Below 60%: send them straight into the learn session to relearn the
+      // topic today; otherwise back to the hub. Force refresh either way.
       window.location.href = mustRedoLearn
         ? createPageUrl("NewSession") + `?topic=${encodeURIComponent(subunitId)}`
         : createPageUrl("LearningHub");
@@ -610,9 +610,9 @@ export default function PracticeSession() {
                 <p className="text-sm text-[#1A1A1A]/70" style={{fontWeight: 450}}>
                   {finalScore >= PASS_THRESHOLD
                     ? "Great job! You've successfully completed this review"
-                    : finalScore >= 50
-                    ? "Close — you need 80% to pass. You'll retry this review soon."
-                    : "Below 50% — let's relearn this topic from the start, then restart your reviews."}
+                    : finalScore >= RELEARN_THRESHOLD
+                    ? "Close — you need 80% to pass. You'll repeat this review soon."
+                    : "Below 60% — let's relearn this topic from the start today, then restart your reviews."}
                 </p>
                 <div className="mt-4 h-2 bg-[#C4B5FD]/20 rounded-full overflow-hidden max-w-md mx-auto">
                   <div className={`h-full rounded-full ${finalScore >= PASS_THRESHOLD ? 'bg-[#3B82F6]' : 'bg-red-500'}`} style={{ width: `${finalScore}%` }}></div>
@@ -641,7 +641,7 @@ export default function PracticeSession() {
                 </Button>
               ) : (
                 <Button onClick={handleCompleteSession} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
-                  {finalScore < 50 ? "Relearn this topic" : "Complete Review Session"}
+                  {finalScore < RELEARN_THRESHOLD ? "Relearn this topic" : "Complete Review Session"}
                 </Button>
               )}
             </CardContent>

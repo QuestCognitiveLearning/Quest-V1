@@ -80,7 +80,9 @@ TRANSCRIPT:
 ${segmentListing}
 
 YOUR TASK:
-Select between 2 and ${Math.max(2, Math.min(8, Math.floor(segments.length / 6)))} segments that mark the END of an important teaching moment — a clear point at which a meaningful new concept, fact, or idea has just been fully explained.
+Select between 2 and ${Math.max(2, Math.min(8, Math.floor(segments.length / 6)))} segments that mark the END of an important teaching moment — a clear point at which a meaningful new concept, fact, or idea has just been FULLY explained.
+
+The check is shown to the student a few seconds AFTER your chosen segment ends, so the answer to your question MUST already be fully stated by the end of that segment — never pick a point before or in the middle of the explanation. The student should have just heard the answer right before the check appears.
 
 DO NOT pick on a fixed cadence (every minute, etc.). Only pick segments where something genuinely important was just taught. If the video is mostly intro/filler/transition, return fewer or zero checks.
 
@@ -157,7 +159,9 @@ If nothing important is taught, return {"checks": []}.`;
       if (!Number.isInteger(idx) || idx < 1 || idx > segments.length) return null;
       const correct = String(c.correct_choice || '').toUpperCase();
       if (!['A', 'B', 'C', 'D'].includes(correct)) return null;
-      const segmentEndTime = Math.min(videoDuration - 1, Math.round(segmentEnd(idx - 1)));
+      // Fire a couple seconds AFTER the segment ends (after the answer is
+      // spoken) — never before or at the exact second it's mentioned.
+      const segmentEndTime = Math.min(videoDuration - 1, Math.round(segmentEnd(idx - 1)) + 2);
       return {
         timestamp: segmentEndTime,
         question: String(c.question || ''),

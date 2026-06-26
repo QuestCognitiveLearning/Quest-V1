@@ -146,7 +146,7 @@ Panda:`;
           className="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full bg-white border border-slate-200 shadow-lg flex items-center justify-center text-2xl hover:scale-105 transition-transform"
         >
           <span role="img" aria-hidden="true">🐼</span>
-          <span className="absolute -top-[5px] -right-[5px] bg-indigo-600 text-white text-[8px] font-bold leading-none rounded-full px-[5px] py-0.5">
+          <span className="absolute -top-[5px] -right-[5px] bg-indigo-600 text-white text-[11px] font-bold leading-none rounded-full px-1.5 py-0.5">
             Ask
           </span>
         </button>

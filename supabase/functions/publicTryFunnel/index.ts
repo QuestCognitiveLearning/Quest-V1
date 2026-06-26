@@ -152,6 +152,7 @@ YOUR TASK:
 Produce ${includeCaseStudy ? 'TWO things' : 'ONE thing'}, grounded strictly in the video transcript above:
 
 1. A ${count}-question multiple-choice quiz. Each question has 4 choices (A–D) and exactly one correct answer.
+STANDALONE: These quiz questions are reviewed weeks or months after the video, so they must STAND ON THEIR OWN. Never refer to "the video", "this video", "the lesson", "the speaker", "as shown/mentioned/discussed", or "earlier". Ask about the concept itself, including any context needed, as if on an exam — not about what the video said.
 ${difficultyLine}${caseStudyTask}
 
 LANGUAGE: Write all output in clear English regardless of the transcript language.

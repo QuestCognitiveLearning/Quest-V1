@@ -457,6 +457,7 @@ ${videoTranscript}
 
 GROUNDING RULES (apply to all 40 questions):
 - Every question must APPLY a concept the video actually teaches — never test recall of an isolated fact, date, name, or definition, and never introduce material the video does not cover.
+- STANDALONE: these questions are reviewed weeks or months after the video (spaced repetition), so they must STAND ON THEIR OWN. NEVER refer to "the video", "this video", "the lesson", "the speaker", or "as shown/mentioned/discussed/earlier". Include any needed context in the question itself and ask about the concept directly, like an exam question.
 - Match the depth at which the video explains each concept. Do not go shallower (trivia) or deeper (advanced content beyond the video).
 - Difficulty varies only SLIGHTLY across the set: all 40 questions are application-level at the video's depth, differing only in how the concepts are applied (see distribution below).
 
