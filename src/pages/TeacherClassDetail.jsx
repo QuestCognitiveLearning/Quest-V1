@@ -644,7 +644,6 @@ function StudentProgressBlocks({ students, subunits, units, progressData, classI
 
 function ClassFeedbackTab({ feedbacks }) {
   const submitted = feedbacks.filter(f => !f.skipped);
-  const skipped = feedbacks.filter(f => f.skipped).length;
 
   const avgEmoji = submitted.length > 0
     ? (submitted.reduce((s, f) => s + (f.emoji_score || 0), 0) / submitted.length).toFixed(1)
@@ -684,17 +683,11 @@ function ClassFeedbackTab({ feedbacks }) {
       <h2 className="text-lg font-semibold text-gray-900">Session Feedback</h2>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card className="border-0 shadow-md bg-white">
           <CardContent className="p-5 text-center">
             <p className="text-3xl font-bold text-blue-600">{submitted.length}</p>
             <p className="text-sm text-gray-500 mt-1">Responses</p>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-md bg-white">
-          <CardContent className="p-5 text-center">
-            <p className="text-3xl font-bold text-gray-900">{skipped}</p>
-            <p className="text-sm text-gray-500 mt-1">Skipped</p>
           </CardContent>
         </Card>
         {avgEmoji && (
