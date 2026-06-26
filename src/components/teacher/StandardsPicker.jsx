@@ -344,7 +344,7 @@ ${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description ||
         model: LLM_MODELS.STANDARDS_PICKER,
         prompt: `You are organizing subunits into a clean curriculum for "${subjectName}".
 
-HARD LIMITS you MUST obey: AT MOST 12 units total, and AT MOST 7 subunits per unit. These are ceilings, not targets — most curricula need fewer.
+HARD LIMITS you MUST obey: AT MOST 12 units total, AT MOST 7 subunits per unit, and AT LEAST 3 subunits per unit. Never create a unit with only 1 or 2 subunits — fold tiny groups into a related unit so every unit has real substance.
 
 Units are BROAD, GENERAL themes (big buckets like "Cells", "Genetics", "Ecology", "Forces & Motion") — NOT narrow topics. Within each unit, the subunits are the SPECIFIC concepts that belong to that theme. Merge subunits that cover essentially the same concept into ONE final subunit.
 
@@ -481,6 +481,26 @@ Return JSON only: { "units": [ { "unit_name": "Specific Unit Name", "subunits": 
             unit_name: `Unit ${units.length + 1}`,
             subunits: rawSubs.slice(i, i + 7).map((s) => ({ name: s.name, covered_ids: s.covered_ids || [] })),
           });
+        }
+      }
+
+      // Every unit needs substance — merge any unit with < 3 subunits into a
+      // neighbor (preferring one that stays within 7) until none are too small
+      // (or only one unit remains). Coverage is unchanged — subunits just move.
+      let changed = true;
+      while (changed && units.length > 1) {
+        changed = false;
+        for (let i = 0; i < units.length; i++) {
+          if ((units[i].subunits || []).length >= 3) continue;
+          const small = units[i];
+          const neighbors = [i - 1, i + 1].filter((j) => j >= 0 && j < units.length);
+          let target = neighbors.find((j) => units[j].subunits.length + small.subunits.length <= 7);
+          if (target === undefined) target = neighbors[0];
+          if (target == null) break;
+          units[target].subunits.push(...small.subunits);
+          units.splice(i, 1);
+          changed = true;
+          break;
         }
       }
 
