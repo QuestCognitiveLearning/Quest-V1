@@ -267,7 +267,7 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
     runTranslation();
   }, []);
 
-  const runTranslation = async () => {
+  const runTranslation = async (attempt = 0) => {
     setTranslating(true);
     setTranslatedUnits(null);
     setTranslationError("");
@@ -302,7 +302,7 @@ Return JSON only:
 }
 
 Raw standards:
-${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description || s.statementNotation || s.listId || "(no description)" })))}`,
+${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: String(s.description || s.statementNotation || s.listId || "(no description)").slice(0, 220) })))}`,
         response_json_schema: {
           type: "object",
           properties: {
@@ -358,6 +358,12 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: s.description |
         }, (i + 1) * REVEAL_MS);
       });
     } catch (e) {
+      // Transient edge/LLM hiccups (500/timeout) are common on big standard
+      // sets — retry a couple of times with backoff before giving up.
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        return runTranslation(attempt + 1);
+      }
       // Supabase functions.invoke wraps non-2xx as FunctionsHttpError with a
       // generic message; the real cause is in e.context.response. Try to read
       // that body so the user (and any future debugger) sees the actual error.

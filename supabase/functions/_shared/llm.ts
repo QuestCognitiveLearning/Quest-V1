@@ -61,10 +61,10 @@ export async function invokeLLMWithUsage(args: InvokeArgs): Promise<InvokeResult
   }
 
   // Abort the upstream call before Supabase kills the worker (default cap is
-  // ~150s). 90s gives OpenAI plenty of room while still leaving the function
-  // time to return a clean 504 rather than dying as a 546.
+  // ~150s). 120s gives OpenAI room for big jobs (e.g. translating a full
+  // standards set) while leaving the function time to return a clean error.
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 90_000);
+  const timer = setTimeout(() => ctrl.abort(), 120_000);
   let res: Response;
   try {
     res = await fetch('https://api.openai.com/v1/chat/completions', {

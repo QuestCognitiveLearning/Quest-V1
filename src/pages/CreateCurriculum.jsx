@@ -180,7 +180,12 @@ export default function CreateCurriculum() {
           </div>
           <Button
             variant="outline"
-            onClick={() => navigate(createPageUrl("TeacherCurricula"))}
+            onClick={() => {
+              // One back button: step back to the method chooser if a method
+              // is selected, otherwise leave to the curricula list.
+              if (step === "define" && mode) setMode(null);
+              else navigate(createPageUrl("TeacherCurricula"));
+            }}
             className="gap-2 border-gray-300 hover:bg-gray-100"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -199,9 +204,6 @@ export default function CreateCurriculum() {
         {/* Standards picker mode */}
         {step === "define" && mode === "standards" && (
           <div className="space-y-6">
-            <button onClick={() => setMode(null)} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-              <ChevronLeft className="w-4 h-4" /> Choose a different method
-            </button>
             <StandardsPicker
               onStandardsSelected={({ subjectName, units: importedUnits }) => {
                 setFormData(f => ({ ...f, subject_name: subjectName }));
@@ -214,9 +216,6 @@ export default function CreateCurriculum() {
 
         {step === "define" && mode === "manual" && (
           <div className="space-y-6">
-            <button onClick={() => setMode(null)} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-              <ChevronLeft className="w-4 h-4" /> Choose a different method
-            </button>
             {/* Subject Info */}
             <Card className="border-0 shadow-lg bg-white rounded-2xl overflow-hidden">
               <CardContent className="p-8">
