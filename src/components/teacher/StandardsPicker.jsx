@@ -253,6 +253,11 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
   const [translatedUnits, setTranslatedUnits] = useState(null);
   const [translationError, setTranslationError] = useState("");
   const [coveredRawIds, setCoveredRawIds] = useState(new Set());
+  // Chunked-translation progress + live ETA (so a big standard set never times
+  // out and the teacher sees time-left, like curriculum generation).
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [startedAt, setStartedAt] = useState(null);
+  const [, setEtaTick] = useState(0);
   // revealedCount = how many subunits (in flat order across all units) have
   // been "stepped in" so far. Drives both the right-side card reveal and the
   // left-side checkmark sweep — they share this counter so they stay in sync.
@@ -267,118 +272,155 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
     runTranslation();
   }, []);
 
-  const runTranslation = async (attempt = 0) => {
-    setTranslating(true);
-    setTranslatedUnits(null);
-    setTranslationError("");
-    setCoveredRawIds(new Set());
-    try {
-      const res = await quest.integrations.Core.InvokeLLM({
-        model: LLM_MODELS.STANDARDS_PICKER,
-        prompt: `You are an expert curriculum designer. Convert these raw educational standards for "${subjectName}" into a well-organized, comprehensive curriculum.
+  // 1s ticker so the ETA recomputes while translating.
+  useEffect(() => {
+    if (!translating) return;
+    const id = setInterval(() => setEtaTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [translating]);
 
-Rules:
-1. Create a reasonable number of units based on the content — not too few, not too many. Each unit should cover a distinct conceptual area. Let the standards naturally dictate how many units there are.
-2. Each unit should have a balanced number of subunits. Do NOT make units too broad or pack too many subunits into one.
-3. Convert each standard into a SHORT, punchy subunit name (4-8 words max). Be specific, not generic. Example: "Analyze characteristics of life and engage in argument about the designation of viruses as non-living" → "Viruses as Non-Living Organisms"
-4. CONSOLIDATE related standards into a single subunit whenever they cover the same teachable concept. A subunit should be the size of one focused 10–15 minute video — large enough that a single YouTube lesson can plausibly cover it, small enough to remain specific. Each subunit becomes one video, so avoid creating many tiny subunits about minor variations of the same idea. When in doubt, merge.
-   - DO merge: "Identify the structure of DNA" + "Describe the function of DNA" + "Explain DNA replication basics" → ONE subunit "DNA Structure, Function & Replication".
-   - DO merge: "Analyze the cell membrane" + "Describe membrane transport" → ONE subunit "Cell Membrane & Transport".
-   - DO NOT merge across genuinely different concepts (e.g., do not merge "Mitosis" with "Genetic Inheritance" — those are separate teachable units).
-5. For each subunit, list the IDs of EVERY raw standard it covers in "covered_ids". A merged subunit will have multiple ids; that is expected and good.
-6. Unit names should be clear and specific (e.g. "Cell Structure & Function" not just "Cells").
-7. CRITICAL: Every single raw standard must be covered by at least one subunit — do not skip or omit any. Merging is fine and encouraged; dropping is not.
+  // Live "time left" while chunks process — throughput from completed chunks.
+  const estimateRemaining = () => {
+    const { current, total } = progress;
+    if (!total || !startedAt) return "";
+    const remaining = Math.max(0, total - current);
+    if (remaining === 0) return "finishing up…";
+    const perMs = current > 0 ? (Date.now() - startedAt) / current : 18000; // initial guess
+    const secs = Math.max(3, Math.round((remaining * perMs) / 1000));
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `~${m} min ${s} sec left` : `~${s} sec left`;
+  };
 
-Return JSON only:
-{
-  "units": [
-    {
-      "unit_name": "Specific Unit Name",
-      "subunits": [
-        { "name": "Short Subunit Name", "covered_ids": ["rawStandardId1", "rawStandardId2"] }
-      ]
-    }
-  ]
-}
-
-Raw standards:
-${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: String(s.description || s.statementNotation || s.listId || "(no description)").slice(0, 220) })))}`,
-        response_json_schema: {
+  const STANDARDS_SCHEMA = {
+    type: "object",
+    properties: {
+      units: {
+        type: "array",
+        items: {
           type: "object",
           properties: {
-            units: {
+            unit_name: { type: "string" },
+            subunits: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
-                  unit_name: { type: "string" },
-                  subunits: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string" },
-                        covered_ids: { type: "array", items: { type: "string" } }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      });
+                  name: { type: "string" },
+                  covered_ids: { type: "array", items: { type: "string" } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
 
-      const units = res.units || [];
+  // Translate ONE chunk of standards (full descriptions, small prompt → fast,
+  // never times out). Retries transient failures.
+  const translateChunk = async (standards, attempt = 0) => {
+    try {
+      const res = await quest.integrations.Core.InvokeLLM({
+        model: LLM_MODELS.STANDARDS_PICKER,
+        prompt: `You are an expert curriculum designer organizing standards for "${subjectName}" into units and subunits. These are a PORTION of a larger standard set — organize just THESE into coherent units.
+
+Rules:
+1. Group these standards into a small number of coherent units; each unit is a distinct conceptual area with a clear, specific name (e.g. "Cell Structure & Function", not "Cells").
+2. Convert each standard into a SHORT, punchy subunit name (4-8 words). Be specific, not generic.
+3. CONSOLIDATE related standards into ONE subunit when they cover the same teachable concept — the size of one focused 10–15 minute video. When in doubt, merge. Do NOT merge genuinely different concepts.
+4. For each subunit, list the IDs of EVERY raw standard it covers in "covered_ids" (a merged subunit has multiple ids).
+5. CRITICAL: every standard given here must be covered by at least one subunit — never drop one.
+
+Return JSON only:
+{ "units": [ { "unit_name": "Specific Unit Name", "subunits": [ { "name": "Short Subunit Name", "covered_ids": ["id1","id2"] } ] } ] }
+
+Raw standards:
+${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description || s.statementNotation || s.listId || "(no description)" })))}`,
+        response_json_schema: STANDARDS_SCHEMA,
+      });
+      return res.units || [];
+    } catch (e) {
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        return translateChunk(standards, attempt + 1);
+      }
+      throw e;
+    }
+  };
+
+  const runTranslation = async () => {
+    setTranslating(true);
+    setTranslatedUnits(null);
+    setTranslationError("");
+    setCoveredRawIds(new Set());
+
+    // Process the FULL standard set in small chunks (full descriptions) so no
+    // single LLM call can time out, a few at a time, with live progress + ETA.
+    const CHUNK = 20;
+    const CONCURRENCY = 3;
+    const chunks = [];
+    for (let i = 0; i < rawStandards.length; i += CHUNK) chunks.push(rawStandards.slice(i, i + CHUNK));
+    if (chunks.length === 0) { setTranslatedUnits([]); setTranslating(false); return; }
+
+    setProgress({ current: 0, total: chunks.length });
+    setStartedAt(Date.now());
+
+    const results = new Array(chunks.length).fill(null);
+    const queue = chunks.map((c, i) => ({ c, i }));
+    let done = 0;
+    let firstError = null;
+    const worker = async () => {
+      while (queue.length) {
+        const { c, i } = queue.shift();
+        try {
+          results[i] = await translateChunk(c);
+        } catch (e) {
+          if (!firstError) firstError = e;
+        }
+        done += 1;
+        setProgress({ current: done, total: chunks.length });
+      }
+    };
+
+    try {
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, worker));
+      // If every chunk failed, surface the error. If only some failed, proceed
+      // with what we got (partial coverage shows in the "X of Y covered" count).
+      if (firstError && results.every((r) => r === null)) throw firstError;
+
+      // Merge in chunk order, combining units that share a name.
+      const byName = new Map();
+      const order = [];
+      results.flat().filter(Boolean).forEach((u) => {
+        const key = String(u.unit_name || "Unit").trim().toLowerCase();
+        if (!byName.has(key)) { byName.set(key, { unit_name: u.unit_name, subunits: [] }); order.push(key); }
+        byName.get(key).subunits.push(...(u.subunits || []));
+      });
+      const units = order.map((k) => byName.get(k));
+
       setTranslatedUnits(units);
       setRevealedCount(0);
       setCoveredRawIds(new Set());
 
-      // Animate subunits onto the right-side panel one at a time, and check
-      // off their corresponding raw standards on the left in lockstep. Same
-      // counter (revealedCount) drives both — they can never get out of sync.
       const flat = [];
-      units.forEach((u, ui) => {
-        (u.subunits || []).forEach((s, si) => {
-          flat.push({ unitIdx: ui, subIdx: si, ids: s.covered_ids || [] });
-        });
-      });
-
-      // ~220ms per step feels intentional without dragging. For a typical
-      // 25-subunit curriculum the whole sweep takes ~5.5s.
-      const REVEAL_MS = 220;
+      units.forEach((u, ui) => (u.subunits || []).forEach((s, si) => flat.push({ unitIdx: ui, subIdx: si, ids: s.covered_ids || [] })));
+      const REVEAL_MS = 120;
       flat.forEach((step, i) => {
         setTimeout(() => {
           setRevealedCount((c) => Math.max(c, i + 1));
-          setCoveredRawIds((prev) => {
-            const next = new Set(prev);
-            step.ids.forEach((id) => next.add(id));
-            return next;
-          });
+          setCoveredRawIds((prev) => { const next = new Set(prev); step.ids.forEach((id) => next.add(id)); return next; });
         }, (i + 1) * REVEAL_MS);
       });
     } catch (e) {
-      // Transient edge/LLM hiccups (500/timeout) are common on big standard
-      // sets — retry a couple of times with backoff before giving up.
-      if (attempt < 2) {
-        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
-        return runTranslation(attempt + 1);
-      }
-      // Supabase functions.invoke wraps non-2xx as FunctionsHttpError with a
-      // generic message; the real cause is in e.context.response. Try to read
-      // that body so the user (and any future debugger) sees the actual error.
       let msg = e?.message || (typeof e === 'string' ? e : '');
       try {
         const resp = e?.context?.response || e?.context;
         if (resp && typeof resp.text === 'function') {
           const body = await resp.text();
           if (body) {
-            try {
-              const parsed = JSON.parse(body);
-              msg = `${parsed.error || parsed.message || body} (HTTP ${resp.status || '?'})`;
-            } catch {
-              msg = `${body} (HTTP ${resp.status || '?'})`;
-            }
+            try { const parsed = JSON.parse(body); msg = `${parsed.error || parsed.message || body} (HTTP ${resp.status || '?'})`; }
+            catch { msg = `${body} (HTTP ${resp.status || '?'})`; }
           }
         }
       } catch { /* keep whatever we already had */ }
@@ -456,9 +498,20 @@ ${JSON.stringify(rawStandards.map(s => ({ id: s.id, description: String(s.descri
           </div>
           <div className="overflow-y-auto flex-1 p-3">
             {translating && (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400 px-6">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
                 <p className="text-xs text-center">AI is organizing your standards<br />into a clean curriculum...</p>
+                {progress.total > 0 && (
+                  <div className="w-full max-w-xs">
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
+                    </div>
+                    <p className="text-[11px] text-center text-gray-500 mt-2">
+                      Batch {Math.min(progress.current + 1, progress.total)} of {progress.total}
+                      {estimateRemaining() ? ` · ${estimateRemaining()}` : ""}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             {!translating && translatedUnits && (
