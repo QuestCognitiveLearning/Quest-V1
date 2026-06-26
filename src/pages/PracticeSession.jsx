@@ -10,6 +10,7 @@ import { Award, RefreshCw, Play, Clock } from "lucide-react";
 import LofiMusicPlayer from "../components/shared/LofiMusicPlayer";
 import PandaChatWidget from "../components/shared/PandaChatWidget";
 import CaseStudyChat from "../components/newSession/CaseStudyChat";
+import SessionReview from "../components/student/SessionReview";
 import SessionFeedbackModal from "../components/newSession/SessionFeedbackModal";
 import { loadResume, saveResume, clearResume } from "@/lib/sessionResume";
 
@@ -47,6 +48,7 @@ function selectReviewQuestions(allQuestions, reviewNumber, count = 10) {
 export default function PracticeSession() {
   const navigate = useNavigate();
   const [step, setStep] = useState("quiz");
+  const [reviewDone, setReviewDone] = useState(false);
   const [recallText, setRecallText] = useState("");
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -210,6 +212,7 @@ export default function PracticeSession() {
         question: q.question_text,
         options: shuffledChoices,
         correctIndex: newCorrectIndex,
+        explanation: q.explanation,
         difficulty: q.difficulty
       };
     });
@@ -260,6 +263,20 @@ export default function PracticeSession() {
   const mcCorrect = results.filter(r => r.mcqCorrect).length;
   const mcPercent = questions.length > 0 ? (mcCorrect / questions.length) * 100 : 0;
   const finalScore = Math.round(mcPercent);
+
+  // Post-score review: page through every question (right + wrong) with its
+  // explanation before finishing — skipped on a perfect score.
+  const quizReviewItems = results.map((r, i) => {
+    const q = questions[r.question ?? i] || {};
+    return {
+      question: q.question,
+      picked: q.options?.[r.selectedChoice] ?? "—",
+      correct: q.options?.[q.correctIndex] ?? "—",
+      isCorrect: !!r.mcqCorrect,
+      explanation: q.explanation || "",
+    };
+  });
+  const needsReview = quizReviewItems.some((q) => !q.isCorrect);
 
   const handleCompleteSession = async () => {
     if (!user || !subunitId) {
@@ -605,9 +622,19 @@ export default function PracticeSession() {
                 </div>
               </div>
 
-              <Button onClick={handleCompleteSession} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
-                {finalScore < 50 ? "Relearn this topic" : "Complete Review Session"}
-              </Button>
+              {needsReview && !reviewDone ? (
+                <div className="border-t border-gray-100 pt-6">
+                  <SessionReview
+                    quizItems={quizReviewItems}
+                    completeLabel="Done reviewing"
+                    onComplete={() => setReviewDone(true)}
+                  />
+                </div>
+              ) : (
+                <Button onClick={handleCompleteSession} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
+                  {finalScore < 50 ? "Relearn this topic" : "Complete Review Session"}
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

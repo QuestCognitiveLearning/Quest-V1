@@ -15,6 +15,7 @@ import PandaChatWidget from "../components/shared/PandaChatWidget";
 import MathRenderer from "@/components/utils/MathRenderer";
 import { resolveTranscript } from "@/lib/transcript";
 import SessionFeedbackModal from "../components/newSession/SessionFeedbackModal";
+import SessionReview from "../components/student/SessionReview";
 import { loadResume, saveResume, clearResume } from "@/lib/sessionResume";
 
 
@@ -62,6 +63,7 @@ export default function NewSession() {
   const [questathonClassId, setQuestathonClassId] = useState(null);
   const [pandaPointsEarned, setPandaPointsEarned] = useState(0);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [reviewDone, setReviewDone] = useState(false);
   const videoRef = useRef(null);
 
   const subunitId = urlParams.get("topic");
@@ -431,6 +433,7 @@ export default function NewSession() {
         question: q.question_text,
         options: shuffledChoices,
         correctIndex: newCorrectIndex,
+        explanation: q.explanation,
         difficulty: q.difficulty,
         bonusQuestion: `Explain in detail the concept tested in this question about ${topic}. In your answer, provide specific examples, discuss real-world applications, explain the underlying principles, and describe how this relates to other concepts in the subject. Provide comprehensive reasoning for at least 100 words.`
       };
@@ -654,6 +657,20 @@ export default function NewSession() {
   const frqPercent = frqScore !== null ? (frqScore / 4) * 100 : 0;
   // Final score: 60% MC + 40% FRQ
   const finalScore = frqScore !== null ? Math.round(mcPercent * 0.6 + frqPercent * 0.4) : Math.round(mcPercent);
+
+  // Post-score review: page through every quiz question (right + wrong) with
+  // its explanation before leaving — skipped if every MC answer was correct.
+  const quizReviewItems = results.map((r, i) => {
+    const q = questions[i] || {};
+    return {
+      question: q.question,
+      picked: q.options?.[r.selectedChoice] ?? "—",
+      correct: q.options?.[q.correctIndex] ?? "—",
+      isCorrect: !!r.correct,
+      explanation: q.explanation || "",
+    };
+  });
+  const needsReview = quizReviewItems.some((q) => !q.isCorrect);
 
   const handleCompleteSession = async () => {
     if (!user || !subunitId) {
@@ -1158,7 +1175,15 @@ export default function NewSession() {
               </div>
 
 
-              {finalScore >= PASS_THRESHOLD ? (
+              {needsReview && !reviewDone ? (
+                <div className="border-t border-gray-100 pt-6">
+                  <SessionReview
+                    quizItems={quizReviewItems}
+                    completeLabel="Done reviewing"
+                    onComplete={() => setReviewDone(true)}
+                  />
+                </div>
+              ) : finalScore >= PASS_THRESHOLD ? (
                 <Button onClick={() => setShowFeedbackModal(true)} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
                   Return to Learning Hub
                 </Button>

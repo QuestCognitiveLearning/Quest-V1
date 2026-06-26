@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
 import PandaChatWidget from "@/components/shared/PandaChatWidget";
+import SessionReview from "@/components/student/SessionReview";
 import {
   ArrowLeft,
   Loader2,
@@ -62,6 +63,7 @@ export default function AssignedSessionPlay() {
 
   // ---- Walk state ----
   const [phaseIdx, setPhaseIdx] = useState(0);
+  const [showReview, setShowReview] = useState(false); // post-score review gate
   const [qIdx, setQIdx] = useState(0);
   const [quizSelected, setQuizSelected] = useState(null); // 0..3 for current q
   const [quizSubmitted, setQuizSubmitted] = useState({}); // { [qIdx]: true }
@@ -610,13 +612,52 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
     );
   }
 
+  // ---- Post-score review gate -------------------------------------------
+  // After the score, the student must page through every quiz + case-study
+  // item (with explanations) before they can leave — unless they got
+  // everything right. Fail-safe: empty items ⇒ needsReview false ⇒ no gate.
+  const choiceText = (q, letter) => (q && letter ? q[`choice_${String(letter).toLowerCase()}`] : "") || "";
+  const quizResponsesForReview = completion?.quiz_responses
+    ? completion.quiz_responses
+    : quiz.map((q, i) => ({
+        q_index: i,
+        picked: quizResponsesAcc[i]?.picked || null,
+        correct: String(q.correct_choice || "A").toLowerCase(),
+        is_correct: !!quizResponsesAcc[i]?.is_correct,
+      }));
+  const quizReviewItems = quiz.map((q, i) => {
+    const r = quizResponsesForReview.find((x) => x.q_index === i) || quizResponsesForReview[i] || {};
+    return {
+      question: q.question,
+      picked: choiceText(q, r.picked),
+      correct: choiceText(q, r.correct || String(q.correct_choice || "A").toLowerCase()),
+      isCorrect: !!r.is_correct,
+      explanation: q.explanation || "",
+    };
+  });
+  const caseReviewItems = (completion?.case_study_responses || csResult?.responses || []).map((r) => ({
+    question: r.question,
+    answer: r.answer,
+    score: r.score,
+    max: r.max,
+    feedback: r.feedback,
+  }));
+  const needsReview =
+    quizReviewItems.some((q) => !q.isCorrect) ||
+    caseReviewItems.some((c) => (c.score ?? 0) < (c.max ?? 1));
+  const exitHome = () => navigate(createPageUrl("LearningHub"));
+  const handleResultsExit = () => {
+    if (needsReview && !showReview) setShowReview(true);
+    else exitHome();
+  };
+
   return (
     <Wrapper
       title={bundle?.title || video?.title || "Single session"}
       phaseIdx={phaseIdx}
       phases={phases}
       due={assignment?.due_at}
-      onBack={() => navigate(createPageUrl("LearningHub"))}
+      onBack={phase === "results" ? handleResultsExit : exitHome}
     >
       <PandaChatWidget
         topic={bundle?.title || video?.title}
@@ -676,7 +717,16 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
         />
       )}
 
-      {phase === "results" && (
+      {phase === "results" && showReview && (
+        <SessionReview
+          quizItems={quizReviewItems}
+          caseItems={caseReviewItems}
+          completeLabel="Back to Learning Hub"
+          onComplete={exitHome}
+        />
+      )}
+
+      {phase === "results" && !showReview && (
         <ResultsView
           quiz={quiz}
           quizResponses={
@@ -716,7 +766,7 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
           submittedAt={completion?.completed_at}
           onSubmit={handleFinish}
           onRetry={handleRetry}
-          onHome={() => navigate(createPageUrl("LearningHub"))}
+          onHome={handleResultsExit}
         />
       )}
     </Wrapper>

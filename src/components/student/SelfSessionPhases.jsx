@@ -23,6 +23,7 @@ import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
 import { shuffleQuestionList } from "@/lib/shuffleChoices";
 import PandaChatWidget from "@/components/shared/PandaChatWidget";
+import SessionReview from "@/components/student/SessionReview";
 import {
   CheckCircle,
   XCircle,
@@ -76,6 +77,7 @@ export default function SelfSessionPhases({
   }, [summary, videoEmbedSrc, quiz.length, caseStudy]);
 
   const [phaseIdx, setPhaseIdx] = useState(0);
+  const [reviewDone, setReviewDone] = useState(false);
   const phase = phases[phaseIdx] || "done";
 
   const goNext = () => setPhaseIdx((i) => Math.min(i + 1, phases.length - 1));
@@ -354,6 +356,26 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
     };
   });
   const quizAnswered = quizResponses.filter((r) => r.picked).length;
+
+  // Post-score review gate (skipped when everything is correct).
+  const choiceText = (q, letter) => (q && letter ? q[`choice_${String(letter).toLowerCase()}`] : "") || "";
+  const quizReviewItems = quiz.map((q, i) => ({
+    question: q.question,
+    picked: choiceText(q, quizResponses[i]?.picked),
+    correct: choiceText(q, quizResponses[i]?.correct),
+    isCorrect: !!quizResponses[i]?.is_correct,
+    explanation: q.explanation || "",
+  }));
+  const caseReviewItems = (csResult?.responses || []).map((r) => ({
+    question: r.question,
+    answer: r.answer,
+    score: r.score,
+    max: r.max,
+    feedback: r.feedback,
+  }));
+  const needsReview =
+    quizReviewItems.some((q) => !q.isCorrect) ||
+    caseReviewItems.some((c) => (c.score ?? 0) < (c.max ?? 1));
   const quizCorrect = quizResponses.filter((r) => r.is_correct).length;
   const quizPct = quiz.length > 0
     ? Math.round((quizCorrect / quiz.length) * 100)
@@ -668,10 +690,21 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
             )}
           </div>
 
-          {onSavePrompt && (
+          {needsReview && !reviewDone ? (
             <div className="pt-4 border-t border-slate-100">
-              {onSavePrompt(saving, saveLabel)}
+              <SessionReview
+                quizItems={quizReviewItems}
+                caseItems={caseReviewItems}
+                completeLabel="Done reviewing"
+                onComplete={() => setReviewDone(true)}
+              />
             </div>
+          ) : (
+            onSavePrompt && (
+              <div className="pt-4 border-t border-slate-100">
+                {onSavePrompt(saving, saveLabel)}
+              </div>
+            )
           )}
         </Panel>
       )}
