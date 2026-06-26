@@ -135,7 +135,7 @@ async function generateQuizAndCaseStudy(
   const difficultyLine = `${difficultyLadder}\n${emphasis}`;
 
   const caseStudyTask = includeCaseStudy
-    ? `\n\n2. A "case study" / discussion scenario. Write ONE realistic short scenario (3–6 sentences) that applies the video's central concept(s) to a NEW situation not shown in the video, pitched at the same depth the video explains them. Follow it with 4 open-ended discussion questions that push students to APPLY those concepts (not merely recall them).`
+    ? `\n\n2. A "case study" / discussion scenario built ONLY from the concepts in the transcript above. Write ONE realistic short scenario (3–6 sentences) that applies the video's central concept(s) to a NEW situation not shown in the video, at the same depth the video explains them. Every background detail in the scenario must be directly relevant to the topic AND needed to answer the questions — no filler or unrelated facts. Then write 4 open-ended discussion questions that can be answered using the scenario's details and the video's concepts (apply, don't recall).`
     : '\n\n(Case study omitted at user request — return case_study with empty scenario and an empty discussion_questions array.)';
 
   const prompt = `You are a curriculum designer creating a printable classroom handout based on a YouTube video.

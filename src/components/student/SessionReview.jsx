@@ -1,13 +1,12 @@
 /**
- * SessionReview — a mandatory, step-through review shown after the score
- * screen (unless the student got 100%). The student pages through every quiz
- * question and case-study prompt — both the ones they got right and wrong —
- * each with the AI explanation/feedback, and can only finish (exit) after the
- * last one.
+ * SessionReview — its own step after the score (not part of the score card).
+ * Panda re-asks each quiz question and case-study prompt — right and wrong —
+ * one at a time; under each, the student sees what they answered and, if they
+ * got it wrong, the correct answer. The student pages through all of them and
+ * can only finish at the end.
  *
- * Self-contained: the caller passes the items + an onComplete callback that
- * unlocks the exit. If there are no items it renders nothing and the caller
- * should treat review as already complete (never trap the student).
+ * Self-contained: caller passes the items + onComplete. No items ⇒ renders
+ * nothing (caller treats review as complete; a student is never trapped).
  */
 import React, { useState } from "react";
 import { CheckCircle, XCircle, ArrowRight, ArrowLeft } from "lucide-react";
@@ -29,61 +28,61 @@ export default function SessionReview({ quizItems = [], caseItems = [], onComple
   return (
     <div className="max-w-2xl mx-auto">
       <div className="text-center mb-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Review your answers</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Go through each question with Panda's explanation before you finish.
-        </p>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Review with Panda</h2>
+        <p className="text-sm text-slate-500 mt-1">Go through each question before you finish.</p>
       </div>
 
-      {/* Progress */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-slate-500">
-          {idx + 1} of {items.length}
-        </span>
+        <span className="text-xs font-semibold text-slate-500">{idx + 1} of {items.length}</span>
         <div className="flex-1 mx-3 h-1.5 bg-slate-200 rounded-full overflow-hidden">
           <div className="h-full bg-indigo-600 transition-all" style={{ width: `${((idx + 1) / items.length) * 100}%` }} />
         </div>
       </div>
 
-      <div className={`rounded-2xl border-2 p-5 ${correct ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
-        <div className="flex items-start gap-2 mb-3">
+      {/* Panda asks the question */}
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-xl shrink-0" aria-hidden="true">🐼</div>
+        <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 mb-1">Panda asks</p>
+          <p className="text-slate-900 font-semibold">{item.question}</p>
+        </div>
+      </div>
+
+      {/* The student's response + the correct one (if wrong) */}
+      <div className={`rounded-2xl border-2 p-4 ${correct ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+        <div className="flex items-center gap-2 mb-2">
           {correct ? (
-            <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+            <CheckCircle className="w-5 h-5 text-emerald-600" />
           ) : (
-            <XCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+            <XCircle className="w-5 h-5 text-red-500" />
           )}
-          <p className="font-semibold text-slate-900">{item.question}</p>
+          <span className={`text-sm font-bold ${correct ? "text-emerald-700" : "text-red-700"}`}>
+            {correct ? "You got it right" : "Not quite"}
+          </span>
         </div>
 
         {item.kind === "quiz" ? (
-          <div className="space-y-2 text-sm">
-            <p className={correct ? "text-emerald-800" : "text-red-700"}>
-              <span className="font-semibold">Your answer:</span> {item.picked || "—"}
-            </p>
+          <div className="space-y-1.5 text-sm">
+            <p className="text-slate-800"><span className="font-semibold">Your response:</span> {item.picked || "—"}</p>
             {!correct && (
-              <p className="text-emerald-800">
-                <span className="font-semibold">Correct answer:</span> {item.correct || "—"}
-              </p>
+              <p className="text-emerald-800"><span className="font-semibold">Correct response:</span> {item.correct || "—"}</p>
             )}
           </div>
         ) : (
           <div className="space-y-2 text-sm">
             <div className="bg-white rounded-lg border border-slate-200 p-3">
-              <p className="text-xs font-medium text-slate-500 mb-1">Your answer</p>
+              <p className="text-xs font-medium text-slate-500 mb-1">Your response</p>
               <p className="text-slate-900">{item.answer || <span className="italic text-slate-400">No answer</span>}</p>
             </div>
-            {item.max != null && (
-              <p className="text-slate-600">
-                <span className="font-semibold">Score:</span> {item.score}/{item.max}
-              </p>
+            {!correct && item.feedback && (
+              <div className="bg-white rounded-lg border border-emerald-200 p-3">
+                <p className="text-xs font-medium text-emerald-700 mb-1">What a strong answer covers</p>
+                <p className="text-slate-900">{item.feedback}</p>
+              </div>
             )}
-          </div>
-        )}
-
-        {(item.explanation || item.feedback) && (
-          <div className="mt-3 bg-indigo-50 border border-indigo-200 rounded-lg p-3">
-            <p className="text-xs font-semibold text-indigo-700 mb-1">🐼 Panda explains</p>
-            <p className="text-sm text-indigo-900">{item.explanation || item.feedback}</p>
+            {item.max != null && (
+              <p className="text-slate-600"><span className="font-semibold">Score:</span> {item.score}/{item.max}</p>
+            )}
           </div>
         )}
       </div>

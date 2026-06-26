@@ -524,8 +524,9 @@ ${videoTranscript}
 
 REQUIREMENTS:
 - The scenario must APPLY the video's central concept(s) to a NEW, realistic situation not shown in the video — never restate the video or ask students to merely recall it.
+- Every background detail in the scenario must be directly relevant to the topic AND actually needed to answer the four questions — no filler, no unrelated facts. A student should use those details to answer.
 - Match the depth at which the video explains these concepts; do not require knowledge the video did not cover.
-- The four questions vary only slightly in difficulty: (a) applies one concept directly, (b) applies another concept or combines two, (c) extends to a changed condition, (d) asks the student to evaluate or critique a claim using the video's concepts.
+- The four questions are answerable from the scenario's details + the video's concepts, and vary only slightly in difficulty: (a) applies one concept directly, (b) applies another concept or combines two, (c) extends to a changed condition, (d) asks the student to evaluate or critique a claim using the video's concepts.
 
 Return JSON:
 {

@@ -49,6 +49,7 @@ export default function PracticeSession() {
   const navigate = useNavigate();
   const [step, setStep] = useState("quiz");
   const [reviewDone, setReviewDone] = useState(false);
+  const [reviewStep, setReviewStep] = useState(false);
   const [recallText, setRecallText] = useState("");
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -582,7 +583,19 @@ export default function PracticeSession() {
 
 
 
-        {step === "results" && (
+        {step === "results" && reviewStep && (
+          <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px]">
+            <CardContent className="p-8">
+              <SessionReview
+                quizItems={quizReviewItems}
+                completeLabel="Done reviewing"
+                onComplete={() => { setReviewDone(true); setReviewStep(false); }}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {step === "results" && !reviewStep && (
           <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px]">
             <CardContent className="p-8">
               <div className="flex items-center justify-between mb-6">
@@ -623,13 +636,9 @@ export default function PracticeSession() {
               </div>
 
               {needsReview && !reviewDone ? (
-                <div className="border-t border-gray-100 pt-6">
-                  <SessionReview
-                    quizItems={quizReviewItems}
-                    completeLabel="Done reviewing"
-                    onComplete={() => setReviewDone(true)}
-                  />
-                </div>
+                <Button onClick={() => setReviewStep(true)} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
+                  Review my answers
+                </Button>
               ) : (
                 <Button onClick={handleCompleteSession} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
                   {finalScore < 50 ? "Relearn this topic" : "Complete Review Session"}

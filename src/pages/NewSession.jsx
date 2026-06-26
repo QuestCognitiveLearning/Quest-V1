@@ -64,6 +64,7 @@ export default function NewSession() {
   const [pandaPointsEarned, setPandaPointsEarned] = useState(0);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
+  const [reviewStep, setReviewStep] = useState(false);
   const videoRef = useRef(null);
 
   const subunitId = urlParams.get("topic");
@@ -477,13 +478,17 @@ export default function NewSession() {
         return;
       }
 
-      // Block skipping past an unanswered check: if playback or a scrub
-      // reaches/passes it, pause, snap back to the check, and open it.
+      // No skipping ahead — snap back any forward jump to where they were.
+      if (currentTime > lastKnownTime + 1.5) {
+        youtubePlayer.seekTo(lastKnownTime, true);
+        return;
+      }
+
+      // Open the next unanswered attention check when playback reaches it.
       if (attentionChecks && attentionChecks.length > 0) {
         const nextCheck = attentionChecks[currentCheckIndex];
         if (nextCheck && !checksCompleted.includes(currentCheckIndex) && currentTime >= nextCheck.timestamp - 0.3) {
           youtubePlayer.pauseVideo();
-          if (currentTime > nextCheck.timestamp + 0.75) youtubePlayer.seekTo(nextCheck.timestamp, true);
           setCurrentCheck(nextCheck);
           setSelectedCheckAnswer(null);
           setShowCheckFeedback(false);
@@ -504,7 +509,7 @@ export default function NewSession() {
     }, 500);
 
     return () => clearInterval(interval);
-  }, [step, currentCheckIndex, checksCompleted, currentCheck, youtubePlayer, videoTotalDuration, attentionChecks, user?.id, subunitId]);
+  }, [step, currentCheckIndex, checksCompleted, currentCheck, youtubePlayer, videoTotalDuration, attentionChecks, lastKnownTime, user?.id, subunitId]);
 
   // Pause when the student leaves the page (switches tab / minimizes).
   useEffect(() => {
@@ -549,17 +554,24 @@ export default function NewSession() {
 
       console.log("✅ Attention check response saved to database");
 
-      // Wait 2 seconds to show feedback, then resume video
+      // Wait 2 seconds to show feedback, then either continue (correct) or
+      // rewind to the previous check and make them re-watch (incorrect).
       setTimeout(() => {
-        setChecksCompleted(prev => [...prev, currentCheckIndex]);
         setCurrentCheck(null);
         setSelectedCheckAnswer(null);
         setShowCheckFeedback(false);
-        setCurrentCheckIndex(currentCheckIndex + 1);
-        
-        // Resume video playback
-        if (youtubePlayer) {
-          youtubePlayer.playVideo();
+        if (isCorrect) {
+          setChecksCompleted(prev => [...prev, currentCheckIndex]);
+          setCurrentCheckIndex(currentCheckIndex + 1);
+          if (youtubePlayer) youtubePlayer.playVideo();
+        } else {
+          // Missed it — back to the previous check (or the start) to re-watch.
+          const prevTs = currentCheckIndex > 0 ? (attentionChecks[currentCheckIndex - 1]?.timestamp || 0) : 0;
+          setLastKnownTime(prevTs);
+          if (youtubePlayer) {
+            youtubePlayer.seekTo(prevTs, true);
+            youtubePlayer.playVideo();
+          }
         }
       }, 2000);
     } catch (err) {
@@ -1102,7 +1114,19 @@ export default function NewSession() {
 
 
 
-        {step === "results" && (
+        {step === "results" && reviewStep && (
+          <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px]">
+            <CardContent className="p-8">
+              <SessionReview
+                quizItems={quizReviewItems}
+                completeLabel="Done reviewing"
+                onComplete={() => { setReviewDone(true); setReviewStep(false); }}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {step === "results" && !reviewStep && (
           <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px]">
             <CardContent className="p-8">
               <div className="flex items-center gap-3 mb-6">
@@ -1176,13 +1200,9 @@ export default function NewSession() {
 
 
               {needsReview && !reviewDone ? (
-                <div className="border-t border-gray-100 pt-6">
-                  <SessionReview
-                    quizItems={quizReviewItems}
-                    completeLabel="Done reviewing"
-                    onComplete={() => setReviewDone(true)}
-                  />
-                </div>
+                <Button onClick={() => setReviewStep(true)} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
+                  Review my answers
+                </Button>
               ) : finalScore >= PASS_THRESHOLD ? (
                 <Button onClick={() => setShowFeedbackModal(true)} className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-5 font-semibold rounded-full">
                   Return to Learning Hub

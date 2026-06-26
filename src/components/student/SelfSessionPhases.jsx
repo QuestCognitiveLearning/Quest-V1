@@ -78,6 +78,7 @@ export default function SelfSessionPhases({
 
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [reviewDone, setReviewDone] = useState(false);
+  const [reviewStep, setReviewStep] = useState(false);
   const phase = phases[phaseIdx] || "done";
 
   const goNext = () => setPhaseIdx((i) => Math.min(i + 1, phases.length - 1));
@@ -151,12 +152,15 @@ export default function SelfSessionPhases({
         if (state === 1) ytPlayer.pauseVideo();
         return;
       }
-      // Native controls drive play/pause/scrub; only block skipping PAST an
-      // unanswered check (snap back to it).
+      // No skipping ahead — snap back any forward jump.
+      if (t > lastTimeRef.current + 1.5) {
+        ytPlayer.seekTo(lastTimeRef.current, true);
+        return;
+      }
+      // Open the next unanswered check when playback reaches it.
       const next = attentionChecks[checkIdx];
       if (next && !checksDone.includes(checkIdx) && t >= next.timestamp - 0.3) {
         ytPlayer.pauseVideo();
-        if (t > next.timestamp + 0.75) ytPlayer.seekTo(next.timestamp, true);
         setActiveCheck(next);
         setCheckSelected(null);
         setCheckFeedback(null);
@@ -189,12 +193,22 @@ export default function SelfSessionPhases({
       { q_index: checkIdx, picked: checkSelected, correct: correctLetter, is_correct: isCorrect },
     ]);
     setTimeout(() => {
-      setChecksDone((prev) => [...prev, checkIdx]);
       setActiveCheck(null);
       setCheckSelected(null);
       setCheckFeedback(null);
-      setCheckIdx((i) => i + 1);
-      if (ytPlayer) ytPlayer.playVideo();
+      if (isCorrect) {
+        setChecksDone((prev) => [...prev, checkIdx]);
+        setCheckIdx((i) => i + 1);
+        if (ytPlayer) ytPlayer.playVideo();
+      } else {
+        // Missed it — rewind to the previous check (or start) and re-watch.
+        const prevTs = checkIdx > 0 ? (attentionChecks[checkIdx - 1]?.timestamp || 0) : 0;
+        lastTimeRef.current = prevTs;
+        if (ytPlayer) {
+          ytPlayer.seekTo(prevTs, true);
+          ytPlayer.playVideo();
+        }
+      }
     }, 1200);
   };
 
@@ -690,14 +704,20 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
             )}
           </div>
 
-          {needsReview && !reviewDone ? (
+          {reviewStep ? (
             <div className="pt-4 border-t border-slate-100">
               <SessionReview
                 quizItems={quizReviewItems}
                 caseItems={caseReviewItems}
                 completeLabel="Done reviewing"
-                onComplete={() => setReviewDone(true)}
+                onComplete={() => { setReviewDone(true); setReviewStep(false); }}
               />
+            </div>
+          ) : needsReview && !reviewDone ? (
+            <div className="pt-4 border-t border-slate-100">
+              <Button onClick={() => setReviewStep(true)} className="w-full">
+                Review my answers
+              </Button>
             </div>
           ) : (
             onSavePrompt && (

@@ -226,13 +226,15 @@ export default function AssignedSessionPlay() {
         if (state === 1) ytPlayer.pauseVideo();
         return;
       }
-      // Native controls handle play/pause/scrub. Only stop the student from
-      // skipping PAST an unanswered check: if they reach/scrub past it, pause,
-      // snap back to it, and open it.
+      // No skipping ahead — snap back any forward jump.
+      if (t > lastTimeRef.current + 1.5) {
+        ytPlayer.seekTo(lastTimeRef.current, true);
+        return;
+      }
+      // Open the next unanswered check when playback reaches it.
       const next = attentionChecks[checkIdx];
       if (next && !checksDone.includes(checkIdx) && t >= next.timestamp - 0.3) {
         ytPlayer.pauseVideo();
-        if (t > next.timestamp + 0.75) ytPlayer.seekTo(next.timestamp, true);
         setActiveCheck(next);
         setCheckSelected(null);
         setCheckFeedback(null);
@@ -271,12 +273,22 @@ export default function AssignedSessionPlay() {
       },
     ]);
     setTimeout(() => {
-      setChecksDone((prev) => [...prev, checkIdx]);
       setActiveCheck(null);
       setCheckSelected(null);
       setCheckFeedback(null);
-      setCheckIdx((i) => i + 1);
-      if (ytPlayer) ytPlayer.playVideo();
+      if (isCorrect) {
+        setChecksDone((prev) => [...prev, checkIdx]);
+        setCheckIdx((i) => i + 1);
+        if (ytPlayer) ytPlayer.playVideo();
+      } else {
+        // Missed it — rewind to the previous check (or start) and re-watch.
+        const prevTs = checkIdx > 0 ? (attentionChecks[checkIdx - 1]?.timestamp || 0) : 0;
+        lastTimeRef.current = prevTs;
+        if (ytPlayer) {
+          ytPlayer.seekTo(prevTs, true);
+          ytPlayer.playVideo();
+        }
+      }
     }, 1200);
   };
 
