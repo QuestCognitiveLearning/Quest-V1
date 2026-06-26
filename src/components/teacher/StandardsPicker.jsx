@@ -283,24 +283,34 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
   const estimateRemaining = () => {
     const { current, total } = progress;
     if (!total || !startedAt) return "";
+    if (current === 0) return "Estimating time…"; // no throughput yet — avoid a wild guess
     const remaining = Math.max(0, total - current);
     if (remaining === 0) return "finishing up…";
-    const perMs = current > 0 ? (Date.now() - startedAt) / current : 18000; // initial guess
+    const perMs = (Date.now() - startedAt) / current; // already throughput-adjusted
     const secs = Math.max(3, Math.round((remaining * perMs) / 1000));
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return m > 0 ? `~${m} min ${s} sec left` : `~${s} sec left`;
   };
 
-  const STANDARDS_SCHEMA = {
-    type: "object",
-    properties: {
-      units: {
-        type: "array",
-        items: {
+  // Phase 1: pull CLUMPED subunits out of a chunk of standards. Small prompt +
+  // small output → never times out. Standards are clumped (many per subunit),
+  // not one-per-standard. Retries transient failures.
+  const extractSubunits = async (standards, attempt = 0) => {
+    try {
+      const res = await quest.integrations.Core.InvokeLLM({
+        model: LLM_MODELS.STANDARDS_PICKER,
+        prompt: `You are an expert curriculum designer for "${subjectName}". Group these standards into a SHORT list of CLUMPED subunits.
+
+Standards are usually clumped — each subunit is ONE focused 10–15 minute video that covers MULTIPLE related standards. Aggressively merge related standards into the same subunit; do NOT create one subunit per standard. Give each subunit a short, specific name (4–8 words). List the IDs of EVERY standard each subunit covers; every standard must be covered exactly once.
+
+Return JSON only: { "subunits": [ { "name": "Short Subunit Name", "covered_ids": ["id1","id2","id3"] } ] }
+
+Standards:
+${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description || s.statementNotation || s.listId || "(no description)" })))}`,
+        response_json_schema: {
           type: "object",
           properties: {
-            unit_name: { type: "string" },
             subunits: {
               type: "array",
               items: {
@@ -313,37 +323,64 @@ function StandardsReviewPanel({ rawStandards, subjectName, onConfirm, onBack }) 
             },
           },
         },
-      },
-    },
+      });
+      return res.subunits || [];
+    } catch (e) {
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        return extractSubunits(standards, attempt + 1);
+      }
+      throw e;
+    }
   };
 
-  // Translate ONE chunk of standards (full descriptions, small prompt → fast,
-  // never times out). Retries transient failures.
-  const translateChunk = async (standards, attempt = 0) => {
+  // Phase 2: organize all extracted subunits into a clean curriculum — AT MOST
+  // 12 units, AT MOST 7 subunits each — merging near-duplicates. Input is just
+  // names (by index) so it stays small and fast.
+  const organizeUnits = async (subNames, attempt = 0) => {
     try {
       const res = await quest.integrations.Core.InvokeLLM({
         model: LLM_MODELS.STANDARDS_PICKER,
-        prompt: `You are an expert curriculum designer organizing standards for "${subjectName}" into units and subunits. These are a PORTION of a larger standard set — organize just THESE into coherent units.
+        prompt: `You are organizing subunits into a clean curriculum for "${subjectName}".
 
-Rules:
-1. Group these standards into a small number of coherent units; each unit is a distinct conceptual area with a clear, specific name (e.g. "Cell Structure & Function", not "Cells").
-2. Convert each standard into a SHORT, punchy subunit name (4-8 words). Be specific, not generic.
-3. CONSOLIDATE related standards into ONE subunit when they cover the same teachable concept — the size of one focused 10–15 minute video. When in doubt, merge. Do NOT merge genuinely different concepts.
-4. For each subunit, list the IDs of EVERY raw standard it covers in "covered_ids" (a merged subunit has multiple ids).
-5. CRITICAL: every standard given here must be covered by at least one subunit — never drop one.
+HARD LIMITS you MUST obey: AT MOST 12 units total, and AT MOST 7 subunits per unit. These are ceilings, not targets — most curricula need fewer. Merge subunits that cover essentially the same concept into ONE final subunit, and group related subunits into coherent units with clear, specific names (e.g. "Cell Structure & Function").
 
-Return JSON only:
-{ "units": [ { "unit_name": "Specific Unit Name", "subunits": [ { "name": "Short Subunit Name", "covered_ids": ["id1","id2"] } ] } ] }
+Every input subunit index must be placed in exactly ONE final subunit — never drop one. A final subunit may merge several input indices.
 
-Raw standards:
-${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description || s.statementNotation || s.listId || "(no description)" })))}`,
-        response_json_schema: STANDARDS_SCHEMA,
+Subunits (index: name):
+${subNames.map((s) => `${s.i}: ${s.name}`).join("\n")}
+
+Return JSON only: { "units": [ { "unit_name": "Specific Unit Name", "subunits": [ { "name": "Short Subunit Name", "members": [0, 3, 5] } ] } ] }`,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            units: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  unit_name: { type: "string" },
+                  subunits: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        members: { type: "array", items: { type: "number" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
       return res.units || [];
     } catch (e) {
       if (attempt < 2) {
         await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
-        return translateChunk(standards, attempt + 1);
+        return organizeUnits(subNames, attempt + 1);
       }
       throw e;
     }
@@ -355,15 +392,15 @@ ${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description ||
     setTranslationError("");
     setCoveredRawIds(new Set());
 
-    // Process the FULL standard set in small chunks (full descriptions) so no
-    // single LLM call can time out, a few at a time, with live progress + ETA.
-    const CHUNK = 20;
+    // Phase 1 in small chunks (no single call can time out), then one phase-2
+    // organize pass. Progress = chunks + the final organize step.
+    const CHUNK = 25;
     const CONCURRENCY = 3;
     const chunks = [];
     for (let i = 0; i < rawStandards.length; i += CHUNK) chunks.push(rawStandards.slice(i, i + CHUNK));
     if (chunks.length === 0) { setTranslatedUnits([]); setTranslating(false); return; }
 
-    setProgress({ current: 0, total: chunks.length });
+    setProgress({ current: 0, total: chunks.length + 1 });
     setStartedAt(Date.now());
 
     const results = new Array(chunks.length).fill(null);
@@ -373,31 +410,30 @@ ${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description ||
     const worker = async () => {
       while (queue.length) {
         const { c, i } = queue.shift();
-        try {
-          results[i] = await translateChunk(c);
-        } catch (e) {
-          if (!firstError) firstError = e;
-        }
+        try { results[i] = await extractSubunits(c); }
+        catch (e) { if (!firstError) firstError = e; }
         done += 1;
-        setProgress({ current: done, total: chunks.length });
+        setProgress({ current: done, total: chunks.length + 1 });
       }
     };
 
     try {
       await Promise.all(Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, worker));
-      // If every chunk failed, surface the error. If only some failed, proceed
-      // with what we got (partial coverage shows in the "X of Y covered" count).
-      if (firstError && results.every((r) => r === null)) throw firstError;
+      const rawSubs = results.flat().filter(Boolean); // [{ name, covered_ids }]
+      if (rawSubs.length === 0) throw firstError || new Error("No standards could be processed.");
 
-      // Merge in chunk order, combining units that share a name.
-      const byName = new Map();
-      const order = [];
-      results.flat().filter(Boolean).forEach((u) => {
-        const key = String(u.unit_name || "Unit").trim().toLowerCase();
-        if (!byName.has(key)) { byName.set(key, { unit_name: u.unit_name, subunits: [] }); order.push(key); }
-        byName.get(key).subunits.push(...(u.subunits || []));
-      });
-      const units = order.map((k) => byName.get(k));
+      // Phase 2: organize into <=12 units / <=7 subunits, merging duplicates.
+      const organized = await organizeUnits(rawSubs.map((s, i) => ({ i, name: s.name })));
+      setProgress((p) => ({ current: p.total, total: p.total }));
+
+      const units = (organized || []).map((u) => ({
+        unit_name: u.unit_name,
+        subunits: (u.subunits || []).map((fs) => ({
+          name: fs.name,
+          // Union the source subunits' standard IDs so coverage is preserved.
+          covered_ids: [...new Set((fs.members || []).flatMap((m) => rawSubs[m]?.covered_ids || []))],
+        })),
+      }));
 
       setTranslatedUnits(units);
       setRevealedCount(0);
@@ -506,10 +542,7 @@ ${JSON.stringify(standards.map((s) => ({ id: s.id, description: s.description ||
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
                     </div>
-                    <p className="text-[11px] text-center text-gray-500 mt-2">
-                      Batch {Math.min(progress.current + 1, progress.total)} of {progress.total}
-                      {estimateRemaining() ? ` · ${estimateRemaining()}` : ""}
-                    </p>
+                    <p className="text-[11px] text-center text-gray-500 mt-2">{estimateRemaining()}</p>
                   </div>
                 )}
               </div>
