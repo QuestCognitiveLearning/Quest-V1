@@ -174,12 +174,17 @@ export default function TeacherStudentDetail() {
 
   const getSessionData = (subunitId, sessionType) => {
     const progress = getSubunitProgress(subunitId);
-    const baseSessionType = sessionType === "new_topic" ? "new_topic" : "review";
+    const isReview = sessionType !== "new_topic";
+    const reviewNum = isReview ? parseInt(sessionType.replace("review_", "")) : 0;
 
-    // Count attempts for this subunit + session type (failed sessions still
-    // create a LearningSession row — that's how teachers see the struggle).
+    // Attempts for THIS specific session (a review counts only its own review
+    // number, not every review). Failed sessions still create a row, so a count
+    // > 1 means it had to be redone.
     const allAttempts = learningSessions.filter(
-      (ls) => ls.subunit_id === subunitId && ls.session_type === baseSessionType,
+      (ls) =>
+        ls.subunit_id === subunitId &&
+        ls.session_type === (isReview ? "review" : "new_topic") &&
+        (!isReview || ls.review_number === reviewNum),
     );
     const attemptCount = allAttempts.length;
     const failedAttempts = allAttempts.filter((a) => !a.completed).length;
@@ -191,7 +196,7 @@ export default function TeacherStudentDetail() {
       return { completed: false, score: bestAttemptScore, attemptCount, failedAttempts };
     }
 
-    if (sessionType === "new_topic") {
+    if (!isReview) {
       return {
         completed: progress.new_session_completed || false,
         score: progress.new_session_score || bestAttemptScore,
@@ -199,16 +204,21 @@ export default function TeacherStudentDetail() {
         failedAttempts,
       };
     }
-    const reviewNum = parseInt(sessionType.replace("review_", ""));
-    const completed = progress.review_count >= reviewNum;
+    const completed = (progress.review_count || 0) >= reviewNum;
     const score = reviewNum === progress.review_count ? progress.last_review_score : bestAttemptScore;
     return { completed, score, attemptCount, failedAttempts };
   };
 
   const getSubunitResponses = (subunitId, sessionType) => {
-    return questionResponses.filter(r => 
-      r.subunit_id === subunitId && 
-      r.session_type === (sessionType === "new_topic" ? "new_topic" : "review")
+    if (sessionType === "new_topic") {
+      return questionResponses.filter(
+        (r) => r.subunit_id === subunitId && r.session_type === "new_topic",
+      );
+    }
+    // A specific review only — match its review number so reviews don't merge.
+    const reviewNum = parseInt(sessionType.replace("review_", ""));
+    return questionResponses.filter(
+      (r) => r.subunit_id === subunitId && r.session_type === "review" && r.review_number === reviewNum,
     );
   };
 
@@ -413,7 +423,7 @@ export default function TeacherStudentDetail() {
                                             Attempted ({sessionData.attemptCount})
                                           </Badge>
                                         ) : (
-                                          <Badge variant="outline" className="text-gray-500">Not Started</Badge>
+                                          <Badge variant="outline" className="text-gray-500">Not Yet Attempted</Badge>
                                         )}
                                         {sessionData.score !== null && (
                                           <Badge className={`${sessionData.score >= 70 ? 'bg-green-600' : 'bg-orange-500'} text-white`}>
@@ -501,12 +511,14 @@ export default function TeacherStudentDetail() {
                                               <p className="text-sm text-gray-900 font-medium">
                                                 {check?.question || `Check ${idx + 1}`}
                                               </p>
-                                              {check && !acResp.is_correct && (
+                                              {check && (
                                                 <p className="text-xs text-gray-600 mt-1">
                                                   Selected: {choiceText(check, acResp.selected_choice)}
-                                                  <span className="text-green-600 ml-2">
-                                                    (Correct: {choiceText(check, check.correct_choice)})
-                                                  </span>
+                                                  {!acResp.is_correct && (
+                                                    <span className="text-green-600 ml-2">
+                                                      (Correct: {choiceText(check, check.correct_choice)})
+                                                    </span>
+                                                  )}
                                                 </p>
                                               )}
                                             </div>
@@ -682,7 +694,13 @@ export default function TeacherStudentDetail() {
                                     </Tabs>
                                     )}
 
-                                        {/* Review Session Quiz Responses */}
+                                        {/* Review Session Quiz Responses — for THIS review only */}
+                                        {currentSessionType !== "new_topic" && responses.length === 0 && (
+                                        <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl">
+                                        <HelpCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                        <p className="text-sm font-medium">Not Yet Attempted</p>
+                                        </div>
+                                        )}
                                         {currentSessionType !== "new_topic" && responses.length > 0 && (
                                         <div className="bg-white rounded-xl p-4 border border-gray-200">
                                         <div className="flex items-center gap-2 mb-3">
@@ -692,6 +710,11 @@ export default function TeacherStudentDetail() {
                                         {responses.filter(r => r.is_correct).length}/{responses.length} correct
                                         </Badge>
                                         </div>
+                                        {sessionData.attemptCount > 1 && (
+                                        <p className="text-xs text-amber-600 mb-2">
+                                        Took {sessionData.attemptCount} attempts — showing the latest{sessionData.completed ? " (passing)" : ""} attempt.
+                                        </p>
+                                        )}
                                         <div className="space-y-2 max-h-64 overflow-y-auto">
                                         {responses.map((response, idx) => {
                                         const question = questions.find(q => q.id === response.question_id);
@@ -733,10 +756,10 @@ export default function TeacherStudentDetail() {
                                         </div>
                                         )}
 
-                                        {/* No Data Message */}
-                                        {!sessionData.completed && responses.length === 0 && !inquiry && (
+                                        {/* No Data Message — learn session only (reviews show "Not Yet Attempted" above) */}
+                                        {currentSessionType === "new_topic" && !sessionData.completed && sessionData.attemptCount === 0 && !inquiry && (
                                         <div className="text-center py-6 text-gray-500">
-                                        <p>No data available for this session yet</p>
+                                        <p>Not Yet Attempted</p>
                                         </div>
                                         )}
                                   </div>

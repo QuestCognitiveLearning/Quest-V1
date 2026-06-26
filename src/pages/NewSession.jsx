@@ -629,6 +629,16 @@ export default function NewSession() {
     if (user && quiz && questions[currentQuestion]) {
       const q = questions[currentQuestion];
       try {
+        // First question of a fresh attempt → clear this learn session's prior
+        // responses so a redo REPLACES them (review_number 0 = the learn session).
+        if (currentQuestion === 0) {
+          const priors = await quest.entities.QuestionResponse.filter({
+            student_id: user.id,
+            subunit_id: subunitId,
+            session_type: "new_topic",
+          });
+          await Promise.all((priors || []).map((p) => quest.entities.QuestionResponse.delete(p.id)));
+        }
         await quest.entities.QuestionResponse.create({
           student_id: user.id,
           quiz_id: quiz.id,
@@ -636,6 +646,7 @@ export default function NewSession() {
           selected_choice: selectedAnswer + 1,
           is_correct: correct,
           session_type: "new_topic",
+          review_number: 0,
           subunit_id: subunitId,
           question_text: q.question,
           selected_choice_text: q.options?.[selectedAnswer] ?? "",

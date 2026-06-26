@@ -231,6 +231,18 @@ export default function PracticeSession() {
     if (user && quiz && questions[currentQuestion]) {
       const q = questions[currentQuestion];
       try {
+        // On the first question of a fresh attempt, clear this review's prior
+        // responses so a redo REPLACES the old ones (teacher sees the latest /
+        // passing attempt, not a pile of attempts).
+        if (currentQuestion === 0) {
+          const priors = await quest.entities.QuestionResponse.filter({
+            student_id: user.id,
+            subunit_id: subunitId,
+            session_type: "review",
+            review_number: reviewNumber,
+          });
+          await Promise.all((priors || []).map((p) => quest.entities.QuestionResponse.delete(p.id)));
+        }
         await quest.entities.QuestionResponse.create({
           student_id: user.id,
           quiz_id: quiz.id,
@@ -238,6 +250,7 @@ export default function PracticeSession() {
           selected_choice: selectedAnswer + 1,
           is_correct: correct,
           session_type: "review",
+          review_number: reviewNumber,
           subunit_id: subunitId,
           question_text: q.question,
           selected_choice_text: q.options?.[selectedAnswer] ?? "",
