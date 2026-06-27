@@ -65,6 +65,7 @@ export default function NewSession() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
   const [reviewStep, setReviewStep] = useState(false);
+  const [caseReviewItems, setCaseReviewItems] = useState([]);
   const videoRef = useRef(null);
 
   const subunitId = urlParams.get("topic");
@@ -615,6 +616,31 @@ export default function NewSession() {
     if (frqScoreFromChat !== undefined) {
       setFrqScore(frqScoreFromChat);
     }
+    // Pull the graded case study so the post-score review can replay each
+    // prompt with the student's answer, the correct answer, and AI feedback.
+    try {
+      const [csRows, respRows] = await Promise.all([
+        quest.entities.CaseStudy.filter({ subunit_id: subunitId }),
+        quest.entities.CaseStudyResponse.filter({ student_id: user.id, subunit_id: subunitId }, "-created_date", 1),
+      ]);
+      const cs = csRows?.[0];
+      const resp = respRows?.[0];
+      if (cs && resp) {
+        const items = ["a", "b", "c", "d"]
+          .map((L) => ({
+            question: cs[`question_${L}`],
+            answer: resp[`answer_${L}`],
+            correct: cs[`answer_${L}`] || "",
+            feedback: resp[`feedback_${L}`] || "",
+            score: resp[`score_${L}`] ?? 0,
+            max: 1,
+          }))
+          .filter((it) => it.question);
+        setCaseReviewItems(items);
+      }
+    } catch (err) {
+      console.warn("Could not load case study for review:", err);
+    }
     setStep("results");
   };
 
@@ -693,7 +719,9 @@ export default function NewSession() {
       explanation: q.explanation || "",
     };
   });
-  const needsReview = quizReviewItems.some((q) => !q.isCorrect);
+  const needsReview =
+    quizReviewItems.some((q) => !q.isCorrect) ||
+    caseReviewItems.some((c) => (c.score ?? 0) < (c.max ?? 1));
 
   const handleCompleteSession = async () => {
     if (!user || !subunitId) {
@@ -1130,6 +1158,7 @@ export default function NewSession() {
             <CardContent className="p-8">
               <SessionReview
                 quizItems={quizReviewItems}
+                caseItems={caseReviewItems}
                 completeLabel="Done reviewing"
                 onComplete={() => { setReviewDone(true); setReviewStep(false); }}
               />

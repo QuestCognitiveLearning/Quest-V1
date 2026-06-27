@@ -74,10 +74,16 @@ export default function SessionReview({ quizItems = [], caseItems = [], onComple
               <p className="text-xs font-medium text-slate-500 mb-1">Your response</p>
               <p className="text-slate-900">{item.answer || <span className="italic text-slate-400">No answer</span>}</p>
             </div>
-            {!correct && item.feedback && (
-              <div className="bg-white rounded-lg border border-emerald-200 p-3">
-                <p className="text-xs font-medium text-emerald-700 mb-1">What a strong answer covers</p>
-                <p className="text-slate-900">{item.feedback}</p>
+            {item.correct && (
+              <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-3">
+                <p className="text-xs font-medium text-emerald-700 mb-1">Correct answer</p>
+                <p className="text-emerald-900">{item.correct}</p>
+              </div>
+            )}
+            {item.feedback && (
+              <div className="bg-indigo-50 rounded-lg border border-indigo-200 p-3">
+                <p className="text-xs font-medium text-indigo-700 mb-1">Feedback</p>
+                <p className="text-indigo-900">{item.feedback}</p>
               </div>
             )}
             {item.max != null && (
