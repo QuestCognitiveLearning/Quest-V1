@@ -670,9 +670,9 @@ export default function TeacherStudentDetail() {
                                                </p>
                                              </div>
 
-                                             {!isCorrect && correctAnswer && (
+                                             {correctAnswer && (
                                                <div className="bg-green-50 p-2 rounded border border-green-200">
-                                                 <p className="text-xs font-medium text-green-700 mb-1">Expected Answer:</p>
+                                                 <p className="text-xs font-medium text-green-700 mb-1">Correct Answer:</p>
                                                  <p className="text-sm text-green-900">{correctAnswer}</p>
                                                </div>
                                              )}
