@@ -1554,6 +1554,7 @@ ${inquiryTranscript ? `
           payload={editTarget.payload}
           saving={editSaving}
           saveLabel={editTarget.source === "library" ? "Save changes" : "Apply changes"}
+          mathEditing
           onClose={() => setEditTarget(null)}
           onSave={handleSaveEdit}
         />

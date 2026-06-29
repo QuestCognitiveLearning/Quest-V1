@@ -1038,7 +1038,6 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
           saveLabel="Save Changes"
           saving={savingReview}
           mathEditing
-          caseStudyAnswers
           allowImageRegen
           fixedDiscussionSlots
           payload={reviewContent}

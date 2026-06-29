@@ -307,6 +307,7 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
         payload={reviewPayload}
         saving={savingReview}
         saveLabel="Create & assign"
+        mathEditing
         onClose={() => !savingReview && setReviewPayload(null)}
         onSave={handleConfirmSave}
       />
