@@ -652,7 +652,10 @@ export default function TeacherDashboard() {
                                     // A bundle may be assigned to more than one
                                     // class — clear every assignment of it, then
                                     // delete the bundle (the session itself).
-                                    const siblings = await quest.entities.LearningSessionAssignment.filter({ bundle_id: a.bundle_id });
+                                    // Explicit "-assigned_at" orderBy: this
+                                    // table has no created_date column, so the
+                                    // SDK default 400s.
+                                    const siblings = await quest.entities.LearningSessionAssignment.filter({ bundle_id: a.bundle_id }, "-assigned_at");
                                     await Promise.all((siblings || []).map((s) => quest.entities.LearningSessionAssignment.delete(s.id)));
                                     await quest.entities.LessonBundle.delete(a.bundle_id);
                                     setBundleAssignments((prev) => prev.filter((x) => x.bundle_id !== a.bundle_id));
