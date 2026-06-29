@@ -568,7 +568,6 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
           <div className="p-6">
             <GenerationProgress
               title="Generating your single session"
-              subtitle="This usually takes 30–90 seconds. You'll review it before it's assigned."
               started={baseDone}
               estimateSeconds={
                 45 +

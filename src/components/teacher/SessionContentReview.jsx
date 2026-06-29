@@ -50,7 +50,9 @@ const CASE_STUDY_RUBRIC = [
 // ---------------------------------------------------------------------------
 export function GenerationProgress({
   title = "Generating your content",
-  subtitle = "This usually takes 30–90 seconds. We'll reveal everything at once when it's ready.",
+  // Optional — the live countdown below already tells the user how long is
+  // left, so callers can omit this to keep the header clean.
+  subtitle = "",
   steps = [],
   started = true,
   // Rough total duration in seconds, used to seed the countdown. The displayed
@@ -112,7 +114,9 @@ export function GenerationProgress({
           <span className="text-xs font-bold uppercase tracking-wider">Generating</span>
         </div>
         <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-        <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto">{subtitle}</p>
+        {subtitle && (
+          <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto">{subtitle}</p>
+        )}
       </div>
 
       <div className="max-w-md mx-auto">
