@@ -635,7 +635,7 @@ export default function LearningHub() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <Sparkles className="w-5 h-5 text-violet-600" />
-                        <h2 className="text-lg font-semibold text-black">Assigned by your teacher</h2>
+                        <h2 className="text-lg font-semibold text-black">Single Sessions</h2>
                       </div>
                       <Badge variant="secondary" className="text-xs">{assignedBundles.length}</Badge>
                     </div>
