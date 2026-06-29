@@ -1407,6 +1407,13 @@ ${inquiryTranscript ? `
           <GenerationProgress
             title="Building your handout"
             started={!!result}
+            estimateSeconds={
+              45 +
+              (options.includeInquiry ? 30 : 0) +
+              (options.includeAttentionChecks ? 18 : 0) +
+              (isStudent && includeSummary ? 10 : 0) +
+              (isStudent && studentMode === "flashcards" ? 12 : 0)
+            }
             steps={[
               { label: "Quiz + case study", done: !!result?.quiz?.length },
               ...(options.includeInquiry

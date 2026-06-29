@@ -570,6 +570,11 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
               title="Generating your single session"
               subtitle="This usually takes 30–90 seconds. You'll review it before it's assigned."
               started={baseDone}
+              estimateSeconds={
+                45 +
+                (includes.inquiry ? 30 : 0) +
+                (includes.attentionChecks ? 18 : 0)
+              }
               steps={[
                 { label: "Quiz + case study", done: baseDone },
                 ...(includes.inquiry

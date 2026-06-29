@@ -64,19 +64,21 @@ export function GenerationProgress({
   const pct = Math.round((doneCount / total) * 100);
   const display = started ? Math.max(pct, 12) : 8;
 
-  // ---- Anchored "time left" countdown (matches ManageCurriculum /
-  // StandardsPicker). It must only ever tick DOWN — never jump up or jitter.
-  // Two candidates feed each tick: the raw time estimate (estTotal − elapsed)
-  // and a throughput estimate from how many steps have landed. We take the
-  // smaller, then clamp against the last shown value so the number can never
-  // rise. The result descends smoothly and only corrects downward when a step
-  // finishes faster than the estimate predicted.
+  // ---- "Time left" countdown. The one hard requirement: it must only ever
+  // tick DOWN, smoothly — never jump up or jitter around. We anchor a single
+  // total estimate at mount and simply subtract real elapsed time, so the
+  // number descends one second at a time with no re-anchoring (re-anchoring is
+  // what makes the curriculum/standards ETAs occasionally snap). If generation
+  // outruns the estimate we hold on "Finishing up…" until the reveal. The
+  // estimate is calibrated from the selected options by the caller, so it lands
+  // close; the step checklist below carries the live per-piece progress.
   const estTotal = Math.max(
     15,
     Math.round(estimateSeconds || Math.max(45, steps.length * 28))
   );
   // Anchored once at mount (the component is mounted only while generating, so
-  // a fresh mount === a fresh run). lastShownRef enforces monotonic descent.
+  // a fresh mount === a fresh run). lastShownRef enforces monotonic descent in
+  // case React re-renders faster than the 1s ticker.
   const startRef = useRef(Date.now());
   const lastShownRef = useRef(estTotal);
   const [, setTick] = useState(0);
@@ -88,11 +90,8 @@ export function GenerationProgress({
   }, [complete]);
 
   const elapsed = (Date.now() - startRef.current) / 1000;
-  const byTime = estTotal - elapsed;
-  const frac = doneCount / total; // fraction of steps done
-  const byProgress = frac > 0 ? (elapsed * (1 - frac)) / frac : Infinity;
-  // min() of the two candidates, then clamp so it never increases.
-  lastShownRef.current = Math.min(lastShownRef.current, byTime, byProgress);
+  // Strictly non-increasing: never let the displayed value rise.
+  lastShownRef.current = Math.min(lastShownRef.current, estTotal - elapsed);
   const secsLeft = lastShownRef.current;
 
   const showFinishing = complete || secsLeft <= 2;
