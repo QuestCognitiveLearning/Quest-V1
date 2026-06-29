@@ -22,7 +22,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createPageUrl, extractYouTubeId as extractVideoId } from "@/utils";
-import { PASS_THRESHOLD, gradeLearnSession, gradeReview, addDays } from "@/lib/spacedRepetition";
+import { PASS_THRESHOLD, gradeLearnSession, gradeReview, addDays, computeSessionScore } from "@/lib/spacedRepetition";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import { Button } from "@/components/ui/button";
@@ -475,15 +475,14 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
         q_index: i,
         question: q,
         answer: answers[i] || "",
-        score: typeof s.score === "number" ? s.score : 0,
+        score: Math.max(0, Math.min(1, typeof s.score === "number" ? s.score : 0)),
         max: 1,
         feedback: s.feedback || "",
       };
     });
-    const score =
-      typeof result?.total_score === "number"
-        ? result.total_score
-        : responses.reduce((sum, r) => sum + (r.score || 0), 0);
+    // Sum the clamped per-question scores so the case-study total can never
+    // exceed its max (don't trust the model's own total_score).
+    const score = responses.reduce((sum, r) => sum + r.score, 0);
     return { responses, score, max };
   };
 
@@ -511,6 +510,16 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
       const csScore = csResult?.score ?? null;
       const csMax = csResult?.max ?? null;
 
+      // Standardized graded score: quiz + case study only (attention checks
+      // never count), points-based and clamped 0–100 — the same scorer used
+      // everywhere else.
+      const sessionScore = computeSessionScore({
+        quizCorrect,
+        quizTotal: quiz.length,
+        caseScore: csMax != null ? csScore : null,
+        caseMax: csMax,
+      });
+
       // Unified spaced repetition — same engine as curriculum + self sessions.
       // First completion grades like a learn session; later ones advance the
       // ladder. (Assigned work isn't a hard gate, so a non-passing first try
@@ -518,14 +527,14 @@ Return JSON: { scores: [{q_index, score, feedback}, ...], total_score }`,
       const now = new Date();
       const priorCount = completion?.review_count ?? null;
       let nextReview, urgency, reviewCount;
-      if (quizPct === null) {
+      if (sessionScore === null) {
         reviewCount = priorCount ?? 0;
         nextReview = addDays(2, now);
         urgency = "Medium";
       } else {
         const result = priorCount === null
-          ? gradeLearnSession(quizPct)
-          : gradeReview(quizPct, priorCount);
+          ? gradeLearnSession(sessionScore)
+          : gradeReview(sessionScore, priorCount);
         reviewCount = priorCount === null ? 0 : result.reviewCount;
         nextReview = result.nextReviewDate || addDays(1, now);
         urgency = result.urgency;
@@ -1188,14 +1197,14 @@ function ResultsView({
   const hasAC = (acTotal || 0) > 0;
   const hasCS = (csMax || 0) > 0;
 
-  // Overall: weighted average of available components
-  const components = [];
-  if (hasQuiz) components.push(quizPct);
-  if (hasAC) components.push(Math.round((acCorrect / acTotal) * 100));
-  if (hasCS) components.push(Math.round((csScore / csMax) * 100));
-  const overall = components.length
-    ? Math.round(components.reduce((a, b) => a + b, 0) / components.length)
-    : null;
+  // Standardized session score: quiz + case study only (attention checks never
+  // count), points-based and clamped to 0–100.
+  const overall = computeSessionScore({
+    quizCorrect,
+    quizTotal,
+    caseScore: hasCS ? csScore : null,
+    caseMax: hasCS ? csMax : null,
+  });
   const passed = overall !== null && overall >= PASS_THRESHOLD;
 
   return (

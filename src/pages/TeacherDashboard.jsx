@@ -17,7 +17,6 @@ import {
   BookOpen,
   Users,
   Plus,
-  ChevronRight,
   GraduationCap,
   CalendarIcon,
   CheckCircle,
@@ -45,10 +44,6 @@ export default function TeacherDashboard() {
   // Lesson bundle assignments — generated learning sessions pushed to a
   // class via Generate's "Assign learning session" button.
   const [bundleAssignments, setBundleAssignments] = useState([]);
-  // Per-assignment progress: { [assignmentId]: { rosterSize, completions: [...] } }
-  const [bundleProgress, setBundleProgress] = useState({});
-  // Which assignment row is expanded to show per-student detail.
-  const [openProgressId, setOpenProgressId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
@@ -180,90 +175,12 @@ export default function TeacherDashboard() {
                 bundle_title: bundleMap.get(a.bundle_id)?.title || "Single session",
               }))
             );
-
-            // ---- Per-assignment student progress ---------------------------
-            // Roster sizes (class_id → enrollment count) so we can show
-            // "5 of 20 completed" rather than just "5 completions".
-            let rosterByClass = new Map();
-            try {
-              const enrollments = await quest.entities.StudentEnrollment.filter(
-                { class_id: classIds }
-              );
-              for (const e of (enrollments || [])) {
-                rosterByClass.set(e.class_id, (rosterByClass.get(e.class_id) || 0) + 1);
-              }
-            } catch (err) {
-              console.warn("Could not load enrollments for progress:", err);
-            }
-
-            // Completion rows for these assignments. RLS already restricts to
-            // assignments tied to bundles this teacher owns (teacher_owns_assignment
-            // function from migration 0031), so we can pass all ids in one shot.
-            const assignmentIds = (assignments || []).map(a => a.id);
-            let completionsByAssignment = new Map();
-            try {
-              const completions = await quest.entities.StudentBundleCompletion.filter(
-                { assignment_id: assignmentIds }
-              );
-              // Resolve student display names in one extra round-trip — the
-              // completion rows only carry student_id.
-              const studentIds = [...new Set((completions || []).map(c => c.student_id))];
-              let userMap = new Map();
-              if (studentIds.length > 0) {
-                try {
-                  const users = await quest.entities.User.filter({ id: studentIds });
-                  userMap = new Map((users || []).map(u => [u.id, u]));
-                } catch (err) {
-                  console.warn("Could not resolve student names:", err);
-                }
-              }
-              for (const c of (completions || [])) {
-                const enriched = {
-                  ...c,
-                  student_name:
-                    userMap.get(c.student_id)?.full_name ||
-                    userMap.get(c.student_id)?.email ||
-                    "Student",
-                };
-                if (!completionsByAssignment.has(c.assignment_id)) {
-                  completionsByAssignment.set(c.assignment_id, []);
-                }
-                completionsByAssignment.get(c.assignment_id).push(enriched);
-              }
-            } catch (err) {
-              console.warn("Could not load bundle completions:", err);
-            }
-
-            const progress = {};
-            for (const a of assignments) {
-              const rows = completionsByAssignment.get(a.id) || [];
-              // Sort: highest score first, then most recent completion.
-              rows.sort((x, y) => {
-                const sx = x.quiz_score_pct ?? -1;
-                const sy = y.quiz_score_pct ?? -1;
-                if (sy !== sx) return sy - sx;
-                return new Date(y.completed_at || 0) - new Date(x.completed_at || 0);
-              });
-              const scored = rows.filter(r => r.quiz_score_pct !== null && r.quiz_score_pct !== undefined);
-              const avgPct = scored.length
-                ? Math.round(scored.reduce((s, r) => s + Number(r.quiz_score_pct), 0) / scored.length)
-                : null;
-              progress[a.id] = {
-                rosterSize: rosterByClass.get(a.class_id) || 0,
-                completedCount: rows.length,
-                avgPct,
-                completions: rows,
-              };
-            }
-            setBundleProgress(progress);
           } else {
             setBundleAssignments([]);
-            setBundleProgress({});
           }
         } catch (err) {
           console.warn("Could not load bundle assignments:", err);
           setBundleAssignments([]);
-          setBundleProgress({});
         }
       }
 
@@ -707,11 +624,6 @@ export default function TeacherDashboard() {
                     </h3>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {bundleAssignments.map((a) => {
-                        const prog = bundleProgress[a.id] || { rosterSize: 0, completedCount: 0, avgPct: null, completions: [] };
-                        const ratioPct = prog.rosterSize > 0
-                          ? Math.round((prog.completedCount / prog.rosterSize) * 100)
-                          : 0;
-                        const isOpen = openProgressId === a.id;
                         return (
                           <div
                             key={a.id}
@@ -730,95 +642,23 @@ export default function TeacherDashboard() {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setOpenProgressId(isOpen ? null : a.id)}
-                                  className="px-3 py-1.5 rounded-md bg-white border border-violet-200 hover:border-violet-400 text-xs font-semibold text-violet-700 transition-colors flex items-center gap-2"
-                                  title="View student progress"
-                                >
-                                  <span>{prog.completedCount}/{prog.rosterSize} done</span>
-                                  {prog.avgPct !== null && (
-                                    <span className="text-violet-500">· {prog.avgPct}% avg</span>
-                                  )}
-                                  <ChevronRight
-                                    className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`}
-                                  />
-                                </button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={async () => {
-                                    if (!(await confirmDialog({ title: "Unassign session?", message: "Students will no longer see this single session.", tone: "danger", confirmLabel: "Unassign" }))) return;
-                                    try {
-                                      await quest.entities.LearningSessionAssignment.delete(a.id);
-                                      setBundleAssignments((prev) => prev.filter((x) => x.id !== a.id));
-                                    } catch (err) {
-                                      console.error("Unassign failed:", err);
-                                    }
-                                  }}
-                                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  if (!(await confirmDialog({ title: "Unassign session?", message: "Students will no longer see this single session.", tone: "danger", confirmLabel: "Unassign" }))) return;
+                                  try {
+                                    await quest.entities.LearningSessionAssignment.delete(a.id);
+                                    setBundleAssignments((prev) => prev.filter((x) => x.id !== a.id));
+                                  } catch (err) {
+                                    console.error("Unassign failed:", err);
+                                  }
+                                }}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
-
-                            {/* Class-wide progress bar */}
-                            <div className="px-3 pb-2">
-                              <div className="h-1.5 bg-white rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-violet-500 transition-all"
-                                  style={{ width: `${ratioPct}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Expandable per-student list */}
-                            {isOpen && (
-                              <div className="px-3 pb-3">
-                                {prog.completions.length === 0 ? (
-                                  <p className="text-xs text-gray-500 italic px-2 py-3 bg-white rounded-md border border-violet-100">
-                                    No students have completed this yet.
-                                  </p>
-                                ) : (
-                                  <ul className="bg-white rounded-md border border-violet-100 divide-y divide-violet-50 max-h-56 overflow-y-auto">
-                                    {prog.completions.map((c) => {
-                                      const pct = c.quiz_score_pct !== null && c.quiz_score_pct !== undefined
-                                        ? Math.round(Number(c.quiz_score_pct))
-                                        : null;
-                                      const pctColor =
-                                        pct === null ? "text-gray-400" :
-                                        pct >= 75 ? "text-emerald-700" :
-                                        pct >= 50 ? "text-amber-700" :
-                                        "text-red-700";
-                                      return (
-                                        <li key={c.id} className="flex items-center justify-between px-3 py-2 text-xs">
-                                          <div className="min-w-0 flex-1">
-                                            <p className="font-medium text-gray-900 truncate">{c.student_name}</p>
-                                            <p className="text-[10px] text-gray-400">
-                                              {c.completed_at
-                                                ? `Done ${format(new Date(c.completed_at), "MMM d, h:mma")}`
-                                                : "In progress"}
-                                            </p>
-                                          </div>
-                                          <div className="text-right ml-3">
-                                            <p className={`font-bold tabular-nums ${pctColor}`}>
-                                              {pct !== null ? `${pct}%` : "—"}
-                                            </p>
-                                            {c.quiz_total !== null && c.quiz_total !== undefined && (
-                                              <p className="text-[10px] text-gray-400 tabular-nums">
-                                                {c.quiz_correct ?? 0}/{c.quiz_total}
-                                              </p>
-                                            )}
-                                          </div>
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                )}
-                              </div>
-                            )}
                           </div>
                         );
                       })}

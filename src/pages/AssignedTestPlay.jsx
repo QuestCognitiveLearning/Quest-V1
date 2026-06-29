@@ -12,6 +12,7 @@ import { supabase } from "@/components/lib/supabase-client";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle, XCircle, ClipboardList, ArrowRight, Trophy, RotateCcw } from "lucide-react";
+import { clampScore } from "@/lib/spacedRepetition";
 
 const LETTERS = ["A", "B", "C", "D"];
 
@@ -105,7 +106,7 @@ export default function AssignedTestPlay() {
       const responses = computeResults();
       const correct = responses.filter((r) => r.is_correct).length;
       const total = questions.length;
-      const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+      const pct = total > 0 ? clampScore((correct / total) * 100) : 0;
       const { error: cErr } = await supabase
         .from("test_completions")
         .upsert(

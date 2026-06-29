@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
-import { REVIEW_INTERVALS } from "@/lib/spacedRepetition";
+import { REVIEW_INTERVALS, clampScore } from "@/lib/spacedRepetition";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -190,7 +190,7 @@ export default function TeacherStudentDetail() {
     const attemptCount = allAttempts.length;
     const failedAttempts = allAttempts.filter((a) => !a.completed).length;
     const bestAttemptScore = allAttempts.length
-      ? Math.max(...allAttempts.map((a) => a.score || 0))
+      ? clampScore(Math.max(...allAttempts.map((a) => a.score || 0)))
       : null;
 
     if (!progress) {
@@ -258,7 +258,7 @@ export default function TeacherStudentDetail() {
       }
     });
     if (scores.length === 0) return null;
-    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    return clampScore(scores.reduce((a, b) => a + clampScore(b), 0) / scores.length);
   };
 
   if (loading) {

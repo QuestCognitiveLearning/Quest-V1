@@ -71,23 +71,24 @@ export default function SelfSessionPlay() {
     }
   };
 
-  const persistCompletion = async () => {
-    if (!user || !session || !completion || saving) return;
+  const persistCompletion = async (data) => {
+    const c = data || completion;
+    if (!user || !session || !c || saving) return;
     setSaving(true);
     try {
       const responsesJson = {
-        quiz_responses: completion.quiz_responses || null,
-        attention_check_responses: completion.attention_check_responses || null,
-        case_study_responses: completion.case_study_responses || null,
+        quiz_responses: c.quiz_responses || null,
+        attention_check_responses: c.attention_check_responses || null,
+        case_study_responses: c.case_study_responses || null,
       };
 
       const { error: upErr } = await supabase
         .from("student_self_sessions")
         .update({
           completed_at: new Date().toISOString(),
-          quiz_score_pct: completion.quiz_score_pct ?? null,
-          case_study_score: completion.case_study_score ?? null,
-          case_study_max: completion.case_study_max ?? null,
+          quiz_score_pct: c.quiz_score_pct ?? null,
+          case_study_score: c.case_study_score ?? null,
+          case_study_max: c.case_study_max ?? null,
           responses: responsesJson,
         })
         .eq("id", session.id);
@@ -155,81 +156,24 @@ export default function SelfSessionPlay() {
   }
 
   const reviewLabel =
-    (session?.review_number ?? 0) > 0 ? ` · Review #${session.review_number}` : "";
+    (session?.review_number ?? 0) > 0 ? `Review #${session.review_number}` : "My Session";
+
+  // Persist the score (and queue reviews) when the student finishes, then
+  // return to the Learning Hub — same "finish and save" behavior as a
+  // curriculum learn session.
+  const handleFinish = async (payload) => {
+    setCompletion(payload);
+    await persistCompletion(payload);
+    navigate(createPageUrl("LearningHub"));
+  };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: "linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 50%, #FAF5FF 100%)",
-        fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
-      }}
-    >
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet"
-      />
-
-      <div className="max-w-2xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <button
-            onClick={() => navigate(createPageUrl("LearningHub"))}
-            className="bg-white border border-slate-200 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm inline-flex items-center gap-1.5 hover:bg-slate-50"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Learning Hub
-          </button>
-        </div>
-
-        <div className="mb-4">
-          <div className="inline-flex items-center gap-1.5 bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2">
-            My session{reviewLabel}
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
-            {bundle?.title || "Learning session"}
-          </h1>
-          {session?.scheduled_for && (
-            <p className="text-xs text-slate-500 mt-1">
-              Scheduled for{" "}
-              {new Date(`${session.scheduled_for}T00:00:00`).toLocaleDateString(
-                undefined,
-                { month: "short", day: "numeric", year: "numeric" }
-              )}
-            </p>
-          )}
-        </div>
-
-        <SelfSessionPhases
-          payload={bundle?.payload}
-          onComplete={(payload) => setCompletion(payload)}
-          saving={saving}
-          onSavePrompt={(isSaving) => (
-            <Button
-              onClick={persistCompletion}
-              disabled={isSaving || saved || !completion}
-              className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700 text-white h-12 text-base font-semibold"
-            >
-              {isSaving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              {saved
-                ? "Saved ✓"
-                : (session?.review_number ?? 0) === 0 && session?.review_enabled
-                ? "Save & queue reviews"
-                : "Save my score"}
-            </Button>
-          )}
-        />
-
-        {error && bundle && (
-          <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mt-4">
-            {error}
-          </p>
-        )}
-      </div>
-    </div>
+    <SelfSessionPhases
+      payload={bundle?.payload}
+      badgeLabel={reviewLabel}
+      onComplete={(payload) => setCompletion(payload)}
+      onFinish={handleFinish}
+      onExit={() => navigate(createPageUrl("LearningHub"))}
+    />
   );
 }

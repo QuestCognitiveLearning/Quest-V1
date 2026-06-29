@@ -1037,7 +1037,7 @@ ${inquiryTranscript ? `
                 setStudentMode("learning_session");
                 setOptions((o) => ({
                   ...o,
-                  includeInquiry: false,
+                  includeInquiry: true,
                   includeAttentionChecks: true,
                 }));
               }}
@@ -1512,22 +1512,9 @@ ${inquiryTranscript ? `
 
               <SelfSessionPhases
                 payload={result}
+                embedded
+                badgeLabel="Preview"
                 onComplete={(payload) => setStudentCompletion(payload)}
-                saving={saving}
-                onSavePrompt={(isSaving, label) => (
-                  <Button
-                    onClick={saveStudentSession}
-                    disabled={isSaving || studentSessionSaved}
-                    className="w-full gap-2 bg-[#2563EB] hover:bg-[#1D4ED8] h-12 text-base font-semibold"
-                  >
-                    {isSaving ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                    {studentSessionSaved ? "Saved to library ✓" : label}
-                  </Button>
-                )}
               />
             </div>
           )

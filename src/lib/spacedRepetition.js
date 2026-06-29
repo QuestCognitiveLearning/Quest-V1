@@ -10,6 +10,52 @@
 // Score (0–100) required to "pass" a session / count a topic as mastered.
 export const PASS_THRESHOLD = 80;
 
+/**
+ * Clamp any raw number to a valid session score: a 0–100 integer.
+ * Use everywhere a score is computed or read back so nothing can ever display
+ * or store above 100% (or below 0).
+ */
+export function clampScore(n) {
+  if (n == null || Number.isNaN(Number(n))) return 0;
+  return Math.max(0, Math.min(100, Math.round(Number(n))));
+}
+
+/**
+ * The platform-standard session score (0–100). ONLY the quiz and the case study
+ * count toward a session score — attention checks NEVER contribute.
+ *
+ * Combination is points-based: total points earned / total points possible
+ * across whichever of (quiz, case study) the session actually included. Each
+ * quiz question is worth 1 point; the case study is worth its own max. Each
+ * component is clamped to its own max first, so the result can never exceed 100.
+ *
+ * @param {object} p
+ * @param {number} [p.quizCorrect] correct quiz answers
+ * @param {number} [p.quizTotal]   number of quiz questions
+ * @param {number} [p.caseScore]   case-study points earned
+ * @param {number} [p.caseMax]     case-study points possible
+ * @returns {number|null} 0–100, or null when the session had neither component
+ */
+export function computeSessionScore({
+  quizCorrect = 0,
+  quizTotal = 0,
+  caseScore = null,
+  caseMax = null,
+} = {}) {
+  let earned = 0;
+  let possible = 0;
+  if (quizTotal > 0) {
+    earned += Math.max(0, Math.min(Number(quizCorrect) || 0, quizTotal));
+    possible += quizTotal;
+  }
+  if (caseMax != null && caseMax > 0) {
+    earned += Math.max(0, Math.min(Number(caseScore) || 0, caseMax));
+    possible += caseMax;
+  }
+  if (possible === 0) return null;
+  return clampScore((earned / possible) * 100);
+}
+
 // Below this, a review failed hard — the topic isn't retained, so we reset it
 // and send the student back to relearn (a new learn session that same day).
 // Between this and PASS_THRESHOLD is the "borderline" band: repeat the same

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { toast } from "sonner";
-import { PASS_THRESHOLD, RELEARN_THRESHOLD, gradeReview } from "@/lib/spacedRepetition";
+import { PASS_THRESHOLD, RELEARN_THRESHOLD, gradeReview, computeSessionScore } from "@/lib/spacedRepetition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Award, RefreshCw, Play, Clock } from "lucide-react";
@@ -274,9 +274,9 @@ export default function PracticeSession() {
   };
 
 
+  // Review sessions are quiz-only — standardized scorer, clamped 0–100.
   const mcCorrect = results.filter(r => r.mcqCorrect).length;
-  const mcPercent = questions.length > 0 ? (mcCorrect / questions.length) * 100 : 0;
-  const finalScore = Math.round(mcPercent);
+  const finalScore = computeSessionScore({ quizCorrect: mcCorrect, quizTotal: questions.length }) ?? 0;
 
   // Post-score review: page through every question (right + wrong) with its
   // explanation before finishing — skipped on a perfect score.

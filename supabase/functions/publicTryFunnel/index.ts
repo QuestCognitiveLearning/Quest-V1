@@ -16,6 +16,7 @@
 import { handlePreflight, json, safeErrorResponse } from '../_shared/cors.ts';
 import { invokeLLMWithUsage } from '../_shared/llm.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
+import { decodeHtmlEntities } from '../_shared/htmlEntities.ts';
 
 const YT_API_KEY = Deno.env.get('YOUTUBE_API_KEY')!;
 const TRANSCRIPT_API_KEY = Deno.env.get('TRANSCRIPTAPI_KEY')!;
@@ -68,8 +69,8 @@ async function videoDetails(videoId: string) {
   if (!item) throw new Error('Video not found');
   return {
     videoId,
-    title: item.snippet?.title ?? '',
-    channelTitle: item.snippet?.channelTitle ?? '',
+    title: decodeHtmlEntities(item.snippet?.title ?? ''),
+    channelTitle: decodeHtmlEntities(item.snippet?.channelTitle ?? ''),
     description: item.snippet?.description ?? '',
     thumbnail: item.snippet?.thumbnails?.high?.url ?? item.snippet?.thumbnails?.medium?.url ?? '',
     duration: parseIsoDurationSeconds(item.contentDetails?.duration ?? ''),
@@ -410,8 +411,8 @@ Deno.serve(async (req) => {
           const thumbs = sn.thumbnails as Record<string, { url: string }> | undefined;
           return {
             videoId: it.id.videoId,
-            title: String(sn.title ?? ''),
-            channelTitle: String(sn.channelTitle ?? ''),
+            title: decodeHtmlEntities(String(sn.title ?? '')),
+            channelTitle: decodeHtmlEntities(String(sn.channelTitle ?? '')),
             thumbnail: thumbs?.high?.url ?? thumbs?.medium?.url ?? '',
             duration: durationByVideoId.get(it.id.videoId) ?? 0,
           };

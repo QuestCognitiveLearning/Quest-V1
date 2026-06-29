@@ -417,6 +417,7 @@ export default function TeacherClassDetail() {
               <AssignedSessionsTab
                 assignedBundles={assignedBundles}
                 students={students}
+                classId={classId}
                 onAssign={() => setSessionBuilderOpen(true)}
               />
             </TabsContent>
@@ -823,7 +824,8 @@ function ClassLeaderboard({ students, progressData, subunits }) {
 // Per-class view of every assigned learning session + the per-student grade
 // roll-up. Expand a session to see who finished it, when, and what they
 // scored. Mirrors the dashboard's progress block but scoped to one class.
-function AssignedSessionsTab({ assignedBundles, students, onAssign }) {
+function AssignedSessionsTab({ assignedBundles, students, classId, onAssign }) {
+  const navigate = useNavigate();
   const [openId, setOpenId] = useState(null);
 
   if (!assignedBundles || assignedBundles.length === 0) {
@@ -919,7 +921,13 @@ function AssignedSessionsTab({ assignedBundles, students, onAssign }) {
                         return (
                           <li
                             key={s.id}
-                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white border border-slate-100"
+                            onClick={() =>
+                              navigate(
+                                createPageUrl("TeacherAssignedSessionDetail") +
+                                  `?assignmentId=${a.id}&studentId=${s.id}&classId=${classId}`
+                              )
+                            }
+                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white border border-slate-100 hover:border-violet-300 hover:shadow-sm cursor-pointer transition-all"
                           >
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-slate-900 truncate">
@@ -933,15 +941,18 @@ function AssignedSessionsTab({ assignedBundles, students, onAssign }) {
                                   : "Not started"}
                               </p>
                             </div>
-                            <div className="text-right">
-                              <p className={`text-base font-bold tabular-nums ${pctColor}`}>
-                                {c === undefined ? "—" : pct !== null ? `${pct}%` : "—"}
-                              </p>
-                              {c?.quiz_total !== null && c?.quiz_total !== undefined && (
-                                <p className="text-[10px] text-slate-400 tabular-nums">
-                                  {c.quiz_correct ?? 0}/{c.quiz_total}
+                            <div className="flex items-center gap-2">
+                              <div className="text-right">
+                                <p className={`text-base font-bold tabular-nums ${pctColor}`}>
+                                  {c === undefined ? "—" : pct !== null ? `${pct}%` : "—"}
                                 </p>
-                              )}
+                                {c?.quiz_total !== null && c?.quiz_total !== undefined && (
+                                  <p className="text-[10px] text-slate-400 tabular-nums">
+                                    {c.quiz_correct ?? 0}/{c.quiz_total}
+                                  </p>
+                                )}
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
                             </div>
                           </li>
                         );

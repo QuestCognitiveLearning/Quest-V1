@@ -1,0 +1,409 @@
+/**
+ * SocraticInquiryChat — the inquiry back-and-forth as a self-contained,
+ * inline component (no auth, no page navigation). It runs the same 4-step
+ * Socratic flow as the SocraticInquiry page:
+ *   Q1 observation FR → Q2 analogy MC → Q3 bridge MC → summary → Q4 transfer FR.
+ *
+ * Designed to be dropped into SessionFlow so a single session OR a live session
+ * gets the exact same inquiry experience a curriculum learn session has.
+ *
+ * Props:
+ *   subunitName   – topic name (drives the prompts)
+ *   hookQuestion  – the final transfer question
+ *   hookImageUrl  – optional hook image shown above the chat
+ *   onComplete()  – called when the student finishes the inquiry
+ *   onResponse(history) – optional; receives the conversation for persistence
+ *   llmCall({prompt, schema}) – optional transport override. Defaults to
+ *     quest.integrations.Core.InvokeLLM (works for authenticated students).
+ *     Live passes an edge-function-backed transport so anonymous players work.
+ */
+import React, { useState, useRef, useEffect } from "react";
+import { quest } from "@/api/questClient";
+import { ArrowRight, Sparkles, CheckCircle, XCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import MathRenderer from "@/components/utils/MathRenderer";
+import { LLM_MODELS } from "@/lib/llmModels";
+import { Card, CardContent } from "@/components/ui/card";
+
+export default function SocraticInquiryChat({
+  subunitName = "this topic",
+  hookQuestion = "",
+  hookImageUrl = "",
+  onComplete,
+  onResponse,
+  llmCall,
+}) {
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [waitingForTutor, setWaitingForTutor] = useState(false);
+  const [questionCount, setQuestionCount] = useState(0);
+  const messagesEndRef = useRef(null);
+
+  // phase: "q1_fr" | "q2_mc" | "q3_mc" | "q4_fr" | "complete"
+  const [phase, setPhase] = useState("q1_fr");
+  const [frInput, setFrInput] = useState("");
+  const [frSubmitting, setFrSubmitting] = useState(false);
+  const [mcChoices, setMcChoices] = useState([]);
+  const [mcSelected, setMcSelected] = useState(null);
+  const [mcSubmitted, setMcSubmitted] = useState(false);
+  const [mcCorrectIndex, setMcCorrectIndex] = useState(null);
+  const [generatingChoices, setGeneratingChoices] = useState(false);
+  const [currentMcQuestion, setCurrentMcQuestion] = useState("");
+  const [analogyAnswer, setAnalogyAnswer] = useState("");
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [conversationHistory, phase]);
+
+  // Default LLM transport — authenticated students.
+  const invoke = async ({ prompt, schema }) => {
+    if (typeof llmCall === "function") return llmCall({ prompt, schema });
+    return quest.integrations.Core.InvokeLLM({
+      model: LLM_MODELS.SOCRATIC_TUTOR,
+      prompt,
+      ...(schema ? { response_json_schema: schema } : {}),
+    });
+  };
+
+  const addMessage = (history, msg) => {
+    const updated = [...history, msg];
+    setConversationHistory(updated);
+    return updated;
+  };
+
+  const shuffleChoices = (choices, correctIndex) => {
+    const withIndices = choices.map((choice, idx) => ({ choice, originalIdx: idx }));
+    for (let i = withIndices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [withIndices[i], withIndices[j]] = [withIndices[j], withIndices[i]];
+    }
+    const shuffled = withIndices.map((item) => item.choice);
+    const newCorrectIdx = withIndices.findIndex((item) => item.originalIdx === correctIndex);
+    return { shuffled, newCorrectIdx };
+  };
+
+  const handleQ1Submit = async () => {
+    if (!frInput.trim()) return;
+    setFrSubmitting(true);
+    const observation = frInput.trim();
+    const userHistory = addMessage([], { role: "user", content: observation });
+    setFrInput("");
+    setWaitingForTutor(true);
+    try {
+      const ack = await invoke({
+        prompt: `You are Quest Panda, a warm Socratic tutor. Topic: "${subunitName}".
+Student's observation of the image: "${observation}"
+
+First decide whether they actually shared an observation. If their message is off-topic, gibberish, blank, or says they're unsure (e.g. "idk", "i don't know", "not sure", "?"), do NOT pretend they gave a real observation — in 1-2 sentences warmly acknowledge they're not sure yet, reassure them that's okay, and invite them to just guess or name anything they notice.
+Otherwise, in 1–2 sentences warmly acknowledge what they noticed — pick up on a specific word they used (use **bold**).
+Either way, do NOT ask a quiz question. Just respond supportively and say you'll explore this together.`,
+      });
+      const withAck = addMessage(userHistory, { role: "assistant", content: typeof ack === "string" ? ack : ack?.content || "" });
+      setQuestionCount(1);
+      await generateAnalogyMc(withAck);
+    } catch (err) {
+      const withAck = addMessage(userHistory, { role: "assistant", content: `You noticed something real there. Let's explore **${subunitName}** together.` });
+      await generateAnalogyMc(withAck);
+    } finally {
+      setWaitingForTutor(false);
+      setFrSubmitting(false);
+    }
+  };
+
+  const generateAnalogyMc = async (history) => {
+    setGeneratingChoices(true);
+    setMcChoices([]); setMcSelected(null); setMcSubmitted(false); setMcCorrectIndex(null);
+    try {
+      const result = await invoke({
+        prompt: `You are Quest Panda. Topic: "${subunitName}".
+
+Generate an everyday analogy scenario and ask a multiple choice question that tests the student's understanding of ONLY the analogy itself—not the academic concept yet. Limit it to 1-2 sentences.
+
+The question should test comprehension of what happens in the everyday scenario, with 3 randomized plausible options where only one correctly describes the analogy.
+
+Return JSON:
+{
+"question": "Everyday analogy comprehension question?",
+"choices": ["Correct understanding of analogy", "Misconception about analogy", "Different interpretation"],
+"correct_index": 0
+}`,
+        schema: { type: "object", properties: { question: { type: "string" }, choices: { type: "array", items: { type: "string" } }, correct_index: { type: "number" } } },
+      });
+      const question = result.question || `What everyday experience relates to ${subunitName}?`;
+      setCurrentMcQuestion(question);
+      addMessage(history, { role: "assistant", content: `**Analogy:** ${question}` });
+      const choices = (result.choices || []).slice(0, 3);
+      const { shuffled, newCorrectIdx } = shuffleChoices(choices, result.correct_index ?? 0);
+      setMcChoices(shuffled); setMcCorrectIndex(newCorrectIdx); setPhase("q2_mc");
+    } catch (err) {
+      const fallbackQ = `Think of a time when something kept moving after you stopped pushing it. Why did that happen?`;
+      setCurrentMcQuestion(fallbackQ);
+      addMessage(history, { role: "assistant", content: `**Analogy:** ${fallbackQ}` });
+      setMcChoices(["It already had motion built up", "Something invisible pushed it", "It was going downhill"]);
+      setMcCorrectIndex(0); setPhase("q2_mc");
+    } finally {
+      setGeneratingChoices(false);
+    }
+  };
+
+  const handleQ2McSubmit = async () => {
+    if (mcSelected === null) return;
+    setMcSubmitted(true);
+    const isCorrect = mcSelected === mcCorrectIndex;
+    const choiceText = mcChoices[mcSelected];
+    setAnalogyAnswer(choiceText);
+    const withUser = addMessage(conversationHistory, { role: "user", content: choiceText });
+    setWaitingForTutor(true);
+    try {
+      const response = await invoke({
+        prompt: `You are Quest Panda. Topic: "${subunitName}".
+Student answered the analogy question: "${currentMcQuestion}"
+Their choice: "${choiceText}" | Correct: "${mcChoices[mcCorrectIndex]}" | Was correct: ${isCorrect}
+
+In 1-2 sentences:
+1. If correct, affirm briefly then push deeper. If incorrect, gently redirect without giving the answer away. Use **bold** on a key word from their choice.
+2. Explicitly name the connection: explain HOW the everyday analogy maps onto the real concept of "${subunitName}" — what plays the role of what.
+3. Ask a bridge question that uses this mapping to test whether they can now apply the concept in its academic form. Do NOT list answer choices — they will be shown separately.`,
+      });
+      const text = typeof response === "string" ? response : response?.content || "";
+      const withPanda = addMessage(withUser, { role: "assistant", content: text });
+      setQuestionCount(2);
+      await generateBridgeMc(withPanda, text);
+    } catch (err) {
+      const withPanda = addMessage(withUser, { role: "assistant", content: `Interesting! How does this connect to **${subunitName}** itself?` });
+      await generateBridgeMc(withPanda, `How does this connect to ${subunitName}?`);
+    } finally {
+      setWaitingForTutor(false);
+    }
+  };
+
+  const generateBridgeMc = async (history, tutorQuestion) => {
+    setGeneratingChoices(true);
+    setMcChoices([]); setMcSelected(null); setMcSubmitted(false); setMcCorrectIndex(null);
+    try {
+      const result = await invoke({
+        prompt: `You are Quest Panda. Topic: "${subunitName}".
+Bridge question: "${tutorQuestion}"
+
+Generate 3 randomized MC options that answer the bridge question using the real academic concept of "${subunitName}". The correct option must use accurate terminology and directly follow from the analogy-to-concept mapping. Misconceptions should reflect common student errors. Each option under 12 words.
+
+Return JSON:
+{
+  "choices": ["correct academic concept", "misconception 1", "misconception 2"],
+  "correct_index": 0
+}`,
+        schema: { type: "object", properties: { choices: { type: "array", items: { type: "string" } }, correct_index: { type: "number" } } },
+      });
+      const choices = (result.choices || []).slice(0, 3);
+      const { shuffled, newCorrectIdx } = shuffleChoices(choices, result.correct_index ?? 0);
+      setMcChoices(shuffled); setMcCorrectIndex(newCorrectIdx); setPhase("q3_mc");
+    } catch (err) {
+      setMcChoices([`The key principle of ${subunitName}`, "An unrelated force", "A coincidence"]);
+      setMcCorrectIndex(0); setPhase("q3_mc");
+    } finally {
+      setGeneratingChoices(false);
+    }
+  };
+
+  const handleQ3McSubmit = async () => {
+    if (mcSelected === null) return;
+    setMcSubmitted(true);
+    const isCorrect = mcSelected === mcCorrectIndex;
+    const choiceText = mcChoices[mcSelected];
+    const withUser = addMessage(conversationHistory, { role: "user", content: choiceText });
+    setWaitingForTutor(true);
+    try {
+      const summary = await invoke({
+        prompt: `You are Quest Panda. Topic: "${subunitName}".
+The student just completed an analogy-to-bridge journey:
+- Analogy answer: "${analogyAnswer}"
+- Bridge answer: "${choiceText}" | Correct: "${mcChoices[mcCorrectIndex]}" | Was correct: ${isCorrect}
+
+Write a 1-2 sentence summary statement (NOT a question) that:
+1. Ties together the everyday analogy and the real academic concept of "${subunitName}" — make it click.
+2. Uses **bold** on the key academic term.
+3. Ends with a warm transition like "Now let's put your understanding to the test with one final question."`,
+      });
+      const text = typeof summary === "string" ? summary : summary?.content || "";
+      const withSummary = addMessage(withUser, { role: "assistant", content: text });
+      setQuestionCount(3);
+      injectHookQuestion(withSummary);
+    } catch (err) {
+      const withSummary = addMessage(withUser, { role: "assistant", content: `Great work connecting the analogy to **${subunitName}**! Now let's put your understanding to the test with one final question.` });
+      injectHookQuestion(withSummary);
+    } finally {
+      setWaitingForTutor(false);
+    }
+  };
+
+  const injectHookQuestion = (history) => {
+    if (hookQuestion) addMessage(history, { role: "assistant", content: `**Final question:** ${hookQuestion}` });
+    setQuestionCount(4);
+    setPhase("q4_fr");
+  };
+
+  const handleQ4Submit = async () => {
+    if (!frInput.trim()) return;
+    setFrSubmitting(true);
+    const input = frInput.trim();
+    const withUser = addMessage(conversationHistory, { role: "user", content: input });
+    setFrInput("");
+    setWaitingForTutor(true);
+    try {
+      const response = await invoke({
+        prompt: `You are Quest Panda. Topic: "${subunitName}".
+The inquiry question was: "${hookQuestion}"
+Student's answer: "${input}"
+
+This is the FINAL exchange. First judge whether the student genuinely engaged. If their answer is off-topic, evasive, gibberish, or says they're unsure (e.g. "idk", "i don't know", "not sure"), do NOT pretend they nailed it — in 2 sentences warmly acknowledge they're unsure and that it's okay, then hand them the one key insight to "${subunitName}" yourself in plain terms (use **bold** on the key idea).
+If they did engage, in 2 sentences affirm their answer with **bold** on their key insight — be specific.
+Either way, end exactly with: "Brilliant thinking! Now let's watch the video to see the full picture." and DO NOT ask another question.`,
+      });
+      const text = typeof response === "string" ? response : response?.content || "";
+      addMessage(withUser, { role: "assistant", content: text });
+      setQuestionCount(5);
+      setPhase("complete");
+    } catch (err) {
+      addMessage(withUser, { role: "assistant", content: "Brilliant thinking! Now let's watch the video to see the full picture." });
+      setPhase("complete");
+    } finally {
+      setWaitingForTutor(false);
+      setFrSubmitting(false);
+    }
+  };
+
+  const finish = () => {
+    if (typeof onResponse === "function") {
+      try { onResponse(conversationHistory); } catch { /* ignore */ }
+    }
+    onComplete?.();
+  };
+
+  const isMcPhase = phase === "q2_mc" || phase === "q3_mc";
+  const isFrPhase = phase === "q1_fr" || phase === "q4_fr";
+  const phaseLabels = { q1_fr: "Observation", q2_mc: "Analogy", q3_mc: "Bridge", q4_fr: "Transfer", complete: "Complete" };
+
+  return (
+    <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px] mx-4">
+      <CardContent className="p-6 sm:p-8">
+        {/* Header + progress dots */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center"><span className="text-xl">🐼</span></div>
+            <div>
+              <p className="font-bold text-gray-900 text-sm">Quest Panda</p>
+              <p className="text-xs text-violet-500">{subunitName}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {["Observe", "Analogy", "Bridge", "Transfer"].map((label, i) => (
+              <div key={i} className="flex flex-col items-center gap-0.5">
+                <div className={`w-2.5 h-2.5 rounded-full transition-all duration-500 ${questionCount > i ? "bg-violet-500" : questionCount === i ? "bg-violet-300 animate-pulse" : "bg-violet-100"}`} />
+                <span className="text-[9px] text-gray-400 hidden md:block">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {hookImageUrl && (
+          <div className="mb-6 rounded-2xl overflow-hidden bg-white border-2 border-violet-100">
+            <img src={hookImageUrl} alt="Inquiry illustration" className="w-full h-auto max-h-72 object-cover" />
+          </div>
+        )}
+
+        {/* Conversation */}
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50/40 rounded-[28px] p-5 mb-5 max-h-[420px] overflow-y-auto border-2 border-violet-100">
+          <div className="space-y-4">
+            <AnimatePresence initial={false}>
+              {conversationHistory.map((msg, idx) => (
+                <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+                  className={`flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${msg.role === "user" ? "bg-green-100 text-green-700" : "bg-violet-100"}`}>
+                    {msg.role === "user" ? "You" : "🐼"}
+                  </div>
+                  <div className={`max-w-[85%] px-5 py-3.5 rounded-2xl text-base font-medium leading-relaxed shadow-sm ${msg.role === "user" ? "bg-green-50 text-gray-800 border border-green-200" : "bg-white text-gray-800 border border-violet-200"}`}>
+                    {msg.content.split(/(\*\*.*?\*\*)/).map((part, i) =>
+                      part.startsWith("**") && part.endsWith("**")
+                        ? <strong key={i} className="text-violet-700">{part.slice(2, -2)}</strong>
+                        : <MathRenderer key={i} text={part} />
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {(waitingForTutor || generatingChoices) && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-violet-100 rounded-full flex items-center justify-center">🐼</div>
+                <div className="bg-white border border-violet-200 px-5 py-3.5 rounded-2xl flex items-center gap-2 shadow-sm">
+                  <Sparkles className="w-4 h-4 text-violet-400 animate-pulse" />
+                  <span className="text-base text-violet-600 font-medium">Quest Panda is thinking...</span>
+                </div>
+              </motion.div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* FR input */}
+        {isFrPhase && !waitingForTutor && !frSubmitting && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+            <span className="text-xs font-bold text-violet-500 uppercase tracking-wider bg-violet-50 px-2 py-1 rounded-full inline-block">{phaseLabels[phase]}</span>
+            <textarea
+              value={frInput}
+              onChange={(e) => setFrInput(e.target.value)}
+              placeholder={phase === "q1_fr" ? "What do you notice? What do you think is happening here? (1–2 sentences)" : "Your answer..."}
+              rows={3}
+              className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-violet-400 focus:outline-none text-base text-gray-800 resize-none shadow-sm"
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); phase === "q1_fr" ? handleQ1Submit() : handleQ4Submit(); } }}
+            />
+            <button onClick={phase === "q1_fr" ? handleQ1Submit : handleQ4Submit} disabled={!frInput.trim()}
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-violet-200 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-semibold transition-all duration-200 shadow-md flex items-center justify-center gap-2">
+              {phase === "q4_fr" ? "Submit & Finish" : "Submit"} <ArrowRight className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+
+        {/* MC input */}
+        {isMcPhase && mcChoices.length > 0 && !mcSubmitted && !waitingForTutor && !generatingChoices && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+            <span className="text-xs font-bold text-violet-500 uppercase tracking-wider bg-violet-50 px-2 py-1 rounded-full inline-block">{phaseLabels[phase]}</span>
+            {mcChoices.map((choice, idx) => (
+              <button key={idx} onClick={() => setMcSelected(idx)}
+                className={`w-full text-left px-5 py-4 rounded-2xl border-2 text-base font-medium transition-all duration-200 shadow-sm ${mcSelected === idx ? "border-violet-500 bg-violet-50 text-violet-800 shadow-md scale-[1.01]" : "border-gray-200 bg-white text-gray-700 hover:border-violet-300 hover:bg-violet-50"}`}>
+                <MathRenderer text={choice} />
+              </button>
+            ))}
+            <button onClick={() => (phase === "q2_mc" ? handleQ2McSubmit() : handleQ3McSubmit())} disabled={mcSelected === null}
+              className="w-full mt-2 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-200 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-semibold transition-all duration-200 shadow-md flex items-center justify-center gap-2">
+              Submit Answer <ArrowRight className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+
+        {/* MC feedback */}
+        {isMcPhase && mcSubmitted && mcChoices.length > 0 && !waitingForTutor && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
+            {mcChoices.map((choice, idx) => (
+              <div key={idx} className={`w-full px-5 py-4 rounded-2xl border-2 text-base font-medium flex items-center gap-3 ${idx === mcCorrectIndex ? "border-green-400 bg-green-50 text-green-800" : idx === mcSelected ? "border-red-300 bg-red-50 text-red-700" : "border-gray-100 bg-gray-50 text-gray-400"}`}>
+                <MathRenderer text={choice} />
+                {idx === mcCorrectIndex && <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />}
+                {idx === mcSelected && idx !== mcCorrectIndex && <XCircle className="w-4 h-4 text-red-400 ml-auto" />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Complete */}
+        {phase === "complete" && !waitingForTutor && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-br from-violet-50 to-green-50 border-2 border-violet-200 rounded-3xl p-6 text-center shadow-lg">
+            <span className="text-4xl mb-3 block">🎉</span>
+            <h3 className="text-2xl font-bold text-gray-900 mb-1">Amazing thinking!</h3>
+            <p className="text-base text-gray-600 mb-6">You've explored this topic through guided inquiry. Now let's watch the video!</p>
+            <button onClick={finish}
+              className="bg-violet-600 hover:bg-violet-700 text-white px-8 py-4 rounded-full font-bold text-base shadow-xl transition-all hover:scale-105 flex items-center gap-2 mx-auto">
+              Continue to Video <ArrowRight className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

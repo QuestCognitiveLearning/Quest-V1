@@ -8,9 +8,9 @@
  *     content (jsonb columns), status='waiting', current_phase='lobby'
  *   - navigates to /LiveSessionHost?sessionId=...
  *
- * Optional URL param `?fromHandout=<id>` pre-fills the builder from a saved
- * GeneratedHandout payload — used by the Generate page's "Use in live session"
- * action so teachers don't re-enter content.
+ * The builder is always opened from the Generate page via `?fromHandout=<id>`,
+ * which seeds the phase content from that saved GeneratedHandout payload. The
+ * teacher just names the session and picks which phases to include.
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -82,7 +82,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: "Hook ready",
-        hint: "No hook yet — start from a saved handout above.",
+        hint: "This handout doesn't include an inquiry hook.",
       };
     }
     case "video": {
@@ -91,7 +91,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: n > 0 ? `Video · ${n} check${n === 1 ? "" : "s"}` : "Video ready",
-        hint: "No video yet — start from a saved handout above.",
+        hint: "This handout doesn't include a video.",
       };
     }
     case "quiz": {
@@ -99,7 +99,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready: n > 0,
         summary: `${n} question${n === 1 ? "" : "s"}`,
-        hint: "No quiz yet — start from a saved handout above.",
+        hint: "This handout doesn't include a quiz.",
       };
     }
     case "case_study": {
@@ -107,7 +107,7 @@ function phaseReadiness(key, ctx) {
       return {
         ready,
         summary: "Case study ready",
-        hint: "No case study yet — start from a saved handout above.",
+        hint: "This handout doesn't include a case study.",
       };
     }
     default:
@@ -121,7 +121,6 @@ export default function LiveSessionBuilder() {
   const fromHandoutId = searchParams.get("fromHandout");
 
   const [teacher, setTeacher] = useState(null);
-  const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -135,7 +134,6 @@ export default function LiveSessionBuilder() {
     quiz: true,
     case_study: false,
   });
-  const [selectedHandoutId, setSelectedHandoutId] = useState("");
 
   // Content (per phase)
   const [inquiry, setInquiry] = useState({
@@ -158,12 +156,11 @@ export default function LiveSessionBuilder() {
       try {
         const me = await quest.auth.me();
         setTeacher(me);
-        const rows = await quest.entities.GeneratedHandout
-          ?.filter?.({ teacher_id: me.id }, "-created_at", 50)
-          .catch(() => []);
-        setLibrary(rows || []);
 
         if (fromHandoutId) {
+          const rows = await quest.entities.GeneratedHandout
+            ?.filter?.({ teacher_id: me.id }, "-created_at", 50)
+            .catch(() => []);
           const match = (rows || []).find((r) => r.id === fromHandoutId);
           if (match) {
             applyHandout(match);

@@ -4,6 +4,19 @@ import { handlePreflight, json } from '../_shared/cors.ts';
 import { getMe } from '../_shared/auth.ts';
 import { clientIp, rateLimitByIp, rateLimitByUser, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 import { validate } from '../_shared/validator.ts';
+import { decodeHtmlEntities } from '../_shared/htmlEntities.ts';
+
+// YouTube HTML-escapes snippet text (titles, channel titles). Decode it in
+// place so clients never render "&#39;" or "&amp;" in a title.
+// deno-lint-ignore no-explicit-any
+function decodeSnippets(items: any[]): void {
+  for (const it of items ?? []) {
+    const sn = it?.snippet;
+    if (!sn) continue;
+    if (typeof sn.title === 'string') sn.title = decodeHtmlEntities(sn.title);
+    if (typeof sn.channelTitle === 'string') sn.channelTitle = decodeHtmlEntities(sn.channelTitle);
+  }
+}
 
 const API_KEY = Deno.env.get('YOUTUBE_API_KEY')!;
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{6,15}$/;
@@ -62,6 +75,8 @@ Deno.serve(async (req) => {
     if (!sr.ok) return json(await sr.json(), sr.status);
     const searchPayload = await sr.json();
     const items = (searchPayload.items as Array<{ id: { videoId: string } }>) ?? [];
+    // Decode titles in place — covers every return path below (raw + filtered).
+    decodeSnippets(items);
     if (items.length === 0) return json(searchPayload, 200);
 
     // Pull contentDetails for the candidates so we can read each video's
@@ -110,7 +125,9 @@ Deno.serve(async (req) => {
     if (!value.videoId) return json({ error: 'videoId required' }, 400);
     const url = `${base}/videos?part=snippet,contentDetails&id=${value.videoId}&key=${API_KEY}`;
     const r = await fetch(url);
-    return json(await r.json(), r.ok ? 200 : r.status);
+    const payload = await r.json();
+    if (r.ok) decodeSnippets(payload.items ?? []);
+    return json(payload, r.ok ? 200 : r.status);
   }
 
   return json({ error: 'Unknown action' }, 400);

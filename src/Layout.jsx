@@ -89,7 +89,7 @@ export default function Layout({ children, currentPageName }) {
           "TeacherDashboard", "TeacherClasses", "TeacherClassDetail",
           "TeacherCurricula", "CreateCurriculum", "ManageCurriculum",
           "TeacherProgress", "TeacherLeaderboard", "TeacherAnalytics",
-          "TeacherStudentDetail", "TranscriptTester", "TeacherSettings",
+          "TeacherStudentDetail", "TeacherAssignedSessionDetail", "TranscriptTester", "TeacherSettings",
           "Generate",
         ];
 

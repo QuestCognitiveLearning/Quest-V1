@@ -8,7 +8,7 @@ import { LLM_MODELS } from "@/lib/llmModels";
 import MathRenderer from "@/components/utils/MathRenderer";
 import StudentMathInput from "@/components/shared/StudentMathInput";
 
-export default function CaseStudyChat({ subunitName, onComplete, subunitId, studentId }) {
+export default function CaseStudyChat({ subunitName, onComplete, subunitId, studentId, caseStudyData = null, onSaveResponse = null }) {
   const [messages, setMessages] = useState([]);
   const [currentInput, setCurrentInput] = useState("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -36,6 +36,14 @@ export default function CaseStudyChat({ subunitName, onComplete, subunitId, stud
   const loadCaseStudy = async () => {
     setLoading(true);
     try {
+      // Caller injected the case study (single / live sessions store it in the
+      // bundle/JSONB payload, not the CaseStudy entity) — use it directly.
+      if (caseStudyData?.scenario) {
+        setCaseStudy(caseStudyData);
+        initializeMessages(caseStudyData);
+        setLoading(false);
+        return;
+      }
       // Try to load existing case study from database
       if (subunitId) {
         const existing = await quest.entities.CaseStudy.filter({ subunit_id: subunitId });
@@ -211,29 +219,47 @@ export default function CaseStudyChat({ subunitName, onComplete, subunitId, stud
         ]);
         
         const gradingResult = await gradeAllAnswers(newAnswers);
+        // Normalize: clamp each sub-score to its 0–1 range and recompute the
+        // total from the parts, so the case-study score can never exceed its
+        // 4-point max even if the model returns an out-of-range value.
+        const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+        gradingResult.scores_a = clamp01(gradingResult.scores_a);
+        gradingResult.scores_b = clamp01(gradingResult.scores_b);
+        gradingResult.scores_c = clamp01(gradingResult.scores_c);
+        gradingResult.scores_d = clamp01(gradingResult.scores_d);
+        gradingResult.total_score =
+          gradingResult.scores_a + gradingResult.scores_b +
+          gradingResult.scores_c + gradingResult.scores_d;
         setFinalScore(gradingResult.total_score);
         setScoreBreakdown(gradingResult);
         
-        // Save case study response
-        if (studentId && subunitId) {
+        // Save case study response. When the caller injected a save handler
+        // (single / live sessions persist into their own bundle row), defer to
+        // it; otherwise write a CaseStudyResponse entity (curriculum flow).
+        const responsePayload = {
+          answer_a: newAnswers[0] || "",
+          answer_b: newAnswers[1] || "",
+          answer_c: newAnswers[2] || "",
+          answer_d: newAnswers[3] || "",
+          score_a: gradingResult.scores_a ?? 0,
+          score_b: gradingResult.scores_b ?? 0,
+          score_c: gradingResult.scores_c ?? 0,
+          score_d: gradingResult.scores_d ?? 0,
+          feedback_a: gradingResult.feedback_a || "",
+          feedback_b: gradingResult.feedback_b || "",
+          feedback_c: gradingResult.feedback_c || "",
+          feedback_d: gradingResult.feedback_d || "",
+          total_score: gradingResult.total_score,
+        };
+        if (typeof onSaveResponse === "function") {
+          try { await onSaveResponse(responsePayload); } catch (err) { console.error("Failed to save case study response:", err); }
+        } else if (studentId && subunitId) {
           try {
             await quest.entities.CaseStudyResponse.create({
               student_id: studentId,
               subunit_id: subunitId,
               case_study_id: caseStudy?.id || "",
-              answer_a: newAnswers[0] || "",
-              answer_b: newAnswers[1] || "",
-              answer_c: newAnswers[2] || "",
-              answer_d: newAnswers[3] || "",
-              score_a: gradingResult.scores_a ?? 0,
-              score_b: gradingResult.scores_b ?? 0,
-              score_c: gradingResult.scores_c ?? 0,
-              score_d: gradingResult.scores_d ?? 0,
-              feedback_a: gradingResult.feedback_a || "",
-              feedback_b: gradingResult.feedback_b || "",
-              feedback_c: gradingResult.feedback_c || "",
-              feedback_d: gradingResult.feedback_d || "",
-              total_score: gradingResult.total_score
+              ...responsePayload,
             });
           } catch (err) {
             console.error("Failed to save case study response:", err);

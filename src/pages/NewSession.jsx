@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
 import { toast } from "sonner";
-import { PASS_THRESHOLD, gradeLearnSession } from "@/lib/spacedRepetition";
+import { PASS_THRESHOLD, gradeLearnSession, computeSessionScore } from "@/lib/spacedRepetition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Play, CheckCircle, X } from "lucide-react";
@@ -701,11 +701,16 @@ export default function NewSession() {
   const termsComplete = Object.values(termsChecked).filter(Boolean).length;
   const correctAnswers = totalScore;
   
-  // Calculate final score including FRQ (FRQ is out of 4, weighted as 40% of total)
-  const mcPercent = questions.length > 0 ? (mcCorrect / questions.length) * 100 : 0;
-  const frqPercent = frqScore !== null ? (frqScore / 4) * 100 : 0;
-  // Final score: 60% MC + 40% FRQ
-  const finalScore = frqScore !== null ? Math.round(mcPercent * 0.6 + frqPercent * 0.4) : Math.round(mcPercent);
+  // Standardized session score: quiz + case study only (attention checks never
+  // count), points-based and clamped to 0–100. Case study is scored out of 4.
+  const finalScore = computeSessionScore({
+    quizCorrect: mcCorrect,
+    quizTotal: questions.length,
+    caseScore: frqScore,
+    caseMax: frqScore !== null ? 4 : null,
+  }) ?? 0;
+  // Quiz-only percentage for the score-breakdown display.
+  const mcPercent = questions.length > 0 ? Math.round((mcCorrect / questions.length) * 100) : 0;
 
   // Post-score review: page through every quiz question (right + wrong) with
   // its explanation before leaving — skipped if every MC answer was correct.
@@ -1204,9 +1209,9 @@ export default function NewSession() {
                   </div>
                   <div className="text-right">
                     <p className={`text-2xl font-bold ${mcPercent >= PASS_THRESHOLD ? 'text-[#3B82F6]' : 'text-red-500'}`}>
-                      {Math.round(mcPercent)}%
+                      {mcPercent}%
                     </p>
-                    <p className="text-xs text-[#1A1A1A]/50">60% weight</p>
+                    <p className="text-xs text-[#1A1A1A]/50">{mcCorrect} of {questions.length} pts</p>
                   </div>
                 </div>
 
@@ -1220,7 +1225,7 @@ export default function NewSession() {
                     <p className={`text-2xl font-bold ${frqScore !== null && frqScore >= 2.8 ? 'text-[#3B82F6]' : frqScore !== null ? 'text-orange-500' : 'text-gray-400'}`}>
                       {frqScore !== null ? `${frqScore}/4` : '—'}
                     </p>
-                    <p className="text-xs text-[#1A1A1A]/50">40% weight</p>
+                    <p className="text-xs text-[#1A1A1A]/50">{frqScore !== null ? frqScore : 0} of 4 pts</p>
                   </div>
                 </div>
 

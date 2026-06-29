@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { calculateDayStreak } from "@/lib/streak";
+import { clampScore } from "@/lib/spacedRepetition";
 import { loadStudentClasses } from "@/lib/studentClasses";
 import { quest } from "@/api/questClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -216,8 +217,9 @@ export default function Progress() {
       const relevantQuizIds = quizzes.filter(q => classSubunitIds.includes(q.subunit_id)).map(q => q.id);
       const classQuizResults = quizResults.filter(qr => relevantQuizIds.includes(qr.quiz_id));
       if (classQuizResults.length === 0) return 0;
-      const avgScore = classQuizResults.reduce((sum, r) => sum + r.score, 0) / classQuizResults.length;
-      return Math.round(avgScore);
+      const avgScore =
+        classQuizResults.reduce((sum, r) => sum + clampScore(r.score), 0) / classQuizResults.length;
+      return clampScore(avgScore);
     } catch {
       return 0;
     }
