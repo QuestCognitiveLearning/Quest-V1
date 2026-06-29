@@ -395,9 +395,6 @@ export default function LiveSessionBuilder() {
           subtitle="Review before launching"
           saveLabel="Create & launch lobby"
           saving={creating}
-          mathEditing
-          caseStudyAnswers
-          allowImageRegen
           payload={{
             video: includes.video
               ? { videoId: extractYouTubeId(videoUrl), title: topic }

@@ -728,24 +728,29 @@ export function SessionContentReview({
                     </Button>
                   )}
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      Scoring rubric (0–4)
-                    </span>
+                {/* The 0–4 rubric is only meaningful where the teacher sets
+                    expected answers to grade against (curriculum). It's noise
+                    on the simpler single/live/assigned reviews, so hide it. */}
+                {caseStudyAnswers && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Scoring rubric (0–4)
+                      </span>
+                    </div>
+                    <ul className="space-y-1">
+                      {CASE_STUDY_RUBRIC.map((r) => (
+                        <li key={r.score} className="flex gap-2 text-xs text-slate-600 leading-snug">
+                          <span className="font-bold text-slate-900 w-3.5 shrink-0">{r.score}</span>
+                          <span>
+                            <span className="font-semibold text-slate-800">{r.label}.</span> {r.desc}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-1">
-                    {CASE_STUDY_RUBRIC.map((r) => (
-                      <li key={r.score} className="flex gap-2 text-xs text-slate-600 leading-snug">
-                        <span className="font-bold text-slate-900 w-3.5 shrink-0">{r.score}</span>
-                        <span>
-                          <span className="font-semibold text-slate-800">{r.label}.</span> {r.desc}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                )}
               </TabsContent>
             )}
           </Tabs>
