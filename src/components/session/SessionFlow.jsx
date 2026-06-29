@@ -315,6 +315,26 @@ export default function SessionFlow({
     setShowInquiryChat(true);
   };
 
+  // The inline Socratic inquiry chat is the original full-screen split-screen
+  // experience — render it full-bleed (outside the session container), exactly
+  // like the old NewSession → SocraticInquiry page.
+  const inlineInquiryActive = step === "inquiry" && inquiry && showInquiryChat && inquiryMode !== "navigate" && inquiryMode !== "custom";
+  if (inlineInquiryActive) {
+    return (
+      <div className={embedded ? "relative" : ""}>
+        {showPandaWidget && <PandaChatWidget topic={topic} phase="inquiry" currentPrompt={null} />}
+        <SocraticInquiryChat
+          subunitName={topic}
+          hookQuestion={inquiry.hook_question}
+          hookImageUrl={inquiry.hook_image_url}
+          llmCall={inquiryLlmCall}
+          onResponse={onInquiryResponse}
+          onComplete={advance}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={embedded ? "relative" : "min-h-screen relative overflow-x-hidden overflow-y-auto"}>
       {showPandaWidget && (
@@ -400,20 +420,9 @@ export default function SessionFlow({
           </Card>
         )}
 
-        {step === "inquiry" && inquiry && showInquiryChat && (
-          inquiryMode === "custom" && typeof renderInquiry === "function"
-            ? renderInquiry({ onComplete: advance })
-            : (
-              <SocraticInquiryChat
-                subunitName={topic}
-                hookQuestion={inquiry.hook_question}
-                hookImageUrl={inquiry.hook_image_url}
-                llmCall={inquiryLlmCall}
-                onResponse={onInquiryResponse}
-                onComplete={advance}
-              />
-            )
-        )}
+        {/* Inline inquiry chat is rendered full-bleed via the early return above;
+            only the custom render path is handled inside the container. */}
+        {step === "inquiry" && inquiry && showInquiryChat && inquiryMode === "custom" && typeof renderInquiry === "function" && renderInquiry({ onComplete: advance })}
 
         {/* VIDEO */}
         {step === "video" && (

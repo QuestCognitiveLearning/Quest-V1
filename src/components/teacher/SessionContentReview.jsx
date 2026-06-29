@@ -187,6 +187,10 @@ function MathField({ as = "input", enableMath = false, className = "", value, on
   const Comp = as === "textarea" ? Textarea : Input;
   const ref = useRef(null);
   const [mathOpen, setMathOpen] = useState(false);
+  // The equation inserter is available on every field, but its icon only shows
+  // while you're editing that field (or have its modal open) — so the editor
+  // isn't littered with an icon next to every input at once.
+  const [focused, setFocused] = useState(false);
 
   const insert = (equation) => {
     const field = ref.current;
@@ -201,6 +205,8 @@ function MathField({ as = "input", enableMath = false, className = "", value, on
     setMathOpen(false);
   };
 
+  const showIcon = enableMath && (focused || mathOpen);
+
   return (
     <div className="flex items-start gap-2 flex-1 min-w-0">
       <Comp
@@ -208,11 +214,14 @@ function MathField({ as = "input", enableMath = false, className = "", value, on
         className={`flex-1 min-w-0 ${className}`}
         value={value}
         onChange={onChange}
+        onFocus={() => setFocused(true)}
+        // Delay so a click on the icon registers before it unmounts.
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
         {...props}
       />
       {enableMath && (
         <>
-          <MathEditorButton onClick={() => setMathOpen(true)} />
+          {showIcon && <MathEditorButton onClick={() => setMathOpen(true)} />}
           <MathEquationModal isOpen={mathOpen} onClose={() => setMathOpen(false)} onInsert={insert} />
         </>
       )}
@@ -294,10 +303,7 @@ export function SessionContentReview({
   saveLabel = "Save changes",
   onClose,
   onSave,
-  // Curriculum-grade extras, all opt-in so the simpler handout/live flows are
-  // visually unchanged:
-  mathEditing = false, // show the math-equation inserter on every text field
-  caseStudyAnswers = false, // discussion questions carry an expected answer
+  mathEditing = false, // make the math-equation inserter available on fields
   allowImageRegen = false, // offer "Regenerate" on the inquiry hook image
   // Curriculum case studies have fixed a/b/c/d slots wired to entity columns,
   // so adding/removing a question would shift them — lock the count there.
@@ -308,6 +314,9 @@ export function SessionContentReview({
   const [regenImg, setRegenImg] = useState(false);
   const [translated, setTranslated] = useState(null);
   const [translating, setTranslating] = useState(false);
+  // Which case-study questions have their optional answer key / rubric field
+  // open. A teacher opts in per question; by default no expected answer shows.
+  const [openAnswerKeys, setOpenAnswerKeys] = useState(() => new Set());
 
   const setInquiry = (patch) =>
     setDraft((d) => ({ ...d, inquiry_session: { ...(d.inquiry_session || {}), ...patch } }));
@@ -316,26 +325,43 @@ export function SessionContentReview({
   const setDiscussionQuestion = (i, value) =>
     setDraft((d) => {
       const arr = [...((d.case_study || {}).discussion_questions || [])];
-      arr[i] = caseStudyAnswers
-        ? { ...(typeof arr[i] === "object" && arr[i] ? arr[i] : {}), question: value }
-        : value;
+      // Preserve shape: keep plain strings plain, only objects (those with an
+      // answer key) stay objects. Avoids forcing every question into an object.
+      arr[i] = typeof arr[i] === "object" && arr[i] ? { ...arr[i], question: value } : value;
       return { ...d, case_study: { ...(d.case_study || {}), discussion_questions: arr } };
     });
   const setDiscussionAnswer = (i, value) =>
     setDraft((d) => {
       const arr = [...((d.case_study || {}).discussion_questions || [])];
-      arr[i] = { ...(typeof arr[i] === "object" && arr[i] ? arr[i] : {}), answer: value };
+      const cur = arr[i];
+      const question = typeof cur === "string" ? cur : cur?.question || "";
+      arr[i] = { question, answer: value };
       return { ...d, case_study: { ...(d.case_study || {}), discussion_questions: arr } };
     });
+  // Open/close the optional answer-key field for a question. Closing clears any
+  // answer so it reverts to a plain question with no expected answer.
+  const toggleAnswerKey = (i, open) => {
+    setOpenAnswerKeys((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(i);
+      else next.delete(i);
+      return next;
+    });
+    if (!open) {
+      setDraft((d) => {
+        const arr = [...((d.case_study || {}).discussion_questions || [])];
+        const cur = arr[i];
+        if (cur && typeof cur === "object") arr[i] = cur.question || "";
+        return { ...d, case_study: { ...(d.case_study || {}), discussion_questions: arr } };
+      });
+    }
+  };
   const addDiscussionQuestion = () =>
     setDraft((d) => ({
       ...d,
       case_study: {
         ...(d.case_study || {}),
-        discussion_questions: [
-          ...((d.case_study || {}).discussion_questions || []),
-          caseStudyAnswers ? { question: "", answer: "" } : "",
-        ],
+        discussion_questions: [...((d.case_study || {}).discussion_questions || []), ""],
       },
     }));
   const removeDiscussionQuestion = (i) =>

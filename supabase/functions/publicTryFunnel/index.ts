@@ -441,6 +441,21 @@ Deno.serve(async (req) => {
       return json({ text }, 200, req);
     }
 
+    if (action === 'socratic') {
+      // Generic LLM proxy for the inline Socratic inquiry chat so anonymous
+      // live-session participants get the SAME inquiry as authenticated users.
+      const prompt = String(body.prompt ?? '').slice(0, 6000);
+      if (!prompt) return json({ error: 'prompt is required' }, 400, req);
+      const schema = body.schema && typeof body.schema === 'object' ? (body.schema as Record<string, unknown>) : null;
+      const result = await invokeLLMWithUsage({
+        prompt,
+        model: QUIZ_MODEL,
+        ...(schema ? { response_json_schema: schema } : {}),
+      });
+      // With a schema, result.content is the parsed object; otherwise a string.
+      return json({ result: result?.content ?? (schema ? {} : '') }, 200, req);
+    }
+
     if (action === 'generate') {
       // PDF text can supplement OR replace a video. videoId is now optional
       // when pdfText + topic are present.

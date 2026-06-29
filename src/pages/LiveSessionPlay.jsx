@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Trophy, CheckCircle, Sparkles, Send, XCircle } from "lucide-react";
 import SessionFlow from "@/components/session/SessionFlow";
-import { toCaseStudy } from "@/components/student/SelfSessionPhases";
+import { toCaseStudy } from "@/lib/sessionContent";
 
 const LETTERS = ["A", "B", "C", "D"];
 
@@ -248,10 +248,8 @@ export default function LiveSessionPlay() {
   return (
     <SessionFlow
       content={content}
-      inquiryMode="custom"
-      renderInquiry={({ onComplete }) => (
-        <InquiryView inquiry={session.inquiry_session} topic={content.topic} onContinue={onComplete} />
-      )}
+      inquiryMode="inline"
+      inquiryLlmCall={liveInquiryLlmCall}
       events={events}
       onCaseStudySave={() => {}}
       onPhaseChange={(step) => persistProgress(STEP_TO_PHASE[step] || step)}
@@ -260,6 +258,14 @@ export default function LiveSessionPlay() {
       allowRetry={false}
     />
   );
+}
+
+// Anonymous-safe LLM transport for the inline inquiry chat (live participants
+// may not be authenticated, so route through the public edge function).
+async function liveInquiryLlmCall({ prompt, schema }) {
+  const { data, error } = await supabase.functions.invoke("publicTryFunnel", { body: { action: "socratic", prompt, schema } });
+  if (error) throw error;
+  return data?.result;
 }
 
 // ============================ Leaderboard chrome ==========================

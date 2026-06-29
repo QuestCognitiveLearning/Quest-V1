@@ -58,10 +58,6 @@ export default function LearningHub() {
   const [assignments, setAssignments] = useState([]);
   const [assignedBundles, setAssignedBundles] = useState([]);
   const [testAssignments, setTestAssignments] = useState([]);
-  // Student-created self-sessions due today (scheduled_for <= today,
-  // not yet completed). Includes both the original session and any
-  // queued review entries.
-  const [selfSessions, setSelfSessions] = useState([]);
   const [todayLearningSessions, setTodayLearningSessions] = useState([]);
   const [allCompletedSessions, setAllCompletedSessions] = useState([]);
   const { notification, showError, closeNotification } = useNotification();
@@ -88,43 +84,6 @@ export default function LearningHub() {
       
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
       setUser(currentUser);
-
-      // Self-created sessions due today — independent of class enrollment.
-      // Reads from student_self_sessions via direct supabase (RLS scopes
-      // to the current student). Pull the parent bundle title in one
-      // grouped fetch so cards have something to show. Sorted ascending by
-      // scheduled_for so the oldest due item appears first.
-      try {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const { data: dueSessions } = await import("@/components/lib/supabase-client").then(
-          ({ supabase }) =>
-            supabase
-              .from("student_self_sessions")
-              .select("id, bundle_id, scheduled_for, review_number, review_enabled, completed_at, quiz_score_pct")
-              .eq("student_id", currentUser.id)
-              .is("completed_at", null)
-              .lte("scheduled_for", todayStr)
-              .order("scheduled_for", { ascending: true })
-        );
-        const bundleIds = [...new Set((dueSessions || []).map((s) => s.bundle_id))];
-        let bundleMap = new Map();
-        if (bundleIds.length > 0) {
-          const bundles = await quest.entities.LessonBundle.filter(
-            { id: bundleIds },
-            "-created_at"
-          ).catch(() => []);
-          bundleMap = new Map((bundles || []).map((b) => [b.id, b]));
-        }
-        setSelfSessions(
-          (dueSessions || []).map((s) => ({
-            ...s,
-            bundle_title: bundleMap.get(s.bundle_id)?.title || "My learning session",
-          }))
-        );
-      } catch (err) {
-        console.warn("Could not load self-sessions:", err);
-        setSelfSessions([]);
-      }
 
       const { enrollments, classes, selectedClassId } = await loadStudentClasses(currentUser);
       setEnrollments(enrollments);
@@ -547,7 +506,7 @@ export default function LearningHub() {
           <div className="flex items-center justify-center h-full">
             <div className="w-12 h-12 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : !hasClass && selfSessions.length === 0 ? (
+        ) : !hasClass ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md">
               <div className="w-24 h-24 bg-[#2563EB]/10 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
@@ -576,59 +535,6 @@ export default function LearningHub() {
 
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              {selfSessions.length > 0 && (
-                <Card className="border border-blue-200">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <Sparkles className="w-5 h-5 text-blue-600" />
-                        <h2 className="text-lg font-semibold text-black">My sessions due today</h2>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">{selfSessions.length}</Badge>
-                    </div>
-                    <div className="space-y-3">
-                      {selfSessions.map((s) => {
-                        const isReview = (s.review_number ?? 0) > 0;
-                        const scheduledDate = new Date(`${s.scheduled_for}T00:00:00`);
-                        const overdue = scheduledDate < new Date(new Date().setHours(0, 0, 0, 0));
-                        return (
-                          <div
-                            key={s.id}
-                            onClick={() => navigate(createPageUrl(`SelfSessionPlay?session_id=${s.id}`))}
-                            className={`flex items-center justify-between p-4 border rounded-lg hover:border-blue-400 transition-all cursor-pointer ${
-                              overdue ? "border-amber-200 bg-amber-50" : "border-blue-100 bg-blue-50"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${overdue ? "bg-amber-100" : "bg-blue-100"}`}>
-                                <Sparkles className={`w-5 h-5 ${overdue ? "text-amber-700" : "text-blue-600"}`} />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-semibold text-black text-sm">{s.bundle_title}</h3>
-                                  {isReview && (
-                                    <Badge className="text-xs bg-blue-100 text-blue-700">
-                                      Review #{s.review_number}
-                                    </Badge>
-                                  )}
-                                  {overdue && (
-                                    <Badge className="text-xs bg-amber-100 text-amber-700">Overdue</Badge>
-                                  )}
-                                </div>
-                                <p className={`text-xs ${overdue ? "text-amber-700" : "text-blue-700"}`}>
-                                  Scheduled {scheduledDate.toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-gray-400" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {assignedBundles.length > 0 && (
                 <Card className="border border-violet-200">
                   <CardContent className="p-6">
@@ -637,7 +543,7 @@ export default function LearningHub() {
                         <Sparkles className="w-5 h-5 text-violet-600" />
                         <h2 className="text-lg font-semibold text-black">Single Sessions</h2>
                       </div>
-                      <Badge variant="secondary" className="text-xs">{assignedBundles.length}</Badge>
+                      <Badge variant="secondary" className="text-xs">{assignedBundles.length} due</Badge>
                     </div>
                     <div className="space-y-3">
                       {assignedBundles.map((a) => {

@@ -281,129 +281,145 @@ Either way, end exactly with: "Brilliant thinking! Now let's watch the video to 
   const phaseLabels = { q1_fr: "Observation", q2_mc: "Analogy", q3_mc: "Bridge", q4_fr: "Transfer", complete: "Complete" };
 
   return (
-    <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px] mx-4">
-      <CardContent className="p-6 sm:p-8">
-        {/* Header + progress dots */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center"><span className="text-xl">🐼</span></div>
-            <div>
-              <p className="font-bold text-gray-900 text-sm">Quest Panda</p>
-              <p className="text-xs text-violet-500">{subunitName}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {["Observe", "Analogy", "Bridge", "Transfer"].map((label, i) => (
-              <div key={i} className="flex flex-col items-center gap-0.5">
-                <div className={`w-2.5 h-2.5 rounded-full transition-all duration-500 ${questionCount > i ? "bg-violet-500" : questionCount === i ? "bg-violet-300 animate-pulse" : "bg-violet-100"}`} />
-                <span className="text-[9px] text-gray-400 hidden md:block">{label}</span>
-              </div>
-            ))}
+    <div className="min-h-screen bg-[#F9F5FF] flex flex-col">
+      {/* Top Bar */}
+      <div className="bg-white border-b border-violet-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-violet-100 rounded-full flex items-center justify-center"><span className="text-xl">🐼</span></div>
+          <div>
+            <p className="font-bold text-gray-900 text-sm">Quest Panda</p>
+            <p className="text-xs text-violet-500">{subunitName}</p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          {["Observe", "Analogy", "Bridge", "Transfer"].map((label, i) => (
+            <div key={i} className="flex flex-col items-center gap-0.5">
+              <div className={`w-2.5 h-2.5 rounded-full transition-all duration-500 ${questionCount > i ? "bg-violet-500" : questionCount === i ? "bg-violet-300 animate-pulse" : "bg-violet-100"}`} />
+              <span className="text-[9px] text-gray-400 hidden md:block">{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-        {hookImageUrl && (
-          <div className="mb-6 rounded-2xl overflow-hidden bg-white border-2 border-violet-100">
-            <img src={hookImageUrl} alt="Inquiry illustration" className="w-full h-auto max-h-72 object-cover" />
-          </div>
-        )}
+      {/* Split Screen */}
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        {/* LEFT PANEL — Image */}
+        <div className="md:w-3/5 bg-gradient-to-br from-violet-50 to-purple-100 flex flex-col items-center justify-center p-8 md:sticky md:top-[65px] md:h-[calc(100vh-65px)]">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="w-full max-w-4xl">
+            {hookImageUrl ? (
+              <img src={hookImageUrl} alt="Inquiry illustration" className="w-full rounded-3xl shadow-2xl object-cover aspect-square" />
+            ) : (
+              <div className="w-full aspect-square rounded-3xl bg-gradient-to-br from-violet-200 to-purple-300 flex items-center justify-center shadow-2xl">
+                <span className="text-9xl">🐼</span>
+              </div>
+            )}
+            <div className="mt-6 bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-violet-100">
+              <p className="text-base text-gray-600 italic">🔍 Analyze this carefully — what do you notice?</p>
+            </div>
+          </motion.div>
+        </div>
 
-        {/* Conversation */}
-        <div className="bg-gradient-to-br from-violet-50 to-purple-50/40 rounded-[28px] p-5 mb-5 max-h-[420px] overflow-y-auto border-2 border-violet-100">
-          <div className="space-y-4">
-            <AnimatePresence initial={false}>
-              {conversationHistory.map((msg, idx) => (
-                <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
-                  className={`flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${msg.role === "user" ? "bg-green-100 text-green-700" : "bg-violet-100"}`}>
-                    {msg.role === "user" ? "You" : "🐼"}
-                  </div>
-                  <div className={`max-w-[85%] px-5 py-3.5 rounded-2xl text-base font-medium leading-relaxed shadow-sm ${msg.role === "user" ? "bg-green-50 text-gray-800 border border-green-200" : "bg-white text-gray-800 border border-violet-200"}`}>
-                    {msg.content.split(/(\*\*.*?\*\*)/).map((part, i) =>
-                      part.startsWith("**") && part.endsWith("**")
-                        ? <strong key={i} className="text-violet-700">{part.slice(2, -2)}</strong>
-                        : <MathRenderer key={i} text={part} />
-                    )}
+        {/* RIGHT PANEL — Chat + Input */}
+        <div className="md:w-2/5 flex flex-col overflow-y-auto bg-white">
+          <div className="flex-1 p-6 md:p-8 space-y-6 max-h-[calc(100vh-65px)] overflow-y-auto">
+            {/* Conversation */}
+            <div className="space-y-4">
+              <AnimatePresence initial={false}>
+                {conversationHistory.map((msg, idx) => (
+                  <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+                    className={`flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${msg.role === "user" ? "bg-green-100 text-green-700" : "bg-violet-100"}`}>
+                      {msg.role === "user" ? "You" : "🐼"}
+                    </div>
+                    <div className={`max-w-[85%] px-5 py-3.5 rounded-2xl text-lg font-medium leading-relaxed shadow-sm ${msg.role === "user" ? "bg-green-50 text-gray-800 border border-green-200" : "bg-violet-50 text-gray-800 border border-violet-200"}`}>
+                      {msg.content.split(/(\*\*.*?\*\*)/).map((part, i) =>
+                        part.startsWith("**") && part.endsWith("**")
+                          ? <strong key={i} className="text-violet-700">{part.slice(2, -2)}</strong>
+                          : <MathRenderer key={i} text={part} />
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {(waitingForTutor || generatingChoices) && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-violet-100 rounded-full flex items-center justify-center">🐼</div>
+                  <div className="bg-violet-50 border border-violet-200 px-5 py-3.5 rounded-2xl flex items-center gap-2 shadow-sm">
+                    <Sparkles className="w-4 h-4 text-violet-400 animate-pulse" />
+                    <span className="text-base text-violet-600 font-medium">Quest Panda is thinking...</span>
                   </div>
                 </motion.div>
-              ))}
-            </AnimatePresence>
-            {(waitingForTutor || generatingChoices) && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-violet-100 rounded-full flex items-center justify-center">🐼</div>
-                <div className="bg-white border border-violet-200 px-5 py-3.5 rounded-2xl flex items-center gap-2 shadow-sm">
-                  <Sparkles className="w-4 h-4 text-violet-400 animate-pulse" />
-                  <span className="text-base text-violet-600 font-medium">Quest Panda is thinking...</span>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* FR Input */}
+            {isFrPhase && !waitingForTutor && !frSubmitting && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-violet-500 uppercase tracking-wider bg-violet-50 px-2 py-1 rounded-full">{phaseLabels[phase]}</span>
                 </div>
+                <textarea
+                  value={frInput}
+                  onChange={(e) => setFrInput(e.target.value)}
+                  placeholder={phase === "q1_fr" ? "What do you notice? What do you think is happening here? (1–2 sentences)" : "Your answer..."}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-violet-400 focus:outline-none text-base text-gray-800 resize-none shadow-sm"
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); phase === "q1_fr" ? handleQ1Submit() : handleQ4Submit(); } }}
+                />
+                <button onClick={phase === "q1_fr" ? handleQ1Submit : handleQ4Submit} disabled={!frInput.trim()}
+                  className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-violet-200 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-semibold transition-all duration-200 shadow-md flex items-center justify-center gap-2">
+                  {phase === "q4_fr" ? "Submit & Finish" : "Submit"} <ArrowRight className="w-4 h-4" />
+                </button>
               </motion.div>
             )}
-            <div ref={messagesEndRef} />
+
+            {/* MC Input */}
+            {isMcPhase && mcChoices.length > 0 && !mcSubmitted && !waitingForTutor && !generatingChoices && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+                <span className="text-xs font-bold text-violet-500 uppercase tracking-wider bg-violet-50 px-2 py-1 rounded-full inline-block">{phaseLabels[phase]}</span>
+                {mcChoices.map((choice, idx) => (
+                  <button key={idx} onClick={() => setMcSelected(idx)}
+                    className={`w-full text-left px-5 py-4 rounded-2xl border-2 text-lg font-medium transition-all duration-200 shadow-sm ${mcSelected === idx ? "border-violet-500 bg-violet-50 text-violet-800 shadow-md scale-[1.01]" : "border-gray-200 bg-white text-gray-700 hover:border-violet-300 hover:bg-violet-50"}`}>
+                    <MathRenderer text={choice} />
+                  </button>
+                ))}
+                <button onClick={() => (phase === "q2_mc" ? handleQ2McSubmit() : handleQ3McSubmit())} disabled={mcSelected === null}
+                  className="w-full mt-2 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-200 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-semibold transition-all duration-200 shadow-md flex items-center justify-center gap-2">
+                  Submit Answer <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+
+            {/* MC Feedback */}
+            {isMcPhase && mcSubmitted && mcChoices.length > 0 && !waitingForTutor && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
+                {mcChoices.map((choice, idx) => (
+                  <div key={idx} className={`w-full px-5 py-4 rounded-2xl border-2 text-lg font-medium flex items-center gap-3 ${idx === mcCorrectIndex ? "border-green-400 bg-green-50 text-green-800" : idx === mcSelected ? "border-red-300 bg-red-50 text-red-700" : "border-gray-100 bg-gray-50 text-gray-400"}`}>
+                    <MathRenderer text={choice} />
+                    {idx === mcCorrectIndex && <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />}
+                    {idx === mcSelected && idx !== mcCorrectIndex && <XCircle className="w-4 h-4 text-red-400 ml-auto" />}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+
+            {/* Complete */}
+            {phase === "complete" && !waitingForTutor && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-br from-violet-50 to-green-50 border-2 border-violet-200 rounded-3xl p-6 text-center shadow-lg">
+                <span className="text-4xl mb-3 block">🎉</span>
+                <h3 className="text-2xl font-bold text-gray-900 mb-1">Amazing thinking!</h3>
+                <p className="text-lg text-gray-600 mb-6">You've explored this topic through guided inquiry. Now let's watch the video!</p>
+                <button onClick={finish}
+                  className="bg-violet-600 hover:bg-violet-700 text-white px-8 py-4 rounded-full font-bold text-base shadow-xl transition-all hover:scale-105 flex items-center gap-2 mx-auto">
+                  Continue to Video <ArrowRight className="w-5 h-5" />
+                </button>
+              </motion.div>
+            )}
           </div>
         </div>
-
-        {/* FR input */}
-        {isFrPhase && !waitingForTutor && !frSubmitting && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
-            <span className="text-xs font-bold text-violet-500 uppercase tracking-wider bg-violet-50 px-2 py-1 rounded-full inline-block">{phaseLabels[phase]}</span>
-            <textarea
-              value={frInput}
-              onChange={(e) => setFrInput(e.target.value)}
-              placeholder={phase === "q1_fr" ? "What do you notice? What do you think is happening here? (1–2 sentences)" : "Your answer..."}
-              rows={3}
-              className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-violet-400 focus:outline-none text-base text-gray-800 resize-none shadow-sm"
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); phase === "q1_fr" ? handleQ1Submit() : handleQ4Submit(); } }}
-            />
-            <button onClick={phase === "q1_fr" ? handleQ1Submit : handleQ4Submit} disabled={!frInput.trim()}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-violet-200 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-semibold transition-all duration-200 shadow-md flex items-center justify-center gap-2">
-              {phase === "q4_fr" ? "Submit & Finish" : "Submit"} <ArrowRight className="w-4 h-4" />
-            </button>
-          </motion.div>
-        )}
-
-        {/* MC input */}
-        {isMcPhase && mcChoices.length > 0 && !mcSubmitted && !waitingForTutor && !generatingChoices && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
-            <span className="text-xs font-bold text-violet-500 uppercase tracking-wider bg-violet-50 px-2 py-1 rounded-full inline-block">{phaseLabels[phase]}</span>
-            {mcChoices.map((choice, idx) => (
-              <button key={idx} onClick={() => setMcSelected(idx)}
-                className={`w-full text-left px-5 py-4 rounded-2xl border-2 text-base font-medium transition-all duration-200 shadow-sm ${mcSelected === idx ? "border-violet-500 bg-violet-50 text-violet-800 shadow-md scale-[1.01]" : "border-gray-200 bg-white text-gray-700 hover:border-violet-300 hover:bg-violet-50"}`}>
-                <MathRenderer text={choice} />
-              </button>
-            ))}
-            <button onClick={() => (phase === "q2_mc" ? handleQ2McSubmit() : handleQ3McSubmit())} disabled={mcSelected === null}
-              className="w-full mt-2 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-200 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-semibold transition-all duration-200 shadow-md flex items-center justify-center gap-2">
-              Submit Answer <ArrowRight className="w-4 h-4" />
-            </button>
-          </motion.div>
-        )}
-
-        {/* MC feedback */}
-        {isMcPhase && mcSubmitted && mcChoices.length > 0 && !waitingForTutor && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
-            {mcChoices.map((choice, idx) => (
-              <div key={idx} className={`w-full px-5 py-4 rounded-2xl border-2 text-base font-medium flex items-center gap-3 ${idx === mcCorrectIndex ? "border-green-400 bg-green-50 text-green-800" : idx === mcSelected ? "border-red-300 bg-red-50 text-red-700" : "border-gray-100 bg-gray-50 text-gray-400"}`}>
-                <MathRenderer text={choice} />
-                {idx === mcCorrectIndex && <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />}
-                {idx === mcSelected && idx !== mcCorrectIndex && <XCircle className="w-4 h-4 text-red-400 ml-auto" />}
-              </div>
-            ))}
-          </motion.div>
-        )}
-
-        {/* Complete */}
-        {phase === "complete" && !waitingForTutor && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-violet-50 to-green-50 border-2 border-violet-200 rounded-3xl p-6 text-center shadow-lg">
-            <span className="text-4xl mb-3 block">🎉</span>
-            <h3 className="text-2xl font-bold text-gray-900 mb-1">Amazing thinking!</h3>
-            <p className="text-base text-gray-600 mb-6">You've explored this topic through guided inquiry. Now let's watch the video!</p>
-            <button onClick={finish}
-              className="bg-violet-600 hover:bg-violet-700 text-white px-8 py-4 rounded-full font-bold text-base shadow-xl transition-all hover:scale-105 flex items-center gap-2 mx-auto">
-              Continue to Video <ArrowRight className="w-5 h-5" />
-            </button>
-          </motion.div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -121,7 +121,7 @@ export default function Layout({ children, currentPageName }) {
 
       // Student-specific routing
       if (user.account_type === "student") {
-        const studentPages = ["LiveSessionPlay", "KnowledgeMap", "JoinClass", "Classes", "LearningHub", "Progress", "NewSession", "PracticeSession", "Curriculum", "SocraticInquiry", "StudentLiveSessions", "AssignedSessionPlay", "AssignedTestPlay", "SelfSessionPlay", "Pricing"];
+        const studentPages = ["LiveSessionPlay", "KnowledgeMap", "JoinClass", "Classes", "LearningHub", "Progress", "NewSession", "PracticeSession", "Curriculum", "SocraticInquiry", "StudentLiveSessions", "AssignedSessionPlay", "AssignedTestPlay", "Pricing"];
 
         // If trying to access non-student page, redirect appropriately
         if (!studentPages.includes(currentPageName) && !noRedirectPages.includes(currentPageName)) {
