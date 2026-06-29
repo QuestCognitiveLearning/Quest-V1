@@ -298,7 +298,7 @@ export default function LiveSessionBuilder() {
           <CardContent className="p-5">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                Topic
+                Title
               </label>
               <Input
                 value={topic}
