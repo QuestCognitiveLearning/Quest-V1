@@ -25,9 +25,13 @@ import {
   Sparkles,
   Calendar,
   ChevronRight,
+  HelpCircle,
+  PenTool,
+  Video,
 } from "lucide-react";
 import SubunitProgressModal from "../components/teacher/SubunitProgressModal";
 import DownloadPDFButton from "@/components/shared/pdf/DownloadPDFButton";
+import { computeSessionScore } from "@/lib/spacedRepetition";
 
 export default function TeacherClassDetail() {
   const navigate = useNavigate();
@@ -849,77 +853,136 @@ function AssignedSessionsTab({ assignedBundles, students, classId, onAssign }) {
 
   const rosterSize = students?.length || 0;
 
+  // Standardized session score (quiz + case study, clamped 0–100) for one
+  // completion row — matches the per-student detail page and the rest of the
+  // platform. Returns null when there's nothing graded yet.
+  const sessionScoreOf = (c) =>
+    c
+      ? computeSessionScore({
+          quizCorrect: c.quiz_correct ?? 0,
+          quizTotal: c.quiz_total ?? 0,
+          caseScore: c.case_study_max != null ? c.case_study_score : null,
+          caseMax: c.case_study_max,
+        })
+      : null;
+
+  const avgOf = (nums) =>
+    nums.length ? Math.round(nums.reduce((s, n) => s + n, 0) / nums.length) : null;
+
   return (
-    <div className="space-y-3">
-      {assignedBundles.map((a) => {
-        const completions = a.completions || [];
-        const scored = completions.filter((c) => c.quiz_score_pct !== null && c.quiz_score_pct !== undefined);
-        const avgPct = scored.length
-          ? Math.round(scored.reduce((s, r) => s + Number(r.quiz_score_pct), 0) / scored.length)
-          : null;
-        const ratioPct = rosterSize > 0 ? Math.round((completions.length / rosterSize) * 100) : 0;
-        const isOpen = openId === a.id;
-        const completionByStudent = new Map(completions.map((c) => [c.student_id, c]));
-        return (
-          <Card key={a.id} className="border border-gray-200">
-            <CardContent className="p-0">
-              <button
-                type="button"
-                onClick={() => setOpenId(isOpen ? null : a.id)}
-                className="w-full flex items-center justify-between gap-4 p-4 text-left hover:bg-slate-50/60 transition-colors"
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-5 h-5" />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900">Assigned Sessions</h2>
+        <Button onClick={onAssign} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
+          <Sparkles className="w-4 h-4" /> Assign a session
+        </Button>
+      </div>
+
+      <div className="grid gap-6">
+        {assignedBundles.map((a) => {
+          const completions = a.completions || [];
+          const ratioPct = rosterSize > 0 ? Math.round((completions.length / rosterSize) * 100) : 0;
+          const isOpen = openId === a.id;
+          const completionByStudent = new Map(completions.map((c) => [c.student_id, c]));
+
+          // Class averages across the students who have completed it.
+          const sessionScores = completions.map(sessionScoreOf).filter((n) => n !== null);
+          const avgScore = avgOf(sessionScores);
+          const quizPcts = completions
+            .filter((c) => c.quiz_score_pct !== null && c.quiz_score_pct !== undefined)
+            .map((c) => Number(c.quiz_score_pct));
+          const avgQuiz = avgOf(quizPcts);
+          const casePcts = completions
+            .filter((c) => c.case_study_max)
+            .map((c) => (Number(c.case_study_score || 0) / Number(c.case_study_max)) * 100);
+          const avgCase = avgOf(casePcts);
+          const acPcts = completions
+            .filter((c) => c.attention_check_total)
+            .map((c) => (Number(c.attention_check_correct || 0) / Number(c.attention_check_total)) * 100);
+          const avgAc = avgOf(acPcts);
+
+          return (
+            <Card key={a.id} className="border-0 shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
+              {/* Gradient header — mirrors the Progress tab's unit cards */}
+              <div className="bg-gradient-to-r from-violet-600 to-purple-600 p-6 text-white">
+                <div className="flex items-center justify-between mb-4 gap-4">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-7 h-7" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-2xl font-bold truncate">{a.bundle_title}</h2>
+                      <p className="text-violet-100 text-sm inline-flex items-center gap-3 mt-0.5">
+                        <span>Single learning session</span>
+                        {a.due_at && (
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            Due {new Date(a.due_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-900 truncate">{a.bundle_title}</p>
-                    <p className="text-xs text-slate-500 inline-flex items-center gap-3 mt-0.5">
-                      <span>
-                        <strong>{completions.length}/{rosterSize}</strong> done
-                      </span>
-                      {avgPct !== null && (
-                        <span>· {avgPct}% avg</span>
-                      )}
-                      {a.due_at && (
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          Due {new Date(a.due_at).toLocaleDateString()}
-                        </span>
-                      )}
-                    </p>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-4xl font-bold">{ratioPct}%</div>
+                    <div className="text-violet-100 text-sm">
+                      {completions.length}/{rosterSize} completed
+                    </div>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`} />
-              </button>
-
-              <div className="px-4 pb-3">
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-violet-500 transition-all" style={{ width: `${ratioPct}%` }} />
+                <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-white rounded-full transition-all duration-500 shadow-lg"
+                    style={{ width: `${ratioPct}%` }}
+                  />
                 </div>
               </div>
 
-              {isOpen && (
-                <div className="border-t border-slate-100 p-4 bg-slate-50/40">
-                  {rosterSize === 0 ? (
+              <CardContent className="p-6 space-y-5">
+                {/* Summary stat tiles */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <StatTile icon={Trophy} label="Avg score" value={avgScore} accent="violet" />
+                  <StatTile icon={HelpCircle} label="Avg quiz" value={avgQuiz} accent="blue" />
+                  <StatTile icon={PenTool} label="Avg case study" value={avgCase} accent="purple" />
+                  <StatTile icon={Video} label="Avg attention" value={avgAc} accent="emerald" />
+                </div>
+
+                {/* Expandable per-student breakdown */}
+                <button
+                  type="button"
+                  onClick={() => setOpenId(isOpen ? null : a.id)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border-2 border-violet-100 bg-violet-50/50 hover:border-violet-300 hover:bg-violet-50 transition-all text-left"
+                >
+                  <span className="text-sm font-semibold text-violet-800 inline-flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Student responses
+                  </span>
+                  <span className="text-xs text-violet-500 inline-flex items-center gap-1">
+                    {isOpen ? "Hide" : "View"}
+                    <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                  </span>
+                </button>
+
+                {isOpen && (
+                  rosterSize === 0 ? (
                     <p className="text-sm text-slate-500 italic text-center py-4">
                       No students enrolled in this class yet.
                     </p>
                   ) : (
-                    <ul className="space-y-1.5">
+                    <div className="grid md:grid-cols-2 gap-2.5">
                       {students.map((s) => {
                         const c = completionByStudent.get(s.id);
-                        const pct = c?.quiz_score_pct !== null && c?.quiz_score_pct !== undefined
-                          ? Math.round(Number(c.quiz_score_pct))
-                          : null;
-                        const pctColor =
-                          c === undefined ? "text-slate-400" :
-                          pct === null ? "text-slate-500" :
-                          pct >= 75 ? "text-emerald-700" :
-                          pct >= 50 ? "text-amber-700" :
+                        const score = sessionScoreOf(c);
+                        const done = c !== undefined;
+                        const scoreColor =
+                          !done ? "text-slate-400" :
+                          score === null ? "text-slate-500" :
+                          score >= 75 ? "text-emerald-700" :
+                          score >= 50 ? "text-amber-700" :
                           "text-red-700";
                         return (
-                          <li
+                          <button
+                            type="button"
                             key={s.id}
                             onClick={() =>
                               navigate(
@@ -927,44 +990,79 @@ function AssignedSessionsTab({ assignedBundles, students, classId, onAssign }) {
                                   `?assignmentId=${a.id}&studentId=${s.id}&classId=${classId}`
                               )
                             }
-                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white border border-slate-100 hover:border-violet-300 hover:shadow-sm cursor-pointer transition-all"
+                            className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 hover:border-violet-300 hover:shadow-md cursor-pointer transition-all text-left"
                           >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${done ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-400"}`}>
+                              {s.full_name?.charAt(0) || "?"}
+                            </div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-slate-900 truncate">
+                              <p className="text-sm font-semibold text-slate-900 truncate">
                                 {s.full_name || s.email || "Student"}
                               </p>
-                              <p className="text-[11px] text-slate-500">
-                                {c?.completed_at
-                                  ? `Done ${new Date(c.completed_at).toLocaleString(undefined, {
-                                      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-                                    })}`
-                                  : "Not started"}
+                              <p className="text-[11px] text-slate-500 inline-flex items-center gap-1">
+                                {done ? (
+                                  <>
+                                    <CheckCircle className="w-3 h-3 text-emerald-500" />
+                                    {c.completed_at
+                                      ? new Date(c.completed_at).toLocaleDateString(undefined, {
+                                          month: "short", day: "numeric",
+                                        })
+                                      : "Done"}
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="w-3 h-3 text-slate-300" />
+                                    Not started
+                                  </>
+                                )}
                               </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-right">
-                                <p className={`text-base font-bold tabular-nums ${pctColor}`}>
-                                  {c === undefined ? "—" : pct !== null ? `${pct}%` : "—"}
+                            <div className="text-right flex-shrink-0">
+                              <p className={`text-lg font-bold tabular-nums ${scoreColor}`}>
+                                {!done ? "—" : score !== null ? `${score}%` : "—"}
+                              </p>
+                              {done && c.quiz_total != null && (
+                                <p className="text-[10px] text-slate-400 tabular-nums">
+                                  {c.quiz_correct ?? 0}/{c.quiz_total} quiz
                                 </p>
-                                {c?.quiz_total !== null && c?.quiz_total !== undefined && (
-                                  <p className="text-[10px] text-slate-400 tabular-nums">
-                                    {c.quiz_correct ?? 0}/{c.quiz_total}
-                                  </p>
-                                )}
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                              )}
                             </div>
-                          </li>
+                            <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                          </button>
                         );
                       })}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+                    </div>
+                  )
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Compact metric tile used in the Assigned Sessions cards. Shows "—" when
+// there's no graded data yet so empty sessions read clearly.
+function StatTile({ icon: Icon, label, value, accent = "violet" }) {
+  const accents = {
+    violet: "bg-violet-50 text-violet-700",
+    blue: "bg-blue-50 text-blue-700",
+    purple: "bg-purple-50 text-purple-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+  };
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${accents[accent]}`}>
+          <Icon className="w-4 h-4" />
+        </span>
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+      </div>
+      <p className="text-2xl font-bold text-slate-900 tabular-nums">
+        {value !== null && value !== undefined ? `${value}%` : "—"}
+      </p>
     </div>
   );
 }
