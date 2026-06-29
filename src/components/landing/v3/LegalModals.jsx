@@ -27,6 +27,34 @@ export const LEGAL_DOCS = {
         "We share data only with vetted service providers who help us operate the platform — Supabase (hosting, database, authentication), Stripe (payments), OpenAI (AI lesson and tutoring features), Resend (transactional email), Google (optional sign-in), and YouTube (teacher-selected video). Each is bound by confidentiality and is prohibited from using student data for its own purposes. We do not sell data to anyone.",
       ],
       [
+        "Google User Data",
+        "When you choose to sign in with Google, Quest Learning accesses a limited set of Google user data through Google's OAuth sign-in service. This section describes exactly how we handle that data, consistent with the Google API Services User Data Policy.",
+      ],
+      [
+        "Google User Data — Data Accessed",
+        "We access only your basic Google profile information: your name, your email address, and your Google account identifier. We do not request or access your Gmail, Google Drive, contacts, calendar, photos, or any other Google service or data.",
+      ],
+      [
+        "Google User Data — Data Usage",
+        "We use this information solely to create your Quest Learning account or sign you in, to match you to the correct existing account, and to assign your role (such as teacher or student). We do not use Google user data for advertising, and we do not build advertising or marketing profiles from it.",
+      ],
+      [
+        "Google User Data — Data Sharing",
+        "We do not sell Google user data, and we do not share it with third parties except the vetted subprocessors strictly necessary to operate the Service (described in our Data Sharing & Subprocessors notice), each of which is bound by confidentiality and prohibited from using it for its own purposes.",
+      ],
+      [
+        "Google User Data — Data Storage & Protection",
+        "Google user data is encrypted in transit using SSL/TLS and encrypted at rest in our database. Access is restricted through secure authentication and role-based access controls, as described in our Security notice.",
+      ],
+      [
+        "Google User Data — Data Retention & Deletion",
+        "We retain Google user data only as long as your account is active or as needed for the educational purpose. You may request deletion at any time by emailing admin@questlearning.co, and we will delete the associated Google user data within 30 days of a verified request.",
+      ],
+      [
+        "Google User Data — Limited Use",
+        "Quest Learning's use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy (https://developers.google.com/terms/api-services-user-data-policy), including the Limited Use requirements.",
+      ],
+      [
         "Data Retention & Deletion",
         "We retain personal information only as long as needed for the educational purpose or for the duration of the school's subscription. On a verified request from a user, parent, or school, we delete the associated personal information within 30 days. To make a request, email admin@questlearning.co.",
       ],
