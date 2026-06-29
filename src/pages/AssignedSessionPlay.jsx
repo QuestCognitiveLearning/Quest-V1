@@ -73,7 +73,7 @@ export default function AssignedSessionPlay() {
   };
 
   const content = useMemo(
-    () => bundlePayloadToContent(bundle?.payload, { badgeLabel: "Single Session", sourceUrl: bundle?.source_url }),
+    () => bundlePayloadToContent(bundle?.payload, { badgeLabel: "Single Session", sourceUrl: bundle?.source_url, title: bundle?.title }),
     [bundle]
   );
 

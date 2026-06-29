@@ -49,7 +49,7 @@ export function toQuizQuestion(q, i) {
 }
 
 // Map a generated lesson-bundle payload → SessionFlow's normalized `content`.
-export function bundlePayloadToContent(payload, { badgeLabel = "Assigned", sourceUrl = "" } = {}) {
+export function bundlePayloadToContent(payload, { badgeLabel = "Assigned", sourceUrl = "", title = "" } = {}) {
   const p = payload || {};
   const video = p.video || {};
   const videoId =
@@ -59,7 +59,8 @@ export function bundlePayloadToContent(payload, { badgeLabel = "Assigned", sourc
     getYouTubeVideoId(sourceUrl) ||
     null;
   return {
-    topic: video.title || p.title || "Learning session",
+    // Prefer the teacher-given session title; fall back to the video title.
+    topic: title || video.title || p.title || "Learning session",
     unitName: "",
     badgeLabel,
     videoId,
