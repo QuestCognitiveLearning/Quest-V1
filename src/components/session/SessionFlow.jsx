@@ -59,6 +59,7 @@ export default function SessionFlow({
   onCaseStudySave,
   onFinish,
   onExit,
+  onPhaseChange,
   allowRetry = true,
   onRetry,
   resultsFooter = null,
@@ -125,6 +126,9 @@ export default function SessionFlow({
     const i = phases.indexOf(step);
     setStep(phases[Math.min(i + 1, phases.length - 1)]);
   };
+
+  // Notify the caller of phase changes (live mirrors this to participant.current_phase).
+  useEffect(() => { onPhaseChange?.(step); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [step]);
 
   // ---- YouTube player init (verbatim from NewSession) --------------------
   useEffect(() => {
