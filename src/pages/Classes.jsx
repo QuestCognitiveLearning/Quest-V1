@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { loadStudentClasses } from "@/lib/studentClasses";
+import { confirmDialog } from "@/lib/confirm";
+import { toast } from "sonner";
 import { quest } from "@/api/questClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +18,8 @@ import {
   Plus,
   GraduationCap,
   Trophy,
-  Zap
+  Zap,
+  Trash2
 } from "lucide-react";
 import StudentPageShell from "@/components/shared/StudentPageShell";
 
@@ -47,6 +50,28 @@ export default function Classes() {
     }
   }, [selectedClassId, user, classes, studentProgress]);
 
+
+  // Leave a class — removes the student's own enrollment row (the class itself
+  // and other students are untouched; only the teacher can delete a class).
+  const handleLeaveClass = async (classItem) => {
+    const enrollment = enrollments.find((e) => e.class_id === classItem.id);
+    if (!enrollment) return;
+    const ok = await confirmDialog({
+      title: `Leave ${classItem.class_name}?`,
+      message: "You'll be removed from this class and stop seeing its assignments. You can rejoin later with the class code.",
+      tone: "danger",
+      confirmLabel: "Leave class",
+    });
+    if (!ok) return;
+    try {
+      await quest.entities.StudentEnrollment.delete(enrollment.id);
+      toast.success("Left class");
+      await loadData();
+    } catch (err) {
+      console.error("Leave class failed:", err);
+      toast.error("Could not leave the class.");
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -350,12 +375,21 @@ export default function Classes() {
                             </div>
                             <p className="text-xs text-gray-500 mb-1.5">{getCurriculumName(classItem.curriculum_id)} · Joined {new Date(enrollment?.enrollment_date).toLocaleDateString()}</p>
                             <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-black rounded-full transition-all" 
+                              <div
+                                className="h-full bg-black rounded-full transition-all"
                                 style={{ width: `${progress}%` }}
                               ></div>
                             </div>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Leave class"
+                            onClick={() => handleLeaveClass(classItem)}
+                            className="shrink-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>

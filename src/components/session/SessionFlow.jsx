@@ -469,7 +469,8 @@ export default function SessionFlow({
                   <p className="text-xs text-[#1A1A1A]/70" style={{ fontWeight: 450 }}>Watch completely and answer all attention checks to proceed</p>
                 </div>
                 <div className="flex gap-3">
-                  <Button onClick={() => setShowExitModal(true)} variant="outline" className="px-6 py-3 rounded-full">Exit</Button>
+                  {/* No Exit here — the header already has one; two during the
+                      video read as a mistake. */}
                   <Button onClick={advance} disabled={!canProceed}
                     className="flex-1 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-3 disabled:opacity-50 font-semibold rounded-full">
                     {canProceed ? "Continue" : "Complete video to continue"}

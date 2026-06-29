@@ -38,6 +38,8 @@ import {
   RefreshCw,
   Subtitles,
   Languages,
+  Pencil,
+  Check,
 } from "lucide-react";
 import MathEditorButton from "./MathEditorButton";
 import MathEquationModal from "./MathEquationModal";
@@ -277,6 +279,127 @@ function ChoiceEditor({ item, onChange, mathEditing = false }) {
         </div>
       )}
     </div>
+  );
+}
+
+// A locked-by-default text field. Shows the full value as read-only text (so
+// long content is never clipped by a fixed-height box); clicking it — or the
+// pencil — switches that one field into an editable MathField with the math
+// inserter. Keeps the review screen calm: no input chrome or math icons until
+// the teacher actually edits a specific box.
+function EditableText({ value, onChange, multiline = false, mathEditing = false, placeholder = "", rows = 3 }) {
+  const [editing, setEditing] = useState(false);
+  const text = value == null ? "" : String(value);
+
+  if (editing) {
+    return (
+      <div className="space-y-1.5">
+        <MathField
+          as={multiline ? "textarea" : "input"}
+          enableMath={mathEditing}
+          rows={rows}
+          value={text}
+          onChange={onChange}
+          placeholder={placeholder}
+          autoFocus
+        />
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900"
+        >
+          <Check className="w-3.5 h-3.5" /> Done
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => setEditing(true)}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setEditing(true)}
+      className="group flex items-start gap-2 rounded-lg border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60 px-3 py-2 cursor-text transition-colors"
+    >
+      <div className="flex-1 min-w-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">
+        {text ? text : <span className="text-slate-400">{placeholder || "Empty — click to add"}</span>}
+      </div>
+      <Pencil className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 mt-0.5 shrink-0" />
+    </div>
+  );
+}
+
+// A quiz / attention-check item. Read-only by default (full question + choices,
+// correct answer highlighted); "Edit" reveals the ChoiceEditor (where the math
+// inserter lives). Mirrors the edit-on-click feel of the prose fields.
+function QuestionCard({ index, item, onChange, onRemove, mathEditing = false, label = "Q" }) {
+  const [editing, setEditing] = useState(false);
+  const correct = String(item.correct_choice || "").toUpperCase();
+  return (
+    <li className="border border-slate-200 rounded-xl p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-bold text-slate-400">{label}{index + 1}</span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setEditing((e) => !e)}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-900 px-1.5 py-0.5"
+          >
+            {editing ? <><Check className="w-3 h-3" /> Done</> : <><Pencil className="w-3 h-3" /> Edit</>}
+          </button>
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="p-1 text-slate-400 hover:text-red-600"
+              aria-label="Remove"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+      {editing ? (
+        <ChoiceEditor item={item} onChange={onChange} mathEditing={mathEditing} />
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium text-slate-800 whitespace-pre-wrap break-words">
+            {item.question || <span className="text-slate-400">No question yet</span>}
+          </p>
+          <ul className="space-y-1">
+            {LETTERS.map((l) => {
+              const isCorrect = correct === l.toUpperCase();
+              return (
+                <li
+                  key={l}
+                  className={`flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg border ${
+                    isCorrect ? "bg-emerald-50 border-emerald-300" : "bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded text-[11px] font-bold flex items-center justify-center shrink-0 ${
+                      isCorrect ? "bg-emerald-600 text-white" : "bg-white text-slate-500 border border-slate-200"
+                    }`}
+                  >
+                    {l.toUpperCase()}
+                  </span>
+                  <span className="flex-1 min-w-0 whitespace-pre-wrap break-words text-slate-700">
+                    {item[`choice_${l}`] || <span className="text-slate-300">—</span>}
+                  </span>
+                  {isCorrect && <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                </li>
+              );
+            })}
+          </ul>
+          {item.difficulty !== undefined && (
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              {item.difficulty}
+            </span>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -536,8 +659,9 @@ export function SessionContentReview({
                         Regenerate
                       </Button>
                     </div>
-                    <Textarea
-                      rows={2}
+                    <EditableText
+                      multiline
+                      mathEditing={mathEditing}
                       value={inq.hook_image_prompt || ""}
                       onChange={(e) => setInquiry({ hook_image_prompt: e.target.value })}
                       placeholder="Describe the hook image to generate"
@@ -546,8 +670,9 @@ export function SessionContentReview({
                 )}
                 <div>
                   <FieldLabel>Hook question</FieldLabel>
-                  <MathField
-                    enableMath={mathEditing}
+                  <EditableText
+                    multiline
+                    mathEditing={mathEditing}
                     value={inq.hook_question || ""}
                     onChange={(e) => setInquiry({ hook_question: e.target.value })}
                     placeholder="A curiosity question to prime thinking"
@@ -555,8 +680,9 @@ export function SessionContentReview({
                 </div>
                 <div>
                   <FieldLabel>Tutor's opening message</FieldLabel>
-                  <Textarea
-                    rows={2}
+                  <EditableText
+                    multiline
+                    mathEditing={mathEditing}
                     value={inq.tutor_first_message || ""}
                     onChange={(e) => setInquiry({ tutor_first_message: e.target.value })}
                     placeholder="Welcome! Let's think about this together..."
@@ -565,8 +691,10 @@ export function SessionContentReview({
                 {inq.socratic_system_prompt != null && (
                   <div>
                     <FieldLabel>Socratic system prompt</FieldLabel>
-                    <Textarea
+                    <EditableText
+                      multiline
                       rows={4}
+                      mathEditing={mathEditing}
                       value={inq.socratic_system_prompt || ""}
                       onChange={(e) => setInquiry({ socratic_system_prompt: e.target.value })}
                       placeholder="How the tutor should guide the discussion"
@@ -592,9 +720,14 @@ export function SessionContentReview({
                 </div>
                 <ol className="space-y-3">
                   {checks.map((ac, i) => (
-                    <li key={i} className="border border-slate-200 rounded-xl p-3 bg-amber-50/30">
-                      <ChoiceEditor item={ac} onChange={(patch) => setCheckItem(i, patch)} mathEditing={mathEditing} />
-                    </li>
+                    <QuestionCard
+                      key={i}
+                      index={i}
+                      item={ac}
+                      onChange={(patch) => setCheckItem(i, patch)}
+                      mathEditing={mathEditing}
+                      label="Check "
+                    />
                   ))}
                   {checks.length === 0 && (
                     <li className="text-sm text-slate-400">No attention checks.</li>
@@ -635,20 +768,14 @@ export function SessionContentReview({
                 </div>
                 <ol className="space-y-4">
                   {quiz.map((q, i) => (
-                    <li key={i} className="border border-slate-200 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-bold text-slate-400">Q{i + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeQuizItem(i)}
-                          className="p-1 text-slate-400 hover:text-red-600"
-                          aria-label="Remove question"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <ChoiceEditor item={q} onChange={(patch) => setQuizItem(i, patch)} mathEditing={mathEditing} />
-                    </li>
+                    <QuestionCard
+                      key={i}
+                      index={i}
+                      item={q}
+                      onChange={(patch) => setQuizItem(i, patch)}
+                      onRemove={() => removeQuizItem(i)}
+                      mathEditing={mathEditing}
+                    />
                   ))}
                 </ol>
                 <Button
@@ -667,10 +794,10 @@ export function SessionContentReview({
               <TabsContent value="casestudy" className="space-y-4">
                 <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/40">
                   <FieldLabel>Scenario</FieldLabel>
-                  <MathField
-                    as="textarea"
-                    enableMath={mathEditing}
+                  <EditableText
+                    multiline
                     rows={4}
+                    mathEditing={mathEditing}
                     value={cs.scenario || ""}
                     onChange={(e) => setCase({ scenario: e.target.value })}
                     placeholder="A realistic scenario students reason through..."
@@ -687,17 +814,19 @@ export function SessionContentReview({
                         className="border border-slate-200 rounded-xl p-2.5 bg-white space-y-2"
                       >
                         <div className="flex items-start gap-2">
-                          <span className="text-[11px] font-bold text-slate-400 mt-2.5 w-5 text-center flex-shrink-0">
+                          <span className="text-[11px] font-bold text-slate-400 mt-2 w-5 text-center flex-shrink-0">
                             {i + 1}
                           </span>
-                          <MathField
-                            as="textarea"
-                            enableMath={mathEditing}
-                            rows={2}
-                            value={dqText(q)}
-                            onChange={(e) => setDiscussionQuestion(i, e.target.value)}
-                            placeholder="A question students discuss..."
-                          />
+                          <div className="flex-1 min-w-0">
+                            <EditableText
+                              multiline
+                              rows={2}
+                              mathEditing={mathEditing}
+                              value={dqText(q)}
+                              onChange={(e) => setDiscussionQuestion(i, e.target.value)}
+                              placeholder="A question students discuss..."
+                            />
+                          </div>
                           {/* Curriculum case studies have fixed a/b/c/d slots —
                               deleting one would shift the rest, so only the
                               variable-length (handout/single/live) mode removes. */}
@@ -712,13 +841,13 @@ export function SessionContentReview({
                             </button>
                           )}
                         </div>
-                        {/* Optional answer key / rubric — off by default. A
-                            teacher opts in per question if they want to grade
-                            against an expected answer. */}
+                        {/* Optional grading rubric — off by default. A teacher
+                            opts in per question if they want to grade against an
+                            expected answer; otherwise no empty box is shown. */}
                         {(openAnswerKeys.has(i) || dqAnswer(q)) ? (
                           <div className="ml-7 border-l-2 border-emerald-200 pl-3">
                             <div className="flex items-center justify-between">
-                              <FieldLabel>Answer key / rubric</FieldLabel>
+                              <FieldLabel>Grading rubric</FieldLabel>
                               <button
                                 type="button"
                                 onClick={() => toggleAnswerKey(i, false)}
@@ -727,10 +856,10 @@ export function SessionContentReview({
                                 Remove
                               </button>
                             </div>
-                            <MathField
-                              as="textarea"
-                              enableMath={mathEditing}
+                            <EditableText
+                              multiline
                               rows={2}
+                              mathEditing={mathEditing}
                               value={dqAnswer(q)}
                               onChange={(e) => setDiscussionAnswer(i, e.target.value)}
                               placeholder="What a strong answer covers…"
@@ -742,7 +871,7 @@ export function SessionContentReview({
                             onClick={() => toggleAnswerKey(i, true)}
                             className="ml-7 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700"
                           >
-                            <Plus className="w-3 h-3" /> Add answer key
+                            <Plus className="w-3 h-3" /> Add grading rubric
                           </button>
                         )}
                       </li>
