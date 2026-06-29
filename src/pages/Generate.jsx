@@ -1439,40 +1439,42 @@ ${inquiryTranscript ? `
 
         {stage === "result" && result && !isStudent && (
           <div className="space-y-5">
-            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-3 flex flex-wrap gap-2 shadow-sm">
-              <Button
-                onClick={handleSaveToLibrary}
-                disabled={saving}
-                className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save to library
-              </Button>
-              {result.video?.videoId && (
-                <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <PlayCircle className="w-4 h-4" /> Use in live session
+            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  onClick={handleSaveToLibrary}
+                  disabled={saving}
+                  className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save to library
                 </Button>
-              )}
-              <Button onClick={handleDownloadPDF} variant="outline" className="gap-2">
-                <Download className="w-4 h-4" /> PDF
-              </Button>
-              <Button onClick={handleDownloadWord} variant="outline" className="gap-2">
-                <FileText className="w-4 h-4" /> Word
-              </Button>
-              <Button
-                onClick={() =>
-                  setEditTarget({
-                    source: "result",
-                    title: result?.video?.title,
-                    payload: result,
-                  })
-                }
-                variant="outline"
-                className="gap-2"
-              >
-                <Pencil className="w-4 h-4" /> Edit
-              </Button>
-              <Button onClick={startOver} variant="ghost" className="ml-auto">
+                {result.video?.videoId && (
+                  <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                    <PlayCircle className="w-4 h-4" /> Use in live session
+                  </Button>
+                )}
+                <Button onClick={handleDownloadPDF} variant="outline" className="gap-2">
+                  <Download className="w-4 h-4" /> PDF
+                </Button>
+                <Button onClick={handleDownloadWord} variant="outline" className="gap-2">
+                  <FileText className="w-4 h-4" /> Word
+                </Button>
+                <Button
+                  onClick={() =>
+                    setEditTarget({
+                      source: "result",
+                      title: result?.video?.title,
+                      payload: result,
+                    })
+                  }
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Pencil className="w-4 h-4" /> Edit
+                </Button>
+              </div>
+              <Button onClick={startOver} variant="ghost" className="shrink-0 whitespace-nowrap">
                 Generate another
               </Button>
             </div>
