@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/select";
 import TeacherLayout from "../components/teacher/TeacherLayout";
 import StudentSidebar from "../components/shared/StudentSidebar";
-import SelfSessionPhases from "../components/student/SelfSessionPhases";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
 import { studentGenerationsRemaining, canStudentGenerate, getLimits } from "@/lib/tier";
@@ -89,11 +88,8 @@ export default function Generate() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("youtube"); // youtube | pdf
   const [mode, setMode] = useState("live"); // teacher: live | handout
-  // Student-only: which post-generation view to show.
-  // 'flashcards' = study-card deck. 'learning_session' = phased walk
-  // (summary → video+attention checks → quiz → case study) that the
-  // student completes inline and then saves to their library.
-  const [studentMode, setStudentMode] = useState("learning_session");
+  // Student-only post-generation view. Students create flashcard decks.
+  const [studentMode, setStudentMode] = useState("flashcards");
   // Pre-generation toggles + scheduling for student Learning Sessions.
   // includeSummary: prepend a quick 5-bullet summary of the video.
   // includeAttention: pause-on-timestamp attention checks during the video.
@@ -105,10 +101,6 @@ export default function Generate() {
     new Date().toISOString().slice(0, 10)
   );
   const [reviewsEnabled, setReviewsEnabled] = useState(true);
-  // Set once the student finishes the inline phases — we can then offer
-  // a Save button below that persists the bundle + self-session row.
-  const [studentCompletion, setStudentCompletion] = useState(null);
-  const [studentSessionSaved, setStudentSessionSaved] = useState(false);
   const [stage, setStage] = useState("input"); // input | generating | result
   const [error, setError] = useState("");
   const [options, setOptions] = useState({ ...DEFAULT_OPTIONS });
@@ -152,6 +144,11 @@ export default function Generate() {
   // Opened by the library "Review" button and the result-stage "Edit" button.
   const [editTarget, setEditTarget] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  // Once generation finishes, teachers review/edit in the SAME modal used by
+  // the assigned/live/curriculum flows (instead of the old inline-only view),
+  // so reviewing made content looks identical everywhere. Auto-open it once per
+  // generated result; the page's save/PDF/Word/live actions stay behind it.
+  const autoReviewRef = useRef(false);
 
   // In-page confirm dialog (replaces window.confirm for library deletes).
   // { title, message, confirmLabel, onConfirm }.
@@ -162,6 +159,19 @@ export default function Generate() {
   const studentLimit = getLimits(user).studentGenerationsTotal ?? 0;
   const studentUsed = user?.student_generations_used ?? 0;
   const studentBlocked = isStudent && !canStudentGenerate(user);
+
+  // Auto-open the shared review/edit modal once a teacher's content is ready,
+  // so the review experience matches assigned/live/curriculum exactly.
+  useEffect(() => {
+    if (stage !== "result") {
+      autoReviewRef.current = false;
+      return;
+    }
+    if (result && !isStudent && !autoReviewRef.current) {
+      autoReviewRef.current = true;
+      setEditTarget({ source: "result", title: result?.video?.title, payload: result });
+    }
+  }, [stage, result, isStudent]);
 
   // Generate flashcards client-side via invokeLLM. The model decides
   // how many cards to produce — we don't cap or floor. Cards must be
@@ -264,92 +274,6 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
       }
     } catch (err) {
       console.warn("Summary generation failed (non-fatal):", err);
-    }
-  };
-
-  // Persist the student-created session: bundle row + student_self_sessions
-  // row (with scheduled date + review-enabled flag). If reviews are enabled
-  // AND the student has already completed it inline, queue review rows on the
-  // shared spaced-repetition ladder.
-  const saveStudentSession = async () => {
-    if (!isStudent || !user || !result || saving) return;
-    setSaving(true);
-    try {
-      const vid = result?.video?.videoId;
-      const sourceUrl = vid
-        ? `https://www.youtube.com/watch?v=${vid}`
-        : result?.video?.url || null;
-
-      const { data: bundle, error: bErr } = await supabase
-        .from("lesson_bundles")
-        .insert({
-          teacher_id: user.id,
-          title: result?.video?.title || "My learning session",
-          source_type: tab === "pdf" ? "pdf" : "youtube",
-          source_url: sourceUrl,
-          grade_level: options.gradeLevel || null,
-          payload: result,
-        })
-        .select("id")
-        .single();
-      if (bErr) throw bErr;
-
-      const completion = studentCompletion || null;
-      const completedAt = completion ? new Date().toISOString() : null;
-      const responsesJson = completion
-        ? {
-            quiz_responses: completion.quiz_responses || null,
-            attention_check_responses: completion.attention_check_responses || null,
-            case_study_responses: completion.case_study_responses || null,
-          }
-        : null;
-
-      const { data: selfSession, error: sErr } = await supabase
-        .from("student_self_sessions")
-        .insert({
-          student_id: user.id,
-          bundle_id: bundle.id,
-          scheduled_for: scheduledFor,
-          review_enabled: reviewsEnabled,
-          review_number: 0,
-          completed_at: completedAt,
-          quiz_score_pct: completion?.quiz_score_pct ?? null,
-          case_study_score: completion?.case_study_score ?? null,
-          case_study_max: completion?.case_study_max ?? null,
-          responses: responsesJson,
-        })
-        .select("id")
-        .single();
-      if (sErr) throw sErr;
-
-      if (reviewsEnabled && completion) {
-        const base = new Date(`${scheduledFor}T00:00:00`);
-        const rows = REVIEW_OFFSETS.map((days, idx) => {
-          const d = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
-          return {
-            student_id: user.id,
-            bundle_id: bundle.id,
-            scheduled_for: d.toISOString().slice(0, 10),
-            review_enabled: false,
-            parent_session_id: selfSession.id,
-            review_number: idx + 1,
-          };
-        });
-        const { error: rErr } = await supabase.from("student_self_sessions").insert(rows);
-        if (rErr) console.warn("Review queue insert failed (non-fatal):", rErr);
-      }
-
-      setStudentSessionSaved(true);
-      toast.success(
-        completion
-          ? "Saved to your library — reviews queued."
-          : `Saved — appears on your Learning Hub on ${scheduledFor}.`
-      );
-    } catch (err) {
-      console.error("Save self-session failed:", err);
-      toast.error(err?.message || "Could not save.");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -765,8 +689,6 @@ ${inquiryTranscript ? `
     setPdfTopic("");
     setStage("input");
     setError("");
-    setStudentCompletion(null);
-    setStudentSessionSaved(false);
   };
 
   // ---- Library save ------------------------------------------------------
@@ -1028,60 +950,9 @@ ${inquiryTranscript ? `
             <StepHeader
               n={1}
               label="Choose what to create"
-              hint={isStudent ? "Flashcards or a full learning session." : "Run it live, or make a handout."}
+              hint={isStudent ? "Turn a video into a flashcard deck." : "Run it live, or make a handout."}
             />
-            {isStudent ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
-            <button
-              type="button"
-              onClick={() => {
-                setStudentMode("learning_session");
-                setOptions((o) => ({
-                  ...o,
-                  includeInquiry: true,
-                  includeAttentionChecks: true,
-                }));
-              }}
-              className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
-                studentMode === "learning_session"
-                  ? "bg-emerald-50 border-2 border-emerald-500"
-                  : "border-2 border-transparent hover:bg-slate-50"
-              }`}
-            >
-              <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${studentMode === "learning_session" ? "text-emerald-600" : "text-slate-400"}`} />
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Learning session</div>
-                <div className="text-[11.5px] text-slate-500 mt-0.5">
-                  Watch the video, answer the quiz, complete the case study — then save it to your library.
-                </div>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStudentMode("flashcards");
-                setOptions((o) => ({
-                  ...o,
-                  includeInquiry: false,
-                  includeAttentionChecks: false,
-                }));
-              }}
-              className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
-                studentMode === "flashcards"
-                  ? "bg-blue-50 border-2 border-[#2563EB]"
-                  : "border-2 border-transparent hover:bg-slate-50"
-              }`}
-            >
-              <Sparkles className={`w-5 h-5 mt-0.5 shrink-0 ${studentMode === "flashcards" ? "text-[#2563EB]" : "text-slate-400"}`} />
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Flashcards</div>
-                <div className="text-[11.5px] text-slate-500 mt-0.5">
-                  A flippable card deck from the key concepts in the video.
-                </div>
-              </div>
-            </button>
-          </div>
-        ) : (
+            {isStudent ? null : (
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
             <button
               type="button"
@@ -1185,31 +1056,8 @@ ${inquiryTranscript ? `
         {stage === "input" && (
           <div className="space-y-5">
             {/* Student-only Learning Session controls — summary toggle,
-                attention checks toggle, scheduled date, and the spaced-
-                repetition review toggle. Hidden for Flashcards mode
-                (which doesn't need scheduling or video extras) and for
-                teachers (they keep the CustomizePanel below). */}
-            {isStudent && studentMode === "learning_session" && (
-              <StudentSessionControls
-                includeSummary={includeSummary}
-                setIncludeSummary={setIncludeSummary}
-                includeAttention={includeAttention}
-                setIncludeAttention={(on) => {
-                  setIncludeAttention(on);
-                  setOptions((o) => ({ ...o, includeAttentionChecks: on }));
-                }}
-                scheduledFor={scheduledFor}
-                setScheduledFor={setScheduledFor}
-                reviewsEnabled={reviewsEnabled}
-                setReviewsEnabled={setReviewsEnabled}
-              />
-            )}
-
-            {/* CustomizePanel sits ABOVE the video picker so the teacher
-                picks what to include BEFORE choosing a source — clicking a
-                search result then fires generation with the current toggle
-                state. Hidden for students — their controls live in
-                StudentSessionControls above. */}
+                picks what to include BEFORE choosing a source. Hidden for
+                students. */}
             {!isStudent && (
               <CustomizePanel
                 options={options}
@@ -1485,51 +1333,12 @@ ${inquiryTranscript ? `
         )}
 
         {stage === "result" && result && isStudent && (
-          studentMode === "flashcards" ? (
-            <StudentFlashcardsView
-              result={result}
-              saving={saving}
-              onSave={handleSaveFlashcardsToLibrary}
-              onStartOver={startOver}
-            />
-          ) : (
-            <div className="space-y-4">
-              <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap gap-2 shadow-sm items-center">
-                <div className="text-xs text-slate-600">
-                  Scheduled for <span className="font-semibold text-slate-900">{scheduledFor}</span>
-                  {reviewsEnabled && (
-                    <span className="text-slate-400"> · spaced reviews on</span>
-                  )}
-                </div>
-                <Button
-                  onClick={saveStudentSession}
-                  disabled={saving || studentSessionSaved}
-                  className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8] ml-auto"
-                >
-                  {saving ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  {studentSessionSaved
-                    ? "Saved"
-                    : studentCompletion
-                    ? "Save with score"
-                    : "Save to library"}
-                </Button>
-                <Button onClick={startOver} variant="ghost">
-                  Generate another
-                </Button>
-              </div>
-
-              <SelfSessionPhases
-                payload={result}
-                embedded
-                badgeLabel="Preview"
-                onComplete={(payload) => setStudentCompletion(payload)}
-              />
-            </div>
-          )
+          <StudentFlashcardsView
+            result={result}
+            saving={saving}
+            onSave={handleSaveFlashcardsToLibrary}
+            onStartOver={startOver}
+          />
         )}
 
         {/* Library section — always visible (when not actively generating) */}
