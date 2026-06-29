@@ -368,33 +368,20 @@ export default function LiveSessionBuilder() {
           })}
         </div>
 
-        <div className="sticky bottom-4">
-          <Card className="border-2 border-emerald-300 shadow-lg">
-            <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <p className="text-sm text-slate-500">
-                  {Object.values(includes).filter(Boolean).length} phase
-                  {Object.values(includes).filter(Boolean).length === 1 ? "" : "s"} included
-                </p>
-                <p className="font-bold text-slate-900">{topic || "Untitled live session"}</p>
-              </div>
-              <Button
-                onClick={() => {
-                  if (!canCreate()) {
-                    toast.error("Fill in the included phases before launching.");
-                    return;
-                  }
-                  setReviewOpen(true);
-                }}
-                disabled={creating || !canCreate()}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 px-6 gap-2"
-              >
-                <Eye className="w-5 h-5" />
-                Review &amp; launch
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <Button
+          onClick={() => {
+            if (!canCreate()) {
+              toast.error("Fill in the included phases before launching.");
+              return;
+            }
+            setReviewOpen(true);
+          }}
+          disabled={creating || !canCreate()}
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 gap-2"
+        >
+          <Eye className="w-5 h-5" />
+          Review &amp; launch
+        </Button>
       </div>
 
       {reviewOpen && (
