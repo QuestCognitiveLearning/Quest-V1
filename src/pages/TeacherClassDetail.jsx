@@ -872,9 +872,9 @@ function AssignedSessionsTab({ assignedBundles, students, classId, onAssign }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Assigned Sessions</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Single Sessions</h2>
         <Button onClick={onAssign} className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
-          <Sparkles className="w-4 h-4" /> Assign a session
+          <Sparkles className="w-4 h-4" /> Assign a single session
         </Button>
       </div>
 
@@ -913,7 +913,6 @@ function AssignedSessionsTab({ assignedBundles, students, classId, onAssign }) {
                     <div className="min-w-0">
                       <h2 className="text-2xl font-bold truncate">{a.bundle_title}</h2>
                       <p className="text-violet-100 text-sm inline-flex items-center gap-3 mt-0.5">
-                        <span>Single learning session</span>
                         {a.due_at && (
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5" />
@@ -1043,7 +1042,7 @@ function AssignedSessionsTab({ assignedBundles, students, classId, onAssign }) {
   );
 }
 
-// Compact metric tile used in the Assigned Sessions cards. Shows "—" when
+// Compact metric tile used in the Single Sessions cards. Shows "—" when
 // there's no graded data yet so empty sessions read clearly.
 function StatTile({ icon: Icon, label, value, accent = "violet" }) {
   const accents = {

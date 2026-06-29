@@ -615,12 +615,12 @@ export default function TeacherDashboard() {
                   </Button>
                 </div>
 
-                {/* Assigned learning sessions (lesson_bundles) */}
+                {/* Single sessions (lesson_bundles) */}
                 {bundleAssignments.length > 0 && (
                   <div className="border-t pt-4">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-violet-600" />
-                      Assigned Learning Sessions
+                      Single Sessions
                     </h3>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {bundleAssignments.map((a) => {

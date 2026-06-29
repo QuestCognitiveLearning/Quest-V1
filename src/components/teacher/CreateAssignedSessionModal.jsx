@@ -3,7 +3,7 @@
  * learning session" chooser. UX mirrors LiveSessionBuilder (phase toggles
  * + AI generation from a YouTube URL) but the output is a lesson_bundles
  * row + lesson_bundle_assignments row instead of a live_sessions row, so
- * it shows up in the dashboard's "Assigned Learning Sessions" list like
+ * it shows up in the dashboard's "Single Sessions" list like
  * anything else.
  */
 import React, { useEffect, useState } from "react";
@@ -327,12 +327,7 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
       >
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-slate-100">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Create a single session</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Pick a video and which parts to include. Students get it as an assignment on the due date.
-            </p>
-          </div>
+          <div />
           <button
             type="button"
             onClick={() => !working && onClose?.()}
