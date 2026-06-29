@@ -645,13 +645,21 @@ export default function TeacherDashboard() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                title="Delete single session"
                                 onClick={async () => {
-                                  if (!(await confirmDialog({ title: "Unassign session?", message: "Students will no longer see this single session.", tone: "danger", confirmLabel: "Unassign" }))) return;
+                                  if (!(await confirmDialog({ title: "Delete single session?", message: "This permanently deletes the session and removes it from every class it was assigned to. This can't be undone.", tone: "danger", confirmLabel: "Delete" }))) return;
                                   try {
-                                    await quest.entities.LearningSessionAssignment.delete(a.id);
-                                    setBundleAssignments((prev) => prev.filter((x) => x.id !== a.id));
+                                    // A bundle may be assigned to more than one
+                                    // class — clear every assignment of it, then
+                                    // delete the bundle (the session itself).
+                                    const siblings = await quest.entities.LearningSessionAssignment.filter({ bundle_id: a.bundle_id });
+                                    await Promise.all((siblings || []).map((s) => quest.entities.LearningSessionAssignment.delete(s.id)));
+                                    await quest.entities.LessonBundle.delete(a.bundle_id);
+                                    setBundleAssignments((prev) => prev.filter((x) => x.bundle_id !== a.bundle_id));
+                                    toast.success("Single session deleted");
                                   } catch (err) {
-                                    console.error("Unassign failed:", err);
+                                    console.error("Delete single session failed:", err);
+                                    toast.error("Could not delete the session.");
                                   }
                                 }}
                                 className="text-red-500 hover:text-red-700 hover:bg-red-50"
