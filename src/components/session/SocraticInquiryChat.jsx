@@ -25,6 +25,16 @@ import MathRenderer from "@/components/utils/MathRenderer";
 import { LLM_MODELS } from "@/lib/llmModels";
 import { Card, CardContent } from "@/components/ui/card";
 
+// Shared style guardrails appended to every conversational tutor prompt so
+// Panda stays short and scannable for a student. The models tend to over-
+// explain, so these limits are stated as hard rules.
+const STYLE = `
+STYLE RULES (follow strictly):
+- Keep it to ONE sentence, two only if truly needed. Max ~25 words.
+- Get straight to the point: no preamble, no restating the question or the analogy back, no listing what maps to what.
+- Wrap the single most important word or phrase in **bold** (only one or two bolded items).
+- Plain, warm language a student can read in a glance.`;
+
 export default function SocraticInquiryChat({
   subunitName = "this topic",
   hookQuestion = "",
@@ -92,8 +102,8 @@ export default function SocraticInquiryChat({
 Student's observation of the image: "${observation}"
 
 First decide whether they actually shared an observation. If their message is off-topic, gibberish, blank, or says they're unsure (e.g. "idk", "i don't know", "not sure", "?"), do NOT pretend they gave a real observation — in 1-2 sentences warmly acknowledge they're not sure yet, reassure them that's okay, and invite them to just guess or name anything they notice.
-Otherwise, in 1–2 sentences warmly acknowledge what they noticed — pick up on a specific word they used (use **bold**).
-Either way, do NOT ask a quiz question. Just respond supportively and say you'll explore this together.`,
+Otherwise, warmly acknowledge what they noticed — pick up on a specific word they used (use **bold**).
+Either way, do NOT ask a quiz question. Just respond supportively and say you'll explore this together.${STYLE}`,
       });
       const withAck = addMessage(userHistory, { role: "assistant", content: typeof ack === "string" ? ack : ack?.content || "" });
       setQuestionCount(1);
@@ -157,10 +167,9 @@ Return JSON:
 Student answered the analogy question: "${currentMcQuestion}"
 Their choice: "${choiceText}" | Correct: "${mcChoices[mcCorrectIndex]}" | Was correct: ${isCorrect}
 
-In 1-2 sentences:
-1. If correct, affirm briefly then push deeper. If incorrect, gently redirect without giving the answer away. Use **bold** on a key word from their choice.
-2. Explicitly name the connection: explain HOW the everyday analogy maps onto the real concept of "${subunitName}" — what plays the role of what.
-3. Ask a bridge question that uses this mapping to test whether they can now apply the concept in its academic form. Do NOT list answer choices — they will be shown separately.`,
+Do TWO things, briefly:
+1. In a few words, affirm (if correct) or gently nudge (if not) — **bold** a key word from their choice. Do NOT explain how the analogy maps to the concept.
+2. Then ask ONE short bridge question that applies "${subunitName}" in its academic form. Do NOT list answer choices — they're shown separately.${STYLE}`,
       });
       const text = typeof response === "string" ? response : response?.content || "";
       const withPanda = addMessage(withUser, { role: "assistant", content: text });
@@ -216,10 +225,10 @@ The student just completed an analogy-to-bridge journey:
 - Analogy answer: "${analogyAnswer}"
 - Bridge answer: "${choiceText}" | Correct: "${mcChoices[mcCorrectIndex]}" | Was correct: ${isCorrect}
 
-Write a 1-2 sentence summary statement (NOT a question) that:
-1. Ties together the everyday analogy and the real academic concept of "${subunitName}" — make it click.
+Write a short summary statement (NOT a question) that:
+1. Ties the analogy to the real concept of "${subunitName}" in one clause — make it click.
 2. Uses **bold** on the key academic term.
-3. Ends with a warm transition like "Now let's put your understanding to the test with one final question."`,
+3. Ends with a warm transition like "Now let's put your understanding to the test with one final question."${STYLE}`,
       });
       const text = typeof summary === "string" ? summary : summary?.content || "";
       const withSummary = addMessage(withUser, { role: "assistant", content: text });
@@ -252,9 +261,9 @@ Write a 1-2 sentence summary statement (NOT a question) that:
 The inquiry question was: "${hookQuestion}"
 Student's answer: "${input}"
 
-This is the FINAL exchange. First judge whether the student genuinely engaged. If their answer is off-topic, evasive, gibberish, or says they're unsure (e.g. "idk", "i don't know", "not sure"), do NOT pretend they nailed it — in 2 sentences warmly acknowledge they're unsure and that it's okay, then hand them the one key insight to "${subunitName}" yourself in plain terms (use **bold** on the key idea).
-If they did engage, in 2 sentences affirm their answer with **bold** on their key insight — be specific.
-Either way, end exactly with: "Brilliant thinking! Now let's watch the video to see the full picture." and DO NOT ask another question.`,
+This is the FINAL exchange. First judge whether the student genuinely engaged. If their answer is off-topic, evasive, gibberish, or says they're unsure (e.g. "idk", "i don't know", "not sure"), do NOT pretend they nailed it — briefly acknowledge they're unsure and that it's okay, then hand them the one key insight to "${subunitName}" in plain terms (use **bold** on the key idea).
+If they did engage, briefly affirm their answer with **bold** on their key insight — be specific.
+Either way, end exactly with: "Brilliant thinking! Now let's watch the video to see the full picture." and DO NOT ask another question.${STYLE}`,
       });
       const text = typeof response === "string" ? response : response?.content || "";
       addMessage(withUser, { role: "assistant", content: text });
