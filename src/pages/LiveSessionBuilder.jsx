@@ -126,7 +126,6 @@ export default function LiveSessionBuilder() {
   const [reviewOpen, setReviewOpen] = useState(false);
 
   // Builder state
-  const [sessionName, setSessionName] = useState("");
   const [topic, setTopic] = useState("");
   const [includes, setIncludes] = useState({
     inquiry: false,
@@ -216,7 +215,7 @@ export default function LiveSessionBuilder() {
   };
 
   const canCreate = () => {
-    if (!sessionName.trim()) return false;
+    if (!topic.trim()) return false;
     const anyPhase = Object.values(includes).some(Boolean);
     if (!anyPhase) return false;
     if (includes.video && !extractYouTubeId(videoUrl)) return false;
@@ -238,9 +237,9 @@ export default function LiveSessionBuilder() {
       const payload = {
         teacher_id: teacher.id,
         class_id: null,
-        title: sessionName,
-        session_name: sessionName,
-        subunit_name: topic || sessionName,
+        title: topic,
+        session_name: topic,
+        subunit_name: topic,
         session_code: code,
         join_code: code,
         status: "waiting",
@@ -296,18 +295,7 @@ export default function LiveSessionBuilder() {
         </div>
 
         <Card className="mb-5 border border-slate-200">
-          <CardContent className="p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                Session name
-              </label>
-              <Input
-                value={sessionName}
-                onChange={(e) => setSessionName(e.target.value)}
-                placeholder="e.g. Friday warm-up — Newton's laws"
-                className="text-base"
-              />
-            </div>
+          <CardContent className="p-5">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Topic
@@ -388,7 +376,7 @@ export default function LiveSessionBuilder() {
                   {Object.values(includes).filter(Boolean).length} phase
                   {Object.values(includes).filter(Boolean).length === 1 ? "" : "s"} included
                 </p>
-                <p className="font-bold text-slate-900">{sessionName || "Untitled live session"}</p>
+                <p className="font-bold text-slate-900">{topic || "Untitled live session"}</p>
               </div>
               <Button
                 onClick={() => {
@@ -411,7 +399,6 @@ export default function LiveSessionBuilder() {
 
       {reviewOpen && (
         <ReviewOverlay
-          sessionName={sessionName}
           topic={topic}
           includes={includes}
           inquiry={inquiry}
@@ -433,7 +420,7 @@ export default function LiveSessionBuilder() {
 // what students will get, in the order they'll see it, before the session goes
 // live. Mirrors the curriculum content-review layout.
 function ReviewOverlay({
-  sessionName, topic, includes, inquiry, videoUrl, videoId, attentionChecks,
+  topic, includes, inquiry, videoUrl, videoId, attentionChecks,
   questions, caseStudy, creating, onClose, onLaunch,
 }) {
   const items = [];
@@ -470,7 +457,7 @@ function ReviewOverlay({
             <div>
               <h2 className="text-2xl font-bold">Review your live session</h2>
               <p className="text-blue-100 text-sm mt-0.5">
-                {sessionName || "Untitled"} · {items.length} step{items.length === 1 ? "" : "s"} · what students will see, in order
+                {topic || "Untitled"} · {items.length} step{items.length === 1 ? "" : "s"} · what students will see, in order
               </p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors" aria-label="Close">
