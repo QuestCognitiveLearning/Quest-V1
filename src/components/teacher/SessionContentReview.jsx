@@ -33,7 +33,6 @@ import {
   MessageCircle,
   Eye,
   CheckCircle,
-  ClipboardList,
   Plus,
   Trash2,
   RefreshCw,
@@ -46,17 +45,6 @@ import { generateImage } from "@/components/utils/openai";
 import { translateTranscriptWithCache, isEnglish } from "@/components/utils/translator";
 
 const LETTERS = ["a", "b", "c", "d"];
-
-// The 0–4 scale the AI uses to grade free-response case-study answers (mirrors
-// supabase/functions/scoreCaseStudyAnswer), shown so teachers see how each
-// case-study prompt is scored.
-const CASE_STUDY_RUBRIC = [
-  { score: 4, label: "Exemplary", desc: "Insightful analysis, concrete evidence, complete reasoning." },
-  { score: 3, label: "Proficient", desc: "Clear answer with supporting reasoning; minor gaps." },
-  { score: 2, label: "Developing", desc: "Partial answer or evidence; reasoning unclear." },
-  { score: 1, label: "Emerging", desc: "Off-topic, brief, or unsupported." },
-  { score: 0, label: "No attempt", desc: "Blank, gibberish, or refusal." },
-];
 
 // ---------------------------------------------------------------------------
 // GenerationProgress — the shared "generating…" view. A determinate progress
@@ -440,6 +428,7 @@ export function SessionContentReview({
   // Items may be plain strings (generated/handout/live) or { question, answer }
   // objects (after expected answers are added) — read either shape.
   const dqText = (item) => (typeof item === "string" ? item : item?.question || "");
+  const dqAnswer = (item) => (typeof item === "string" ? "" : item?.answer || "");
 
   const hasInquiry = !!(inq && (inq.hook_question != null || inq.tutor_first_message != null));
   const hasVideo = !!videoId || checks.length > 0;
@@ -723,18 +712,38 @@ export function SessionContentReview({
                             </button>
                           )}
                         </div>
-                        {caseStudyAnswers && (
+                        {/* Optional answer key / rubric — off by default. A
+                            teacher opts in per question if they want to grade
+                            against an expected answer. */}
+                        {(openAnswerKeys.has(i) || dqAnswer(q)) ? (
                           <div className="ml-7 border-l-2 border-emerald-200 pl-3">
-                            <FieldLabel>Expected answer</FieldLabel>
+                            <div className="flex items-center justify-between">
+                              <FieldLabel>Answer key / rubric</FieldLabel>
+                              <button
+                                type="button"
+                                onClick={() => toggleAnswerKey(i, false)}
+                                className="text-[11px] font-semibold text-slate-400 hover:text-red-600"
+                              >
+                                Remove
+                              </button>
+                            </div>
                             <MathField
                               as="textarea"
                               enableMath={mathEditing}
                               rows={2}
-                              value={q?.answer || ""}
+                              value={dqAnswer(q)}
                               onChange={(e) => setDiscussionAnswer(i, e.target.value)}
                               placeholder="What a strong answer covers…"
                             />
                           </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleAnswerKey(i, true)}
+                            className="ml-7 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700"
+                          >
+                            <Plus className="w-3 h-3" /> Add answer key
+                          </button>
                         )}
                       </li>
                     ))}
@@ -754,29 +763,6 @@ export function SessionContentReview({
                     </Button>
                   )}
                 </div>
-                {/* The 0–4 rubric is only meaningful where the teacher sets
-                    expected answers to grade against (curriculum). It's noise
-                    on the simpler single/live/assigned reviews, so hide it. */}
-                {caseStudyAnswers && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                        Scoring rubric (0–4)
-                      </span>
-                    </div>
-                    <ul className="space-y-1">
-                      {CASE_STUDY_RUBRIC.map((r) => (
-                        <li key={r.score} className="flex gap-2 text-xs text-slate-600 leading-snug">
-                          <span className="font-bold text-slate-900 w-3.5 shrink-0">{r.score}</span>
-                          <span>
-                            <span className="font-semibold text-slate-800">{r.label}.</span> {r.desc}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </TabsContent>
             )}
           </Tabs>
