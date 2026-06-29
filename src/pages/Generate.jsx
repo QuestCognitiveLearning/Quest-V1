@@ -1084,10 +1084,11 @@ ${inquiryTranscript ? `
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
             <button
               type="button"
-              disabled={tab === "pdf"}
               onClick={() => {
-                if (tab === "pdf") return;
                 setMode("live");
+                // Live sessions need a video — if a PDF source was selected,
+                // fall back to YouTube (PDF is greyed out in live mode).
+                if (tab === "pdf") setTab("youtube");
                 setOptions((o) => ({
                   ...o,
                   includeInquiry: true,
@@ -1095,20 +1096,16 @@ ${inquiryTranscript ? `
                 }));
               }}
               className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
-                tab === "pdf"
-                  ? "opacity-40 cursor-not-allowed border-2 border-transparent"
-                  : mode === "live"
+                mode === "live"
                   ? "bg-emerald-50 border-2 border-emerald-500"
                   : "border-2 border-transparent hover:bg-slate-50"
               }`}
             >
-              <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "live" && tab !== "pdf" ? "text-emerald-600" : "text-slate-400"}`} />
+              <PlayCircle className={`w-5 h-5 mt-0.5 shrink-0 ${mode === "live" ? "text-emerald-600" : "text-slate-400"}`} />
               <div>
                 <div className="text-sm font-semibold text-slate-900">Live session</div>
                 <div className="text-[11.5px] text-slate-500 mt-0.5">
-                  {tab === "pdf"
-                    ? "Needs a video — a PDF can only make a printed handout."
-                    : "Generate then run it as a game. Students join with a code, earn points."}
+                  Generate then run it as a game. Students join with a code, earn points.
                 </div>
               </div>
             </button>
@@ -1151,29 +1148,34 @@ ${inquiryTranscript ? `
                 {[
                   { id: "youtube", label: "YouTube", icon: Youtube },
                   { id: "pdf", label: "PDF", icon: FileText },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      setTab(t.id);
-                      // A PDF has no video, so it can't drive a live session —
-                      // force the printable Handout mode when PDF is picked.
-                      if (t.id === "pdf" && mode === "live") {
-                        setMode("handout");
-                        setOptions((o) => ({ ...o, includeInquiry: false, includeAttentionChecks: false }));
-                      }
-                    }}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                      tab === t.id
-                        ? "bg-white text-[#2563EB] shadow-sm"
-                        : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    <t.icon className="w-4 h-4" />
-                    {t.label}
-                  </button>
-                ))}
+                ].map((t) => {
+                  // The chosen output drives which sources are available: a live
+                  // session needs a video, so the PDF source is greyed out
+                  // whenever "Live session" is selected.
+                  const disabled = t.id === "pdf" && mode === "live";
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      disabled={disabled}
+                      title={disabled ? "Switch to Handout to use a PDF — live sessions need a video." : undefined}
+                      onClick={() => {
+                        if (disabled) return;
+                        setTab(t.id);
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                        disabled
+                          ? "opacity-40 cursor-not-allowed text-slate-400"
+                          : tab === t.id
+                          ? "bg-white text-[#2563EB] shadow-sm"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <t.icon className="w-4 h-4" />
+                      {t.label}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </>
