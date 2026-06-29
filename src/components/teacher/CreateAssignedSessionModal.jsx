@@ -322,21 +322,19 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
       onClick={() => !working && onClose?.()}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto"
+        className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-slate-100">
-          <div />
-          <button
-            type="button"
-            onClick={() => !working && onClose?.()}
-            disabled={working}
-            className="text-slate-400 hover:text-slate-900 disabled:opacity-50"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Close — floated in the corner; there's no titled header band, so a
+            separate header row would just add empty space at the top. */}
+        <button
+          type="button"
+          onClick={() => !working && onClose?.()}
+          disabled={working}
+          className="absolute top-4 right-4 z-10 text-slate-400 hover:text-slate-900 disabled:opacity-50"
+        >
+          <X className="w-5 h-5" />
+        </button>
 
         {/* Body */}
         {!working ? (
