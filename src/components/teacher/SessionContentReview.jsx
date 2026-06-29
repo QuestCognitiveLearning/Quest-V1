@@ -11,10 +11,18 @@
  *     attention_checks[] }
  */
 import React, { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Loader2,
   Save,
@@ -28,7 +36,14 @@ import {
   ClipboardList,
   Plus,
   Trash2,
+  RefreshCw,
+  Subtitles,
+  Languages,
 } from "lucide-react";
+import MathEditorButton from "./MathEditorButton";
+import MathEquationModal from "./MathEquationModal";
+import { generateImage } from "@/components/utils/openai";
+import { translateTranscriptWithCache, isEnglish } from "@/components/utils/translator";
 
 const LETTERS = ["a", "b", "c", "d"];
 
@@ -160,12 +175,61 @@ function FieldLabel({ children }) {
   );
 }
 
+// A text field (Input or Textarea) with an optional inline math-equation
+// inserter. Each instance owns its own ref + modal so an inserted equation
+// always lands in this exact field — no shared-ref races across a list.
+//
+// The equation is applied by calling the field's own onChange (the pattern the
+// repo's StudentMathInput uses) rather than mutating the DOM value directly:
+// React controlled inputs ignore raw `field.value =` writes, which would drop
+// the inserted equation on the next render.
+function MathField({ as = "input", enableMath = false, className = "", value, onChange, ...props }) {
+  const Comp = as === "textarea" ? Textarea : Input;
+  const ref = useRef(null);
+  const [mathOpen, setMathOpen] = useState(false);
+
+  const insert = (equation) => {
+    const field = ref.current;
+    const cur = String(value ?? "");
+    let next;
+    if (field && field.selectionStart != null) {
+      next = cur.slice(0, field.selectionStart) + equation + cur.slice(field.selectionEnd);
+    } else {
+      next = cur + equation;
+    }
+    onChange?.({ target: { value: next } });
+    setMathOpen(false);
+  };
+
+  return (
+    <div className="flex items-start gap-2 flex-1 min-w-0">
+      <Comp
+        ref={enableMath ? ref : undefined}
+        className={`flex-1 min-w-0 ${className}`}
+        value={value}
+        onChange={onChange}
+        {...props}
+      />
+      {enableMath && (
+        <>
+          <MathEditorButton onClick={() => setMathOpen(true)} />
+          <MathEquationModal isOpen={mathOpen} onClose={() => setMathOpen(false)} onInsert={insert} />
+        </>
+      )}
+    </div>
+  );
+}
+
 // Editable multiple-choice block shared by quiz questions and attention checks.
-function ChoiceEditor({ item, onChange }) {
+// When the item carries a `difficulty` field, a difficulty picker is shown
+// (curriculum quizzes); `mathEditing` adds the equation inserter to every field.
+function ChoiceEditor({ item, onChange, mathEditing = false }) {
   const correct = String(item.correct_choice || "").toUpperCase();
+  const hasDifficulty = item.difficulty !== undefined;
   return (
     <div className="space-y-2">
-      <Input
+      <MathField
+        enableMath={mathEditing}
         value={item.question || ""}
         onChange={(e) => onChange({ question: e.target.value })}
         placeholder="Question"
@@ -187,7 +251,8 @@ function ChoiceEditor({ item, onChange }) {
               >
                 {l.toUpperCase()}
               </button>
-              <Input
+              <MathField
+                enableMath={mathEditing}
                 value={item[`choice_${l}`] || ""}
                 onChange={(e) => onChange({ [`choice_${l}`]: e.target.value })}
                 placeholder={`Choice ${l.toUpperCase()}`}
@@ -197,6 +262,23 @@ function ChoiceEditor({ item, onChange }) {
           );
         })}
       </div>
+      {hasDifficulty && (
+        <div className="flex items-center gap-2 pt-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Difficulty
+          </span>
+          <Select value={item.difficulty || "medium"} onValueChange={(v) => onChange({ difficulty: v })}>
+            <SelectTrigger className="w-32 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="easy">Easy</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="hard">Hard</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   );
 }
@@ -212,10 +294,17 @@ export function SessionContentReview({
   saveLabel = "Save changes",
   onClose,
   onSave,
+  // Curriculum-grade extras, all opt-in so the simpler handout/live flows are
+  // visually unchanged:
+  mathEditing = false, // show the math-equation inserter on every text field
+  caseStudyAnswers = false, // discussion questions carry an expected answer
+  allowImageRegen = false, // offer "Regenerate" on the inquiry hook image
 }) {
   const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(payload || {})));
+  const [regenImg, setRegenImg] = useState(false);
+  const [translated, setTranslated] = useState(null);
+  const [translating, setTranslating] = useState(false);
 
-  const setVideo = (patch) => setDraft((d) => ({ ...d, video: { ...(d.video || {}), ...patch } }));
   const setInquiry = (patch) =>
     setDraft((d) => ({ ...d, inquiry_session: { ...(d.inquiry_session || {}), ...patch } }));
   const setCase = (patch) =>
@@ -223,7 +312,15 @@ export function SessionContentReview({
   const setDiscussionQuestion = (i, value) =>
     setDraft((d) => {
       const arr = [...((d.case_study || {}).discussion_questions || [])];
-      arr[i] = value;
+      arr[i] = caseStudyAnswers
+        ? { ...(typeof arr[i] === "object" && arr[i] ? arr[i] : {}), question: value }
+        : value;
+      return { ...d, case_study: { ...(d.case_study || {}), discussion_questions: arr } };
+    });
+  const setDiscussionAnswer = (i, value) =>
+    setDraft((d) => {
+      const arr = [...((d.case_study || {}).discussion_questions || [])];
+      arr[i] = { ...(typeof arr[i] === "object" && arr[i] ? arr[i] : {}), answer: value };
       return { ...d, case_study: { ...(d.case_study || {}), discussion_questions: arr } };
     });
   const addDiscussionQuestion = () =>
@@ -231,7 +328,10 @@ export function SessionContentReview({
       ...d,
       case_study: {
         ...(d.case_study || {}),
-        discussion_questions: [...((d.case_study || {}).discussion_questions || []), ""],
+        discussion_questions: [
+          ...((d.case_study || {}).discussion_questions || []),
+          caseStudyAnswers ? { question: "", answer: "" } : "",
+        ],
       },
     }));
   const removeDiscussionQuestion = (i) =>
@@ -246,6 +346,27 @@ export function SessionContentReview({
       quiz[i] = { ...quiz[i], ...patch };
       return { ...d, quiz };
     });
+  const addQuizItem = () =>
+    setDraft((d) => {
+      const quiz = [...(d.quiz || [])];
+      const withDifficulty = quiz.some((q) => q.difficulty !== undefined);
+      quiz.push({
+        question: "",
+        choice_a: "",
+        choice_b: "",
+        choice_c: "",
+        choice_d: "",
+        correct_choice: "A",
+        ...(withDifficulty ? { difficulty: "medium" } : {}),
+      });
+      return { ...d, quiz };
+    });
+  const removeQuizItem = (i) =>
+    setDraft((d) => {
+      const quiz = [...(d.quiz || [])];
+      quiz.splice(i, 1);
+      return { ...d, quiz };
+    });
   const setCheckItem = (i, patch) =>
     setDraft((d) => {
       const arr = [...(d.attention_checks || [])];
@@ -253,20 +374,51 @@ export function SessionContentReview({
       return { ...d, attention_checks: arr };
     });
 
+  const regenerateImage = async () => {
+    if (!draft.inquiry_session?.hook_image_prompt) return;
+    setRegenImg(true);
+    try {
+      const res = await generateImage({ prompt: draft.inquiry_session.hook_image_prompt });
+      setInquiry({ hook_image_url: res.url });
+    } catch (err) {
+      console.error("Image regen failed:", err);
+      toast.error("Couldn't regenerate the image.");
+    } finally {
+      setRegenImg(false);
+    }
+  };
+
+  // Auto-translate a non-English transcript for display (read-only), mirroring
+  // the curriculum review. Cached by videoId.
+  useEffect(() => {
+    const t = draft.video?.transcript;
+    if (!t || isEnglish(t)) return;
+    setTranslating(true);
+    translateTranscriptWithCache(t, draft.video?.videoId)
+      .then(setTranslated)
+      .catch((err) => console.error("Translation failed:", err))
+      .finally(() => setTranslating(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.video?.transcript, draft.video?.videoId]);
+
   const quiz = Array.isArray(draft.quiz) ? draft.quiz : [];
   const checks = Array.isArray(draft.attention_checks) ? draft.attention_checks : [];
   const inq = draft.inquiry_session || null;
   const cs = draft.case_study || {};
   const videoId = draft.video?.videoId;
+  const transcript = draft.video?.transcript;
+  const dqText = (item) => (caseStudyAnswers ? item?.question || "" : item || "");
 
   const hasInquiry = !!(inq && (inq.hook_question != null || inq.tutor_first_message != null));
   const hasVideo = !!videoId || checks.length > 0;
+  const hasTranscript = !!transcript;
   const hasQuiz = quiz.length > 0;
   const hasCase = !!cs.scenario || (Array.isArray(cs.discussion_questions) && cs.discussion_questions.length > 0);
 
   const tabs = [];
   if (hasInquiry) tabs.push("inquiry");
   if (hasVideo) tabs.push("video");
+  if (hasTranscript) tabs.push("transcript");
   if (hasQuiz) tabs.push("quiz");
   if (hasCase) tabs.push("casestudy");
   const defaultTab = tabs[0] || "quiz";
@@ -317,6 +469,11 @@ export function SessionContentReview({
                   <PlayCircle className="w-4 h-4" /> Video
                 </TabsTrigger>
               )}
+              {hasTranscript && (
+                <TabsTrigger value="transcript" className="gap-1.5">
+                  <Subtitles className="w-4 h-4" /> Transcript
+                </TabsTrigger>
+              )}
               {hasQuiz && (
                 <TabsTrigger value="quiz" className="gap-1.5">
                   <FileText className="w-4 h-4" /> Quiz
@@ -338,9 +495,38 @@ export function SessionContentReview({
                     className="w-full rounded-xl border border-slate-200"
                   />
                 )}
+                {allowImageRegen && inq.hook_image_prompt != null && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <FieldLabel>Hook image prompt</FieldLabel>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={regenerateImage}
+                        disabled={regenImg}
+                        className="h-7 gap-1.5"
+                      >
+                        {regenImg ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        )}
+                        Regenerate
+                      </Button>
+                    </div>
+                    <Textarea
+                      rows={2}
+                      value={inq.hook_image_prompt || ""}
+                      onChange={(e) => setInquiry({ hook_image_prompt: e.target.value })}
+                      placeholder="Describe the hook image to generate"
+                    />
+                  </div>
+                )}
                 <div>
                   <FieldLabel>Hook question</FieldLabel>
-                  <Input
+                  <MathField
+                    enableMath={mathEditing}
                     value={inq.hook_question || ""}
                     onChange={(e) => setInquiry({ hook_question: e.target.value })}
                     placeholder="A curiosity question to prime thinking"
@@ -355,6 +541,17 @@ export function SessionContentReview({
                     placeholder="Welcome! Let's think about this together..."
                   />
                 </div>
+                {inq.socratic_system_prompt != null && (
+                  <div>
+                    <FieldLabel>Socratic system prompt</FieldLabel>
+                    <Textarea
+                      rows={4}
+                      value={inq.socratic_system_prompt || ""}
+                      onChange={(e) => setInquiry({ socratic_system_prompt: e.target.value })}
+                      placeholder="How the tutor should guide the discussion"
+                    />
+                  </div>
+                )}
               </TabsContent>
             )}
 
@@ -375,13 +572,38 @@ export function SessionContentReview({
                 <ol className="space-y-3">
                   {checks.map((ac, i) => (
                     <li key={i} className="border border-slate-200 rounded-xl p-3 bg-amber-50/30">
-                      <ChoiceEditor item={ac} onChange={(patch) => setCheckItem(i, patch)} />
+                      <ChoiceEditor item={ac} onChange={(patch) => setCheckItem(i, patch)} mathEditing={mathEditing} />
                     </li>
                   ))}
                   {checks.length === 0 && (
                     <li className="text-sm text-slate-400">No attention checks.</li>
                   )}
                 </ol>
+              </TabsContent>
+            )}
+
+            {hasTranscript && (
+              <TabsContent value="transcript" className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <FieldLabel>Video transcript</FieldLabel>
+                  {translated && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-blue-600">
+                      <Languages className="w-3.5 h-3.5" />
+                      Auto-translated from {translated.detectedLanguage?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 max-h-[460px] overflow-y-auto">
+                  {translating ? (
+                    <div className="flex items-center justify-center py-8 text-slate-600">
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Translating to English…
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                      {translated?.translatedText || transcript || "No transcript available"}
+                    </p>
+                  )}
+                </div>
               </TabsContent>
             )}
 
@@ -393,11 +615,30 @@ export function SessionContentReview({
                 <ol className="space-y-4">
                   {quiz.map((q, i) => (
                     <li key={i} className="border border-slate-200 rounded-xl p-3">
-                      <div className="text-[11px] font-bold text-slate-400 mb-1.5">Q{i + 1}</div>
-                      <ChoiceEditor item={q} onChange={(patch) => setQuizItem(i, patch)} />
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-bold text-slate-400">Q{i + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeQuizItem(i)}
+                          className="p-1 text-slate-400 hover:text-red-600"
+                          aria-label="Remove question"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <ChoiceEditor item={q} onChange={(patch) => setQuizItem(i, patch)} mathEditing={mathEditing} />
                     </li>
                   ))}
                 </ol>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addQuizItem}
+                  className="gap-1.5"
+                >
+                  <Plus className="w-4 h-4" /> Add question
+                </Button>
               </TabsContent>
             )}
 
@@ -405,7 +646,9 @@ export function SessionContentReview({
               <TabsContent value="casestudy" className="space-y-4">
                 <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/40">
                   <FieldLabel>Scenario</FieldLabel>
-                  <Textarea
+                  <MathField
+                    as="textarea"
+                    enableMath={mathEditing}
                     rows={4}
                     value={cs.scenario || ""}
                     onChange={(e) => setCase({ scenario: e.target.value })}
@@ -420,41 +663,64 @@ export function SessionContentReview({
                     {(cs.discussion_questions || []).map((q, i) => (
                       <li
                         key={i}
-                        className="flex items-start gap-2 border border-slate-200 rounded-xl p-2.5 bg-white"
+                        className="border border-slate-200 rounded-xl p-2.5 bg-white space-y-2"
                       >
-                        <span className="text-[11px] font-bold text-slate-400 mt-2.5 w-5 text-center flex-shrink-0">
-                          {i + 1}
-                        </span>
-                        <Textarea
-                          rows={2}
-                          value={q || ""}
-                          onChange={(e) => setDiscussionQuestion(i, e.target.value)}
-                          placeholder="A question students discuss..."
-                          className="flex-1"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeDiscussionQuestion(i)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 mt-1 flex-shrink-0"
-                          aria-label="Remove question"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-start gap-2">
+                          <span className="text-[11px] font-bold text-slate-400 mt-2.5 w-5 text-center flex-shrink-0">
+                            {i + 1}
+                          </span>
+                          <MathField
+                            as="textarea"
+                            enableMath={mathEditing}
+                            rows={2}
+                            value={dqText(q)}
+                            onChange={(e) => setDiscussionQuestion(i, e.target.value)}
+                            placeholder="A question students discuss..."
+                          />
+                          {/* Curriculum case studies have fixed a/b/c/d slots —
+                              deleting one would shift the rest, so only the
+                              variable-length (handout/live) mode can remove. */}
+                          {!caseStudyAnswers && (
+                            <button
+                              type="button"
+                              onClick={() => removeDiscussionQuestion(i)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 mt-1 flex-shrink-0"
+                              aria-label="Remove question"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {caseStudyAnswers && (
+                          <div className="ml-7 border-l-2 border-emerald-200 pl-3">
+                            <FieldLabel>Expected answer</FieldLabel>
+                            <MathField
+                              as="textarea"
+                              enableMath={mathEditing}
+                              rows={2}
+                              value={q?.answer || ""}
+                              onChange={(e) => setDiscussionAnswer(i, e.target.value)}
+                              placeholder="What a strong answer covers…"
+                            />
+                          </div>
+                        )}
                       </li>
                     ))}
                     {(cs.discussion_questions || []).length === 0 && (
                       <li className="text-sm text-slate-400">No discussion questions yet.</li>
                     )}
                   </ol>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addDiscussionQuestion}
-                    className="mt-2 gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" /> Add question
-                  </Button>
+                  {!caseStudyAnswers && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addDiscussionQuestion}
+                      className="mt-2 gap-1.5"
+                    >
+                      <Plus className="w-4 h-4" /> Add question
+                    </Button>
+                  )}
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                   <div className="flex items-center gap-1.5 mb-2">
@@ -486,11 +752,20 @@ export function SessionContentReview({
             <Button
               onClick={() => {
                 // Drop blank discussion questions added but never filled in.
+                // Handles both plain strings (handout/live) and {question,
+                // answer} objects (curriculum with expected answers).
                 const clean = JSON.parse(JSON.stringify(draft));
                 if (clean.case_study?.discussion_questions) {
-                  clean.case_study.discussion_questions = clean.case_study.discussion_questions
-                    .map((s) => (s || "").trim())
-                    .filter(Boolean);
+                  let dq = clean.case_study.discussion_questions.map((it) =>
+                    typeof it === "string"
+                      ? it.trim()
+                      : { ...it, question: (it.question || "").trim(), answer: (it.answer || "").trim() }
+                  );
+                  // In answers mode (curriculum) keep every slot so the fixed
+                  // a/b/c/d positions don't shift when one is cleared; otherwise
+                  // drop blank questions added but never filled in.
+                  if (!caseStudyAnswers) dq = dq.filter(Boolean);
+                  clean.case_study.discussion_questions = dq;
                 }
                 onSave(clean);
               }}

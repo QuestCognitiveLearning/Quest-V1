@@ -24,10 +24,64 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ChevronLeft, Video, CheckCircle, AlertCircle, Clock, Sparkles, Zap, BookOpen, Paperclip } from "lucide-react";
 import VideoOnlyModal from "@/components/teacher/VideoOnlyModal";
-import ContentReviewModal from "@/components/teacher/ContentReviewModal";
+import { SessionContentReview } from "@/components/teacher/SessionContentReview";
 import { invokeLLM, generateImage } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
 import { resolveTranscript } from "@/lib/transcript";
+
+// ---------------------------------------------------------------------------
+// Adapters between the curriculum entity shapes and the shared
+// SessionContentReview payload (the canonical content shape used everywhere).
+// ---------------------------------------------------------------------------
+const LETTER_BY_NUM = ["A", "B", "C", "D"];
+const NUM_BY_LETTER = { A: 1, B: 2, C: 3, D: 4 };
+const CASE_LETTERS = ["a", "b", "c", "d"];
+
+// Question entity (question_text, choice_1..4, numeric correct_choice) -> item.
+function questionToItem(q) {
+  return {
+    id: q.id,
+    quiz_id: q.quiz_id,
+    question: q.question_text || "",
+    choice_a: q.choice_1 || "",
+    choice_b: q.choice_2 || "",
+    choice_c: q.choice_3 || "",
+    choice_d: q.choice_4 || "",
+    correct_choice: LETTER_BY_NUM[(q.correct_choice || 1) - 1] || "A",
+    difficulty: q.difficulty || "medium",
+    question_order: q.question_order,
+  };
+}
+
+// canonical quiz item -> Question entity fields (identity fields omitted).
+function itemToQuestionFields(item, order) {
+  return {
+    question_text: item.question || "",
+    choice_1: item.choice_a || "",
+    choice_2: item.choice_b || "",
+    choice_3: item.choice_c || "",
+    choice_4: item.choice_d || "",
+    correct_choice: NUM_BY_LETTER[String(item.correct_choice || "A").toUpperCase()] || 1,
+    question_order: order,
+    difficulty: item.difficulty || "medium",
+  };
+}
+
+// CaseStudy entity (flat question_a/answer_a…) <-> discussion_questions objects.
+function caseStudyToDiscussion(cs) {
+  return CASE_LETTERS.map((l) => ({
+    question: cs?.[`question_${l}`] || "",
+    answer: cs?.[`answer_${l}`] || "",
+  }));
+}
+function discussionToCaseFields(list) {
+  const fields = {};
+  CASE_LETTERS.forEach((l, i) => {
+    fields[`question_${l}`] = list?.[i]?.question || "";
+    fields[`answer_${l}`] = list?.[i]?.answer || "";
+  });
+  return fields;
+}
 
 export default function ManageCurriculum() {
   const navigate = useNavigate();
@@ -44,6 +98,10 @@ export default function ManageCurriculum() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewContent, setReviewContent] = useState(null);
+  // Entity handles + ids captured when the review opens, so onSave can persist
+  // the edited payload back to the right rows.
+  const [reviewCtx, setReviewCtx] = useState(null);
+  const [savingReview, setSavingReview] = useState(false);
   const [generatingQueue, setGeneratingQueue] = useState(false);
   // Per-subunit PDF context (extracted client-side via pdfjs-dist). Held in
   // component state — not persisted to DB. Teacher can attach a PDF before
@@ -148,7 +206,11 @@ export default function ManageCurriculum() {
     const videoId = video.video_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/)?.[1] || "";
 
     const quiz = quizzes.find(q => q.subunit_id === subunit.id && q.quiz_type === "new_topic");
-    const quizQuestions = quiz ? questions.filter(q => q.quiz_id === quiz.id) : [];
+    const quizQuestions = quiz
+      ? questions
+          .filter(q => q.quiz_id === quiz.id)
+          .sort((a, b) => (a.question_order ?? 0) - (b.question_order ?? 0))
+      : [];
     const inquiry = inquirySessions.find(i => i.subunit_id === subunit.id);
     const caseStudy = caseStudies.find(c => c.subunit_id === subunit.id);
 
@@ -157,38 +219,50 @@ export default function ManageCurriculum() {
     // the URL so the modal renders the real transcript, never the link.
     const transcriptText = await resolveTranscript(video.video_transcript);
 
+    // Attention checks live on their own rows, keyed by video.
+    let attentionRows = [];
+    try {
+      attentionRows = (await quest.entities.AttentionCheck.filter({ video_id: video.id }, "check_order")) || [];
+    } catch (err) {
+      console.error("Failed to load attention checks:", err);
+    }
+
+    // Build the canonical SessionContentReview payload from the entity rows.
     setReviewContent({
-      video: {
-        videoId,
-        title: subunit.subunit_name,
-        url: video.video_url,
-        summary: transcriptText,
-        transcript: transcriptText,
-      },
-      inquiryContent: {
-        hook_image_prompt: inquiry?.hook_image_prompt || "",
-        hook_image_url: inquiry?.hook_image_url || "",
-        hook_question: inquiry?.hook_question || "",
-        socratic_system_prompt: inquiry?.socratic_system_prompt || "",
-        tutor_first_message: inquiry?.tutor_first_message || ""
-      },
-      questions: quizQuestions,
-      caseStudy: {
-        scenario: caseStudy?.scenario || "",
-        question_a: caseStudy?.question_a || "",
-        answer_a: caseStudy?.answer_a || "",
-        question_b: caseStudy?.question_b || "",
-        answer_b: caseStudy?.answer_b || "",
-        question_c: caseStudy?.question_c || "",
-        answer_c: caseStudy?.answer_c || "",
-        question_d: caseStudy?.question_d || "",
-        answer_d: caseStudy?.answer_d || ""
-      },
-      quiz,
-      inquirySession: inquiry,
-      caseStudyEntity: caseStudy
+      video: { videoId, title: subunit.subunit_name, transcript: transcriptText },
+      inquiry_session: inquiry
+        ? {
+            hook_question: inquiry.hook_question || "",
+            hook_image_url: inquiry.hook_image_url || "",
+            hook_image_prompt: inquiry.hook_image_prompt || "",
+            socratic_system_prompt: inquiry.socratic_system_prompt || "",
+            tutor_first_message: inquiry.tutor_first_message || "",
+          }
+        : null,
+      quiz: quizQuestions.map(questionToItem),
+      case_study: caseStudy
+        ? { scenario: caseStudy.scenario || "", discussion_questions: caseStudyToDiscussion(caseStudy) }
+        : null,
+      attention_checks: attentionRows.map((c) => ({
+        id: c.id,
+        video_id: c.video_id,
+        check_order: c.check_order,
+        timestamp: c.timestamp,
+        question: c.question || "",
+        choice_a: c.choice_a || "",
+        choice_b: c.choice_b || "",
+        choice_c: c.choice_c || "",
+        choice_d: c.choice_d || "",
+        correct_choice: String(c.correct_choice || "A").toUpperCase(),
+      })),
     });
-    
+    setReviewCtx({
+      subunitId: subunit.id,
+      quizEntity: quiz || null,
+      inquiryEntity: inquiry || null,
+      caseStudyEntity: caseStudy || null,
+    });
+
     setSelectedSubunit(subunit);
     setShowReviewModal(true);
   };
@@ -198,9 +272,102 @@ export default function ManageCurriculum() {
     await loadCurriculumData();
   };
 
-  const handleContentSaved = async () => {
-    setShowReviewModal(false);
-    await loadCurriculumData();
+  // Persist the edited payload from the shared review editor back to the
+  // curriculum entity rows (mirrors the old ContentReviewModal.handleSave).
+  const handleContentSaved = async (draft) => {
+    const ctx = reviewCtx;
+    if (!ctx) {
+      setShowReviewModal(false);
+      return;
+    }
+    setSavingReview(true);
+    try {
+      // Inquiry
+      if (ctx.inquiryEntity && draft.inquiry_session) {
+        const iq = draft.inquiry_session;
+        await quest.entities.InquirySession.update(ctx.inquiryEntity.id, {
+          hook_question: iq.hook_question || "",
+          hook_image_prompt: iq.hook_image_prompt || "",
+          hook_image_url: iq.hook_image_url || "",
+          socratic_system_prompt: iq.socratic_system_prompt || "",
+          tutor_first_message: iq.tutor_first_message || "",
+        });
+      }
+
+      // Quiz — sync in place across BOTH the new_topic quiz and the review
+      // test, keeping question ids stable so edits flow into already-assigned
+      // tests. Only when the quiz actually changed.
+      const quizChanged =
+        JSON.stringify(draft.quiz || []) !== JSON.stringify(reviewContent?.quiz || []);
+      if (ctx.quizEntity && Array.isArray(draft.quiz) && quizChanged) {
+        const reviewQuiz = await quest.entities.Quiz.filter({
+          subunit_id: ctx.subunitId,
+          quiz_type: "review",
+        });
+        const reviewQuizId = reviewQuiz.length > 0 ? reviewQuiz[0].id : null;
+        const [newTopicOld, reviewOld] = await Promise.all([
+          quest.entities.Question.filter({ quiz_id: ctx.quizEntity.id }),
+          reviewQuizId ? quest.entities.Question.filter({ quiz_id: reviewQuizId }) : Promise.resolve([]),
+        ]);
+        const byOrder = (a, b) => (a.question_order ?? 0) - (b.question_order ?? 0);
+        const desired = draft.quiz.map((item, i) => itemToQuestionFields(item, i + 1));
+        const syncQuiz = (quizId, existing) => {
+          const sorted = [...existing].sort(byOrder);
+          const ops = [];
+          desired.forEach((fields, i) => {
+            if (sorted[i]) ops.push(quest.entities.Question.update(sorted[i].id, fields));
+            else ops.push(quest.entities.Question.create({ quiz_id: quizId, ...fields }));
+          });
+          sorted.slice(desired.length).forEach((old) => ops.push(quest.entities.Question.delete(old.id)));
+          return ops;
+        };
+        await Promise.all([
+          ...syncQuiz(ctx.quizEntity.id, newTopicOld),
+          ...(reviewQuizId ? syncQuiz(reviewQuizId, reviewOld) : []),
+        ]);
+      }
+
+      // Case study — flatten the (≤4) discussion questions back into the
+      // entity's a/b/c/d slots.
+      if (ctx.caseStudyEntity && draft.case_study) {
+        const dq = draft.case_study.discussion_questions || [];
+        if (dq.length > 4) {
+          toast("Only the first 4 case-study questions are saved for curriculum.");
+        }
+        await quest.entities.CaseStudy.update(ctx.caseStudyEntity.id, {
+          scenario: draft.case_study.scenario || "",
+          ...discussionToCaseFields(dq.slice(0, 4)),
+        });
+      }
+
+      // Attention checks — update each existing row in place by id.
+      if (Array.isArray(draft.attention_checks) && draft.attention_checks.length > 0) {
+        await Promise.all(
+          draft.attention_checks
+            .filter((c) => c.id)
+            .map((c) =>
+              quest.entities.AttentionCheck.update(c.id, {
+                question: c.question || "",
+                choice_a: c.choice_a || "",
+                choice_b: c.choice_b || "",
+                choice_c: c.choice_c || "",
+                choice_d: c.choice_d || "",
+                correct_choice: String(c.correct_choice || "A").toUpperCase(),
+              })
+            )
+        );
+      }
+
+      toast.success("Content saved");
+      setShowReviewModal(false);
+      setReviewCtx(null);
+      await loadCurriculumData();
+    } catch (error) {
+      console.error("Failed to save content:", error);
+      toast.error("Failed to save content: " + error.message);
+    } finally {
+      setSavingReview(false);
+    }
   };
 
   const handleGenerateAll = async () => {
@@ -865,10 +1032,16 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
       )}
 
       {showReviewModal && selectedSubunit && reviewContent && (
-        <ContentReviewModal
-          subunit={selectedSubunit}
-          content={reviewContent}
-          onClose={() => setShowReviewModal(false)}
+        <SessionContentReview
+          title={selectedSubunit.subunit_name}
+          subtitle="Curriculum content"
+          saveLabel="Save Changes"
+          saving={savingReview}
+          mathEditing
+          caseStudyAnswers
+          allowImageRegen
+          payload={reviewContent}
+          onClose={() => { setShowReviewModal(false); setReviewCtx(null); }}
           onSave={handleContentSaved}
         />
       )}

@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import TeacherLayout from "../components/teacher/TeacherLayout";
+import { SessionContentReview } from "../components/teacher/SessionContentReview";
 import {
   Sparkles,
   PlayCircle,
@@ -29,10 +30,8 @@ import {
   Eye,
   Loader2,
   ArrowLeft,
-  Rocket,
   CheckCircle2,
   Circle,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -225,7 +224,9 @@ export default function LiveSessionBuilder() {
     return true;
   };
 
-  const handleCreate = async () => {
+  // `draft` is the (possibly edited) payload handed back by the shared review
+  // editor; fall back to builder state for anything it didn't carry.
+  const handleCreate = async (draft) => {
     if (!canCreate()) {
       toast.error("Fill in the included phases before launching.");
       return;
@@ -234,6 +235,10 @@ export default function LiveSessionBuilder() {
     try {
       const code = mintCode();
       const videoId = extractYouTubeId(videoUrl);
+      const q = draft?.quiz ?? questions;
+      const cs = draft?.case_study ?? caseStudy;
+      const checks = draft?.attention_checks ?? attentionChecks;
+      const iq = draft?.inquiry_session ?? inquiry;
       const payload = {
         teacher_id: teacher.id,
         class_id: null,
@@ -246,11 +251,11 @@ export default function LiveSessionBuilder() {
         current_phase: "lobby",
         // current_question lives on live_session_participants (per-student
         // progress), not on live_sessions itself — PostgREST rejects it here.
-        questions: includes.quiz ? questions : [],
-        question_count: includes.quiz ? questions.length : 0,
-        case_study: includes.case_study ? caseStudy : null,
-        attention_checks: includes.video ? attentionChecks : [],
-        inquiry_session: includes.inquiry ? inquiry : null,
+        questions: includes.quiz ? q : [],
+        question_count: includes.quiz ? q.length : 0,
+        case_study: includes.case_study ? cs : null,
+        attention_checks: includes.video ? checks : [],
+        inquiry_session: includes.inquiry ? iq : null,
         video_url: includes.video && videoId ? `https://www.youtube.com/watch?v=${videoId}` : "",
         video_duration: includes.video ? Number(videoDuration) || 0 : 0,
         created_by_id: teacher.id,
@@ -385,139 +390,24 @@ export default function LiveSessionBuilder() {
       </div>
 
       {reviewOpen && (
-        <ReviewOverlay
-          topic={topic}
-          includes={includes}
-          inquiry={inquiry}
-          videoUrl={videoUrl}
-          videoId={extractYouTubeId(videoUrl)}
-          attentionChecks={attentionChecks}
-          questions={questions}
-          caseStudy={caseStudy}
-          creating={creating}
+        <SessionContentReview
+          title={topic || "Live session"}
+          subtitle="Review before launching"
+          saveLabel="Create & launch lobby"
+          saving={creating}
+          payload={{
+            video: includes.video
+              ? { videoId: extractYouTubeId(videoUrl), title: topic }
+              : undefined,
+            quiz: includes.quiz ? questions : [],
+            case_study: includes.case_study ? caseStudy : null,
+            inquiry_session: includes.inquiry ? inquiry : null,
+            attention_checks: includes.video ? attentionChecks : [],
+          }}
           onClose={() => setReviewOpen(false)}
-          onLaunch={handleCreate}
+          onSave={(draft) => handleCreate(draft)}
         />
       )}
     </TeacherLayout>
-  );
-}
-
-// Curriculum-style "review of created items" — a final read-through of exactly
-// what students will get, in the order they'll see it, before the session goes
-// live. Mirrors the curriculum content-review layout.
-function ReviewOverlay({
-  topic, includes, inquiry, videoUrl, videoId, attentionChecks,
-  questions, caseStudy, creating, onClose, onLaunch,
-}) {
-  const items = [];
-  if (includes.inquiry) items.push("inquiry");
-  if (includes.video) items.push("video");
-  if (includes.quiz) items.push("quiz");
-  if (includes.case_study) items.push("case_study");
-
-  const SectionCard = ({ icon: Icon, color, label, step, children }) => (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className="w-4 h-4" />
-        </div>
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Step {step}
-          </div>
-          <div className="font-bold text-slate-900 leading-tight">{label}</div>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl">
-        <div
-          className="sticky top-0 z-10 text-white p-6"
-          style={{ background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)" }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Review your live session</h2>
-              <p className="text-blue-100 text-sm mt-0.5">
-                {topic || "Untitled"} · {items.length} step{items.length === 1 ? "" : "s"} · what students will see, in order
-              </p>
-            </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors" aria-label="Close">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-4">
-          {items.length === 0 && (
-            <p className="text-center text-slate-500 py-8">No phases included yet.</p>
-          )}
-
-          {includes.inquiry && (
-            <SectionCard icon={Sparkles} color="bg-indigo-100 text-indigo-600" label="Inquiry hook" step={items.indexOf("inquiry") + 1}>
-              {inquiry.hook_image_url && (
-                <img src={inquiry.hook_image_url} alt="" className="w-full rounded-xl border border-slate-200 mb-3" />
-              )}
-              <p className="text-slate-800 font-medium">{inquiry.hook_question || "—"}</p>
-            </SectionCard>
-          )}
-
-          {includes.video && (
-            <SectionCard icon={PlayCircle} color="bg-blue-100 text-blue-600" label="Video" step={items.indexOf("video") + 1}>
-              {videoId && (
-                <div className="aspect-video rounded-xl overflow-hidden border border-slate-200 mb-3 bg-black">
-                  <img src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`} alt="" className="w-full h-full object-cover" />
-                </div>
-              )}
-              <p className="text-sm text-slate-600 inline-flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5" />
-                {attentionChecks.length} attention check{attentionChecks.length === 1 ? "" : "s"} during playback
-              </p>
-            </SectionCard>
-          )}
-
-          {includes.quiz && (
-            <SectionCard icon={FileText} color="bg-violet-100 text-violet-600" label={`Quiz · ${questions.length} question${questions.length === 1 ? "" : "s"}`} step={items.indexOf("quiz") + 1}>
-              <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700">
-                {questions.slice(0, 10).map((q, i) => (
-                  <li key={i}>{q.question || q.question_text}</li>
-                ))}
-                {questions.length > 10 && (
-                  <li className="list-none text-slate-400">… and {questions.length - 10} more</li>
-                )}
-              </ol>
-            </SectionCard>
-          )}
-
-          {includes.case_study && (
-            <SectionCard icon={MessageCircle} color="bg-amber-100 text-amber-700" label="Case study" step={items.indexOf("case_study") + 1}>
-              <p className="text-sm text-slate-800 whitespace-pre-line mb-3">{caseStudy.scenario}</p>
-              {Array.isArray(caseStudy.discussion_questions) && caseStudy.discussion_questions.length > 0 && (
-                <ol className="list-decimal list-inside space-y-1 text-sm text-slate-600">
-                  {caseStudy.discussion_questions.map((q, i) => (<li key={i}>{q}</li>))}
-                </ol>
-              )}
-            </SectionCard>
-          )}
-
-          {/* Actions scroll with the content (matches the curriculum review),
-              so there's no stationary bar fighting the page as you scroll. */}
-          <div className="flex gap-4 pt-2">
-            <Button variant="outline" onClick={onClose} disabled={creating} className="flex-1 border-2 gap-2">
-              <ArrowLeft className="w-4 h-4" /> Keep editing
-            </Button>
-            <Button onClick={onLaunch} disabled={creating} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-base font-semibold gap-2">
-              {creating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket className="w-5 h-5" />}
-              Create &amp; launch lobby
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
