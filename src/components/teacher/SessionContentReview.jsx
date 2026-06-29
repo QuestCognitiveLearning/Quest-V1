@@ -467,14 +467,6 @@ export function SessionContentReview({
       });
     }
   };
-  const addDiscussionQuestion = () =>
-    setDraft((d) => ({
-      ...d,
-      case_study: {
-        ...(d.case_study || {}),
-        discussion_questions: [...((d.case_study || {}).discussion_questions || []), ""],
-      },
-    }));
   const removeDiscussionQuestion = (i) =>
     setDraft((d) => {
       const arr = [...((d.case_study || {}).discussion_questions || [])];
@@ -485,21 +477,6 @@ export function SessionContentReview({
     setDraft((d) => {
       const quiz = [...(d.quiz || [])];
       quiz[i] = { ...quiz[i], ...patch };
-      return { ...d, quiz };
-    });
-  const addQuizItem = () =>
-    setDraft((d) => {
-      const quiz = [...(d.quiz || [])];
-      const withDifficulty = quiz.some((q) => q.difficulty !== undefined);
-      quiz.push({
-        question: "",
-        choice_a: "",
-        choice_b: "",
-        choice_c: "",
-        choice_d: "",
-        correct_choice: "A",
-        ...(withDifficulty ? { difficulty: "medium" } : {}),
-      });
       return { ...d, quiz };
     });
   const removeQuizItem = (i) =>
@@ -778,15 +755,6 @@ export function SessionContentReview({
                     />
                   ))}
                 </ol>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addQuizItem}
-                  className="gap-1.5"
-                >
-                  <Plus className="w-4 h-4" /> Add question
-                </Button>
               </TabsContent>
             )}
 
@@ -880,17 +848,6 @@ export function SessionContentReview({
                       <li className="text-sm text-slate-400">No discussion questions yet.</li>
                     )}
                   </ol>
-                  {!fixedDiscussionSlots && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addDiscussionQuestion}
-                      className="mt-2 gap-1.5"
-                    >
-                      <Plus className="w-4 h-4" /> Add question
-                    </Button>
-                  )}
                 </div>
               </TabsContent>
             )}
