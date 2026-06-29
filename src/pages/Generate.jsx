@@ -52,6 +52,7 @@ import { generateTryPDF } from "@/lib/pdf/generatePDF";
 import { downloadTryWord } from "@/lib/pdf/generateWord";
 import { createPageUrl } from "@/utils";
 import { GenerationProgress, SessionContentReview } from "@/components/teacher/SessionContentReview";
+import { dqText } from "@/lib/caseStudy";
 import { REVIEW_OFFSETS } from "@/lib/spacedRepetition";
 
 function downloadBlobLocally(blob, filename) {
@@ -1744,6 +1745,9 @@ ${inquiryTranscript ? `
           payload={editTarget.payload}
           saving={editSaving}
           saveLabel={editTarget.source === "library" ? "Save changes" : "Apply changes"}
+          mathEditing
+          caseStudyAnswers
+          allowImageRegen
           onClose={() => setEditTarget(null)}
           onSave={handleSaveEdit}
         />
@@ -2282,7 +2286,7 @@ function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: 
               <ol className="list-decimal space-y-4 text-slate-700 pl-5">
                 {case_study.discussion_questions.map((q, i) => (
                   <li key={i}>
-                    <span>{q}</span>
+                    <span>{dqText(q)}</span>
                     <CaseStudyRubric className="mt-2" />
                   </li>
                 ))}

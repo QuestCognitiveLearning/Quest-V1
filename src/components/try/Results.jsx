@@ -10,6 +10,7 @@ import { Download, FileText, RefreshCw, CheckCircle } from 'lucide-react';
 import EmailGate from './EmailGate';
 import DownloadGate from './DownloadGate';
 import { downloadTryWord } from '@/lib/pdf/generateWord';
+import { dqText } from '@/lib/caseStudy';
 
 export default function Results({ result, onStartOver }) {
   const { video, quiz, case_study } = result;
@@ -71,7 +72,7 @@ export default function Results({ result, onStartOver }) {
                 <h4 className="text-sm font-semibold text-slate-900 mb-2">Discussion Questions</h4>
                 <ol className="list-decimal list-inside space-y-2 text-slate-700">
                   {case_study.discussion_questions.map((q, i) => (
-                    <li key={i}>{q}</li>
+                    <li key={i}>{dqText(q)}</li>
                   ))}
                 </ol>
               </>

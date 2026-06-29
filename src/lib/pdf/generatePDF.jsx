@@ -8,6 +8,7 @@ import ClassWorkbook from "./templates/ClassWorkbook.jsx";
 import ClassAnalytics from "./templates/ClassAnalytics.jsx";
 import ParentReport from "./templates/ParentReport.jsx";
 import { deepSanitizePdf, sanitizePdfText } from "./shared/sanitize.js";
+import { dqText } from "@/lib/caseStudy";
 
 const GRADE_LABEL = {
   Elementary: "Grades 3–5",
@@ -364,7 +365,7 @@ export async function generateTryPDF({
     explanation: q.explanation,
     question_order: i,
   }));
-  const prompts = case_study?.discussion_questions || [];
+  const prompts = (case_study?.discussion_questions || []).map(dqText);
   const topic = video?.title || "YouTube video";
 
   // Strip glyphs the built-in PDF font can't render (math symbols etc.).

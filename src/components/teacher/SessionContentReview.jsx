@@ -299,6 +299,10 @@ export function SessionContentReview({
   mathEditing = false, // show the math-equation inserter on every text field
   caseStudyAnswers = false, // discussion questions carry an expected answer
   allowImageRegen = false, // offer "Regenerate" on the inquiry hook image
+  // Curriculum case studies have fixed a/b/c/d slots wired to entity columns,
+  // so adding/removing a question would shift them — lock the count there.
+  // Variable-length flows (handout/single/live/assigned) keep add + remove.
+  fixedDiscussionSlots = false,
 }) {
   const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(payload || {})));
   const [regenImg, setRegenImg] = useState(false);
@@ -407,7 +411,9 @@ export function SessionContentReview({
   const cs = draft.case_study || {};
   const videoId = draft.video?.videoId;
   const transcript = draft.video?.transcript;
-  const dqText = (item) => (caseStudyAnswers ? item?.question || "" : item || "");
+  // Items may be plain strings (generated/handout/live) or { question, answer }
+  // objects (after expected answers are added) — read either shape.
+  const dqText = (item) => (typeof item === "string" ? item : item?.question || "");
 
   const hasInquiry = !!(inq && (inq.hook_question != null || inq.tutor_first_message != null));
   const hasVideo = !!videoId || checks.length > 0;
@@ -679,8 +685,8 @@ export function SessionContentReview({
                           />
                           {/* Curriculum case studies have fixed a/b/c/d slots —
                               deleting one would shift the rest, so only the
-                              variable-length (handout/live) mode can remove. */}
-                          {!caseStudyAnswers && (
+                              variable-length (handout/single/live) mode removes. */}
+                          {!fixedDiscussionSlots && (
                             <button
                               type="button"
                               onClick={() => removeDiscussionQuestion(i)}
@@ -710,7 +716,7 @@ export function SessionContentReview({
                       <li className="text-sm text-slate-400">No discussion questions yet.</li>
                     )}
                   </ol>
-                  {!caseStudyAnswers && (
+                  {!fixedDiscussionSlots && (
                     <Button
                       type="button"
                       variant="outline"
@@ -761,10 +767,12 @@ export function SessionContentReview({
                       ? it.trim()
                       : { ...it, question: (it.question || "").trim(), answer: (it.answer || "").trim() }
                   );
-                  // In answers mode (curriculum) keep every slot so the fixed
-                  // a/b/c/d positions don't shift when one is cleared; otherwise
-                  // drop blank questions added but never filled in.
-                  if (!caseStudyAnswers) dq = dq.filter(Boolean);
+                  // Fixed-slot (curriculum) keeps every a/b/c/d position so they
+                  // don't shift when one is cleared; variable-length flows drop
+                  // questions added but never filled in (string or object shape).
+                  if (!fixedDiscussionSlots) {
+                    dq = dq.filter((it) => (typeof it === "string" ? it : it.question));
+                  }
                   clean.case_study.discussion_questions = dq;
                 }
                 onSave(clean);

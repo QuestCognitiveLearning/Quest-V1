@@ -12,6 +12,7 @@ import {
   Footer,
   ImageRun,
 } from "docx";
+import { dqText } from "@/lib/caseStudy";
 
 const LETTERS = ["A", "B", "C", "D"];
 const BRAND = "2563EB";
@@ -152,7 +153,7 @@ function tryQuizDoc({ video, quiz, case_study, gradeLevel, branding }) {
             spacing: { before: 80, after: 80 },
             children: [
               new TextRun({ text: `${i + 1}. `, bold: true, color: BRAND, size: 22 }),
-              new TextRun({ text: q, size: 22, color: INK }),
+              new TextRun({ text: dqText(q), size: 22, color: INK }),
             ],
           }),
         );

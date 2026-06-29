@@ -18,6 +18,7 @@
  */
 import React, { useMemo, useRef } from "react";
 import SessionFlow from "@/components/session/SessionFlow";
+import { dqText, dqAnswer } from "@/lib/caseStudy";
 
 const LETTER_TO_INDEX = { A: 0, B: 1, C: 2, D: 3 };
 
@@ -35,13 +36,15 @@ function getYouTubeVideoId(url) {
 export function toCaseStudy(cs) {
   if (!cs?.scenario) return null;
   const dq = Array.isArray(cs.discussion_questions) ? cs.discussion_questions : [];
-  const pick = (L, idx) => cs[`question_${L}`] || dq[idx] || "";
+  // discussion_questions items may be plain strings or { question, answer }.
+  const pick = (L, idx) => cs[`question_${L}`] || dqText(dq[idx]) || "";
+  const pickAns = (L, idx) => cs[`answer_${L}`] || dqAnswer(dq[idx]) || "";
   const qa = pick("a", 0), qb = pick("b", 1), qc = pick("c", 2), qd = pick("d", 3);
   if (!qa && !qb && !qc && !qd) return null;
   return {
     scenario: cs.scenario,
     question_a: qa, question_b: qb, question_c: qc, question_d: qd,
-    answer_a: cs.answer_a || "", answer_b: cs.answer_b || "", answer_c: cs.answer_c || "", answer_d: cs.answer_d || "",
+    answer_a: pickAns("a", 0), answer_b: pickAns("b", 1), answer_c: pickAns("c", 2), answer_d: pickAns("d", 3),
   };
 }
 
@@ -61,6 +64,32 @@ function toQuizQuestion(q, i) {
   };
 }
 
+// Map a generated lesson-bundle payload → SessionFlow's normalized `content`.
+// Shared by single sessions and assigned sessions (same payload shape).
+export function bundlePayloadToContent(payload, { badgeLabel = "My Session", sourceUrl = "" } = {}) {
+  const p = payload || {};
+  const video = p.video || {};
+  const videoId =
+    video.videoId ||
+    getYouTubeVideoId(video.video_url) ||
+    getYouTubeVideoId(video.url) ||
+    getYouTubeVideoId(sourceUrl) ||
+    null;
+  return {
+    topic: video.title || p.title || "Learning session",
+    unitName: "",
+    badgeLabel,
+    videoId,
+    videoDurationSeconds: p.video_duration || video.duration || video.duration_seconds,
+    attentionChecks: Array.isArray(p.attention_checks) ? p.attention_checks : [],
+    questions: Array.isArray(p.quiz) ? p.quiz.map(toQuizQuestion) : [],
+    caseStudy: toCaseStudy(p.case_study),
+    inquiry: p.inquiry_session?.hook_question
+      ? { hook_question: p.inquiry_session.hook_question, hook_image_url: p.inquiry_session.hook_image_url }
+      : null,
+  };
+}
+
 export default function SelfSessionPhases({
   payload,
   onComplete,
@@ -69,27 +98,7 @@ export default function SelfSessionPhases({
   embedded = false,
   badgeLabel = "My Session",
 }) {
-  const content = useMemo(() => {
-    const p = payload || {};
-    const video = p.video || {};
-    const videoId = video.videoId || getYouTubeVideoId(video.video_url) || null;
-    const attentionChecks = Array.isArray(p.attention_checks) ? p.attention_checks : [];
-    const questions = Array.isArray(p.quiz) ? p.quiz.map(toQuizQuestion) : [];
-    const caseStudy = toCaseStudy(p.case_study);
-    const inq = p.inquiry_session || null;
-    const inquiry = inq?.hook_question ? { hook_question: inq.hook_question, hook_image_url: inq.hook_image_url } : null;
-    return {
-      topic: video.title || p.title || "Learning session",
-      unitName: "",
-      badgeLabel,
-      videoId,
-      videoDurationSeconds: p.video_duration || video.duration || video.duration_seconds,
-      attentionChecks,
-      questions,
-      caseStudy,
-      inquiry,
-    };
-  }, [payload, badgeLabel]);
+  const content = useMemo(() => bundlePayloadToContent(payload, { badgeLabel }), [payload, badgeLabel]);
 
   // Accumulate responses as the student plays.
   const quizResponsesRef = useRef([]);

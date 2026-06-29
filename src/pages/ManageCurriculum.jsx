@@ -1040,6 +1040,7 @@ IMPORTANT: This curriculum is at the ${curriculum?.curriculum_difficulty} level.
           mathEditing
           caseStudyAnswers
           allowImageRegen
+          fixedDiscussionSlots
           payload={reviewContent}
           onClose={() => { setShowReviewModal(false); setReviewCtx(null); }}
           onSave={handleContentSaved}
