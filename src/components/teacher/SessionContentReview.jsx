@@ -10,7 +10,7 @@
  *     inquiry_session{hook_question, tutor_first_message, hook_image_url, ...},
  *     attention_checks[] }
  */
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +26,8 @@ import {
   Eye,
   CheckCircle,
   ClipboardList,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 const LETTERS = ["a", "b", "c", "d"];
@@ -51,12 +53,57 @@ export function GenerationProgress({
   subtitle = "This usually takes 30–90 seconds. We'll reveal everything at once when it's ready.",
   steps = [],
   started = true,
+  // Rough total duration in seconds, used to seed the countdown. The displayed
+  // value self-corrects downward from real step completions, so a slightly
+  // generous estimate is safe (it just gets pulled down as pieces land).
+  estimateSeconds,
 }) {
   const total = steps.length || 1;
   const doneCount = steps.filter((s) => s.done).length;
   const complete = doneCount === steps.length && steps.length > 0;
   const pct = Math.round((doneCount / total) * 100);
   const display = started ? Math.max(pct, 12) : 8;
+
+  // ---- Anchored "time left" countdown (matches ManageCurriculum /
+  // StandardsPicker). It must only ever tick DOWN — never jump up or jitter.
+  // Two candidates feed each tick: the raw time estimate (estTotal − elapsed)
+  // and a throughput estimate from how many steps have landed. We take the
+  // smaller, then clamp against the last shown value so the number can never
+  // rise. The result descends smoothly and only corrects downward when a step
+  // finishes faster than the estimate predicted.
+  const estTotal = Math.max(
+    15,
+    Math.round(estimateSeconds || Math.max(45, steps.length * 28))
+  );
+  // Anchored once at mount (the component is mounted only while generating, so
+  // a fresh mount === a fresh run). lastShownRef enforces monotonic descent.
+  const startRef = useRef(Date.now());
+  const lastShownRef = useRef(estTotal);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (complete) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [complete]);
+
+  const elapsed = (Date.now() - startRef.current) / 1000;
+  const byTime = estTotal - elapsed;
+  const frac = doneCount / total; // fraction of steps done
+  const byProgress = frac > 0 ? (elapsed * (1 - frac)) / frac : Infinity;
+  // min() of the two candidates, then clamp so it never increases.
+  lastShownRef.current = Math.min(lastShownRef.current, byTime, byProgress);
+  const secsLeft = lastShownRef.current;
+
+  const showFinishing = complete || secsLeft <= 2;
+  const secs = Math.max(2, Math.round(secsLeft));
+  const mm = Math.floor(secs / 60);
+  const ss = secs % 60;
+  const timeLabel = showFinishing
+    ? "Finishing up…"
+    : mm > 0
+    ? `~${mm} min ${ss} sec left`
+    : `~${ss} sec left`;
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-10 shadow-sm">
@@ -71,7 +118,7 @@ export function GenerationProgress({
 
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
-          <span>{complete ? "Finishing up…" : "Working…"}</span>
+          <span>{timeLabel}</span>
           <span>{display}%</span>
         </div>
         <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
@@ -170,6 +217,26 @@ export function SessionContentReview({
     setDraft((d) => ({ ...d, inquiry_session: { ...(d.inquiry_session || {}), ...patch } }));
   const setCase = (patch) =>
     setDraft((d) => ({ ...d, case_study: { ...(d.case_study || {}), ...patch } }));
+  const setDiscussionQuestion = (i, value) =>
+    setDraft((d) => {
+      const arr = [...((d.case_study || {}).discussion_questions || [])];
+      arr[i] = value;
+      return { ...d, case_study: { ...(d.case_study || {}), discussion_questions: arr } };
+    });
+  const addDiscussionQuestion = () =>
+    setDraft((d) => ({
+      ...d,
+      case_study: {
+        ...(d.case_study || {}),
+        discussion_questions: [...((d.case_study || {}).discussion_questions || []), ""],
+      },
+    }));
+  const removeDiscussionQuestion = (i) =>
+    setDraft((d) => {
+      const arr = [...((d.case_study || {}).discussion_questions || [])];
+      arr.splice(i, 1);
+      return { ...d, case_study: { ...(d.case_study || {}), discussion_questions: arr } };
+    });
   const setQuizItem = (i, patch) =>
     setDraft((d) => {
       const quiz = [...(d.quiz || [])];
@@ -333,7 +400,7 @@ export function SessionContentReview({
 
             {hasCase && (
               <TabsContent value="casestudy" className="space-y-4">
-                <div>
+                <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/40">
                   <FieldLabel>Scenario</FieldLabel>
                   <Textarea
                     rows={4}
@@ -343,20 +410,48 @@ export function SessionContentReview({
                   />
                 </div>
                 <div>
-                  <FieldLabel>Discussion questions (one per line)</FieldLabel>
-                  <Textarea
-                    rows={3}
-                    value={(cs.discussion_questions || []).join("\n")}
-                    onChange={(e) =>
-                      setCase({
-                        discussion_questions: e.target.value
-                          .split("\n")
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    placeholder={"What might explain X?\nWhat would happen if Y?"}
-                  />
+                  <FieldLabel>
+                    Discussion questions · {(cs.discussion_questions || []).length}
+                  </FieldLabel>
+                  <ol className="space-y-2">
+                    {(cs.discussion_questions || []).map((q, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 border border-slate-200 rounded-xl p-2.5 bg-white"
+                      >
+                        <span className="text-[11px] font-bold text-slate-400 mt-2.5 w-5 text-center flex-shrink-0">
+                          {i + 1}
+                        </span>
+                        <Textarea
+                          rows={2}
+                          value={q || ""}
+                          onChange={(e) => setDiscussionQuestion(i, e.target.value)}
+                          placeholder="A question students discuss..."
+                          className="flex-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeDiscussionQuestion(i)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 mt-1 flex-shrink-0"
+                          aria-label="Remove question"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </li>
+                    ))}
+                    {(cs.discussion_questions || []).length === 0 && (
+                      <li className="text-sm text-slate-400">No discussion questions yet.</li>
+                    )}
+                  </ol>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addDiscussionQuestion}
+                    className="mt-2 gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" /> Add question
+                  </Button>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                   <div className="flex items-center gap-1.5 mb-2">
@@ -386,7 +481,16 @@ export function SessionContentReview({
               Cancel
             </Button>
             <Button
-              onClick={() => onSave(draft)}
+              onClick={() => {
+                // Drop blank discussion questions added but never filled in.
+                const clean = JSON.parse(JSON.stringify(draft));
+                if (clean.case_study?.discussion_questions) {
+                  clean.case_study.discussion_questions = clean.case_study.discussion_questions
+                    .map((s) => (s || "").trim())
+                    .filter(Boolean);
+                }
+                onSave(clean);
+              }}
               disabled={saving}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2 py-6 text-base font-semibold"
             >
