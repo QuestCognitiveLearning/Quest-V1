@@ -183,9 +183,6 @@ export default function LiveSessionBuilder() {
       toast.error("This handout has no video, so it can't become a live session. Live sessions need a video.");
       return;
     }
-    setSelectedHandoutId(row.id);
-    if (!sessionName) setSessionName(row.title || p?.video?.title || "");
-    if (!topic) setTopic(p?.video?.title || row.title || "");
 
     if (p.inquiry_session?.hook_question) {
       setInquiry({
@@ -322,34 +319,6 @@ export default function LiveSessionBuilder() {
                 className="text-base"
               />
             </div>
-
-            {library.length > 0 && (
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Start from a saved handout (optional)
-                </label>
-                <select
-                  value={selectedHandoutId}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    if (!id) {
-                      setSelectedHandoutId("");
-                      return;
-                    }
-                    const row = library.find((r) => r.id === id);
-                    if (row) applyHandout(row);
-                  }}
-                  className="w-full border-2 border-slate-200 rounded-md px-3 py-2 text-sm bg-white"
-                >
-                  <option value="">— Start from scratch —</option>
-                  {library.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.title || "Untitled handout"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </CardContent>
         </Card>
 
