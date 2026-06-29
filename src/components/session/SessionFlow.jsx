@@ -57,6 +57,7 @@ export default function SessionFlow({
   inquiryLlmCall,
   events = {},
   onCaseStudySave,
+  onInquiryResponse,
   onFinish,
   onExit,
   onPhaseChange,
@@ -315,7 +316,7 @@ export default function SessionFlow({
   };
 
   return (
-    <div className={embedded ? "relative" : "min-h-screen relative overflow-hidden"}>
+    <div className={embedded ? "relative" : "min-h-screen relative overflow-x-hidden overflow-y-auto"}>
       {showPandaWidget && (
         <PandaChatWidget
           topic={topic}
@@ -408,6 +409,7 @@ export default function SessionFlow({
                 hookQuestion={inquiry.hook_question}
                 hookImageUrl={inquiry.hook_image_url}
                 llmCall={inquiryLlmCall}
+                onResponse={onInquiryResponse}
                 onComplete={advance}
               />
             )

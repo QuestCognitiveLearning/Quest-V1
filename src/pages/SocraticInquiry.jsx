@@ -443,8 +443,10 @@ Either way, end exactly with: "Brilliant thinking! Now let's watch the video to 
         </div>
       </div>
 
-      {/* Split Screen */}
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+      {/* Split Screen. On desktop the panels lock to the viewport (image
+          sticky, chat scrolls internally); on mobile we drop the lock so the
+          page scrolls normally and you can reach the whole chat. */}
+      <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden">
 
         {/* LEFT PANEL — Image */}
         <div className="md:w-3/5 bg-gradient-to-br from-violet-50 to-purple-100 flex flex-col items-center justify-center p-8 md:sticky md:top-[65px] md:h-[calc(100vh-65px)]">
@@ -473,7 +475,7 @@ Either way, end exactly with: "Brilliant thinking! Now let's watch the video to 
 
         {/* RIGHT PANEL — Chat + Input */}
         <div className="md:w-2/5 flex flex-col overflow-y-auto bg-white">
-          <div className="flex-1 p-6 md:p-8 space-y-6 max-h-[calc(100vh-65px)] overflow-y-auto">
+          <div className="flex-1 p-6 md:p-8 space-y-6 md:max-h-[calc(100vh-65px)] md:overflow-y-auto">
 
             {/* Conversation */}
             <div className="space-y-4">
