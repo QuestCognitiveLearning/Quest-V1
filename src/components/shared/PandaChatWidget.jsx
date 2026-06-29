@@ -136,6 +136,12 @@ Panda:`;
     }
   };
 
+  // The inquiry step has its own dedicated Socratic tutor chat, so the floating
+  // Panda widget is hidden there — it only rides along during video, quiz, and
+  // case study. The component stays mounted (its conversation state is
+  // preserved); it just renders nothing while on the inquiry phase.
+  if (String(phase || "").toLowerCase() === "inquiry") return null;
+
   return (
     <>
       {!open && (
