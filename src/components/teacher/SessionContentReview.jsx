@@ -267,7 +267,15 @@ function ChoiceEditor({ item, onChange, mathEditing = false }) {
             Difficulty
           </span>
           <Select value={item.difficulty || "medium"} onValueChange={(v) => onChange({ difficulty: v })}>
-            <SelectTrigger className="w-32 h-8">
+            <SelectTrigger
+              className={`w-32 h-8 font-semibold ${
+                (item.difficulty || "medium") === "easy"
+                  ? "bg-green-100 text-green-700 border-green-200"
+                  : (item.difficulty || "medium") === "hard"
+                  ? "bg-red-100 text-red-700 border-red-200"
+                  : "bg-amber-100 text-amber-700 border-amber-200"
+              }`}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -393,7 +401,15 @@ function QuestionCard({ index, item, onChange, onRemove, mathEditing = false, la
             })}
           </ul>
           {item.difficulty !== undefined && (
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <span
+              className={`inline-block text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                item.difficulty === "easy"
+                  ? "bg-green-100 text-green-700"
+                  : item.difficulty === "hard"
+                  ? "bg-red-100 text-red-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
               {item.difficulty}
             </span>
           )}

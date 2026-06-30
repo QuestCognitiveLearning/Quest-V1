@@ -26,7 +26,6 @@ import {
   CheckSquare,
   Square,
   Pencil,
-  ClipboardList,
   Eye,
   X,
 } from "lucide-react";
@@ -128,6 +127,9 @@ export default function Generate() {
   const [library, setLibrary] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Teacher-chosen title for the generated session (defaults to the video
+  // title once generation lands, but is fully editable before saving).
+  const [resultTitle, setResultTitle] = useState("");
 
   // Multi-select state for bulk deletion. selectMode flips on the Select UI
   // (checkboxes + bulk-action bar). selectedIds is a Set of handout IDs.
@@ -683,6 +685,7 @@ ${inquiryTranscript ? `
 
   const startOver = () => {
     setResult(null);
+    setResultTitle("");
     setUrl("");
     setPdfFile(null);
     setPdfMeta(null);
@@ -691,8 +694,14 @@ ${inquiryTranscript ? `
     setError("");
   };
 
+  // Seed the editable title from the video once a result lands (only if the
+  // teacher hasn't already typed one).
+  useEffect(() => {
+    if (result?.video?.title) setResultTitle((t) => t || result.video.title);
+  }, [result]);
+
   // ---- Library save ------------------------------------------------------
-  const saveToLibrary = async (payload) => {
+  const saveToLibrary = async (payload, titleOverride) => {
     const me = user || (await quest.auth.me());
     const vid = payload?.video?.videoId;
     const url = vid
@@ -700,7 +709,7 @@ ${inquiryTranscript ? `
       : (payload?.video?.url || null);
     const row = await quest.entities.GeneratedHandout.create({
       teacher_id: me.id,
-      title: payload?.video?.title || "Untitled handout",
+      title: (titleOverride && titleOverride.trim()) || payload?.video?.title || "Untitled handout",
       source_type: tab === "pdf" ? "pdf" : "youtube",
       source_url: url,
       payload,
@@ -712,7 +721,7 @@ ${inquiryTranscript ? `
     if (!result) return;
     setSaving(true);
     try {
-      await saveToLibrary(result);
+      await saveToLibrary(result, resultTitle);
       toast.success("Saved to your library");
       if (user?.id) loadLibrary(user.id);
     } catch (err) {
@@ -769,7 +778,7 @@ ${inquiryTranscript ? `
     setSaving(true);
     try {
       // Auto-save so the live session builder can seed from a real handout id.
-      const saved = await saveToLibrary(result);
+      const saved = await saveToLibrary(result, resultTitle);
       if (user?.id) loadLibrary(user.id);
       const handoutId = saved?.id;
       if (!handoutId) throw new Error("No handout id returned");
@@ -1288,47 +1297,60 @@ ${inquiryTranscript ? `
 
         {stage === "result" && result && !isStudent && (
           <div className="space-y-5">
-            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 shadow-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  onClick={handleSaveToLibrary}
-                  disabled={saving}
-                  className="gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save to library
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                Title
+              </label>
+              <Input
+                value={resultTitle}
+                onChange={(e) => setResultTitle(e.target.value)}
+                placeholder="Name this session"
+                className="text-base"
+              />
+            </div>
+            {/* One scrollable row — compact so the actions don't wrap onto a
+                second line; on a narrow screen they scroll horizontally. */}
+            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-2 flex items-center gap-2 shadow-sm overflow-x-auto">
+              <Button
+                size="sm"
+                onClick={handleSaveToLibrary}
+                disabled={saving}
+                className="gap-1.5 h-9 px-3 shrink-0 bg-[#2563EB] hover:bg-[#1D4ED8]"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save to library
+              </Button>
+              {result.video?.videoId && (
+                <Button size="sm" onClick={handleRunLive} disabled={saving} className="gap-1.5 h-9 px-3 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <PlayCircle className="w-4 h-4" /> Use in live session
                 </Button>
-                {result.video?.videoId && (
-                  <Button onClick={handleRunLive} disabled={saving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                    <PlayCircle className="w-4 h-4" /> Use in live session
-                  </Button>
-                )}
-                <Button onClick={handleDownloadPDF} variant="outline" className="gap-2">
-                  <Download className="w-4 h-4" /> PDF
-                </Button>
-                <Button onClick={handleDownloadWord} variant="outline" className="gap-2">
-                  <FileText className="w-4 h-4" /> Word
-                </Button>
-                <Button
-                  onClick={() =>
-                    setEditTarget({
-                      source: "result",
-                      title: result?.video?.title,
-                      payload: result,
-                    })
-                  }
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <Pencil className="w-4 h-4" /> Edit
-                </Button>
-              </div>
-              <Button onClick={startOver} variant="ghost" className="shrink-0 whitespace-nowrap">
+              )}
+              <Button size="sm" onClick={handleDownloadPDF} variant="outline" className="gap-1.5 h-9 px-3 shrink-0">
+                <Download className="w-4 h-4" /> PDF
+              </Button>
+              <Button size="sm" onClick={handleDownloadWord} variant="outline" className="gap-1.5 h-9 px-3 shrink-0">
+                <FileText className="w-4 h-4" /> Word
+              </Button>
+              <Button
+                size="sm"
+                onClick={() =>
+                  setEditTarget({
+                    source: "result",
+                    title: resultTitle || result?.video?.title,
+                    payload: result,
+                  })
+                }
+                variant="outline"
+                className="gap-1.5 h-9 px-3 shrink-0"
+              >
+                <Pencil className="w-4 h-4" /> Edit
+              </Button>
+              <Button onClick={startOver} size="sm" variant="ghost" className="h-9 px-3 shrink-0 whitespace-nowrap ml-auto">
                 Generate another
               </Button>
             </div>
 
-            <ResultPreview result={result} enriching={enriching} />
+            <ResultPreview result={result} enriching={enriching} title={resultTitle} />
           </div>
         )}
 
@@ -1343,7 +1365,7 @@ ${inquiryTranscript ? `
 
         {/* Library section — always visible (when not actively generating) */}
         {stage !== "generating" && (
-          <section id="library" className="mt-12 scroll-mt-6">
+          <section id="library" className={`mt-12 scroll-mt-6 ${selectMode ? "pb-28" : ""}`}>
             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -1907,254 +1929,6 @@ function StudentFlashcardsView({ result, saving, onSave, onStartOver }) {
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-// The 0–4 scale the AI uses to grade free-response case-study answers (mirrors
-// supabase/functions/scoreCaseStudyAnswer). Shown to teachers so they know how
-// each case-study prompt is scored.
-const CASE_STUDY_RUBRIC = [
-  { score: 4, label: "Exemplary", desc: "Insightful analysis, concrete evidence from the scenario, complete reasoning." },
-  { score: 3, label: "Proficient", desc: "Clear answer with supporting reasoning; minor gaps in evidence." },
-  { score: 2, label: "Developing", desc: "Partial answer or evidence; reasoning incomplete or unclear." },
-  { score: 1, label: "Emerging", desc: "Off-topic, brief, or unsupported." },
-  { score: 0, label: "No attempt", desc: "Blank, gibberish, or refusal." },
-];
-
-function CaseStudyRubric({ className = "" }) {
-  return (
-    <div className={`rounded-xl border border-slate-200 bg-slate-50/70 p-3 ${className}`}>
-      <div className="flex items-center gap-1.5 mb-2">
-        <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-          Scoring rubric (0–4)
-        </span>
-      </div>
-      <ul className="space-y-1">
-        {CASE_STUDY_RUBRIC.map((r) => (
-          <li key={r.score} className="flex gap-2 text-xs text-slate-600 leading-snug">
-            <span className="font-bold text-slate-900 w-3.5 shrink-0">{r.score}</span>
-            <span>
-              <span className="font-semibold text-slate-800">{r.label}.</span> {r.desc}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: false } }) {
-  const { video, quiz, case_study, inquiry_session, attention_checks } = result;
-  const showInquiryPending = enriching.inquiry && !inquiry_session?.hook_question;
-  const showAttentionPending =
-    enriching.attentionChecks && !(Array.isArray(attention_checks) && attention_checks.length > 0);
-  const [revealed, setRevealed] = useState({});
-
-  const fmtTime = (s) => {
-    const m = Math.floor((s || 0) / 60);
-    const ss = String(Math.floor((s || 0) % 60)).padStart(2, "0");
-    return `${m}:${ss}`;
-  };
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-      <div className="p-6 border-b border-slate-100">
-        <p className="text-xs uppercase tracking-wider text-[#2563EB] font-semibold">
-          Generated handout
-        </p>
-        <h2 className="text-2xl font-bold text-slate-900 leading-tight mt-1">
-          {video?.title}
-        </h2>
-        {video?.channelTitle && (
-          <p className="text-sm text-slate-500 mt-1">
-            From {video.channelTitle}
-          </p>
-        )}
-      </div>
-
-      {showInquiryPending && (
-        <div className="p-6 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-            <h3 className="text-lg font-semibold text-slate-900">Inquiry hook</h3>
-            <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-              Generating…
-            </span>
-          </div>
-          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
-            <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 animate-pulse" />
-            <div className="space-y-2">
-              <div className="h-5 bg-slate-200 rounded animate-pulse w-3/4" />
-              <div className="h-3 bg-slate-100 rounded animate-pulse w-full" />
-              <div className="h-3 bg-slate-100 rounded animate-pulse w-5/6" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {inquiry_session?.hook_question && (
-        <details open className="p-6 border-b border-slate-100">
-          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
-            Inquiry hook
-          </summary>
-          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
-            {inquiry_session.hook_image_url ? (
-              <img
-                src={inquiry_session.hook_image_url}
-                alt="Inquiry hook"
-                className="w-full rounded-xl border border-slate-200"
-              />
-            ) : (
-              <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 flex items-center justify-center text-xs text-slate-500 text-center px-4">
-                {inquiry_session.hook_image_prompt
-                  ? "Image generating…"
-                  : "No hook image"}
-              </div>
-            )}
-            <div>
-              <h3 className="text-base font-bold text-slate-900 mb-2">
-                {inquiry_session.hook_question}
-              </h3>
-              <p className="text-sm text-slate-600 italic leading-relaxed">
-                Panda's opening:&nbsp;
-                <span className="not-italic">
-                  {inquiry_session.tutor_first_message}
-                </span>
-              </p>
-            </div>
-          </div>
-        </details>
-      )}
-
-      {showAttentionPending && (
-        <div className="p-6 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
-            <h3 className="text-lg font-semibold text-slate-900">Attention checks</h3>
-            <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-              Generating…
-            </span>
-          </div>
-          <div className="mt-4 space-y-2">
-            <div className="h-16 bg-amber-50/40 border border-slate-200 rounded-xl animate-pulse" />
-            <div className="h-16 bg-amber-50/40 border border-slate-200 rounded-xl animate-pulse" />
-          </div>
-        </div>
-      )}
-
-      {Array.isArray(attention_checks) && attention_checks.length > 0 && (
-        <details className="p-6 border-b border-slate-100">
-          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
-            Attention checks · {attention_checks.length}
-          </summary>
-          <ol className="mt-4 space-y-3">
-            {attention_checks.map((ac, i) => (
-              <li
-                key={i}
-                className="border border-slate-200 rounded-xl p-4 bg-amber-50/30"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700">
-                    At {fmtTime(ac.timestamp)}
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    Correct: {ac.correct_choice}
-                  </span>
-                </div>
-                <p className="font-medium text-slate-900 mb-2">{ac.question}</p>
-                <ul className="space-y-1 text-sm text-slate-700">
-                  {["a", "b", "c", "d"].map((l) => (
-                    <li key={l} className="flex gap-2">
-                      <span className="font-semibold w-5">{l.toUpperCase()}.</span>
-                      <span>{ac[`choice_${l}`]}</span>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ol>
-        </details>
-      )}
-
-      {case_study?.scenario && (
-        <details className="p-6 border-b border-slate-100">
-          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
-            Case Study
-          </summary>
-          <p className="text-slate-700 leading-relaxed mt-3 mb-4">
-            {case_study.scenario}
-          </p>
-          {case_study.discussion_questions?.length > 0 ? (
-            <>
-              <h4 className="text-sm font-semibold text-slate-900 mb-2">
-                Discussion Questions
-              </h4>
-              <ol className="list-decimal space-y-4 text-slate-700 pl-5">
-                {case_study.discussion_questions.map((q, i) => (
-                  <li key={i}>
-                    <span>{dqText(q)}</span>
-                    <CaseStudyRubric className="mt-2" />
-                  </li>
-                ))}
-              </ol>
-            </>
-          ) : (
-            <CaseStudyRubric className="mt-2" />
-          )}
-        </details>
-      )}
-
-      {quiz?.length > 0 && (
-        <section className="p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Quiz · {quiz.length} questions
-          </h3>
-          <ol className="space-y-4">
-            {quiz.map((q, i) => (
-              <li
-                key={i}
-                className="border border-slate-200 rounded-xl p-4"
-              >
-                <p className="font-medium text-slate-900 mb-3">
-                  {i + 1}. {q.question}
-                </p>
-                <ul className="space-y-1.5 text-sm text-slate-700">
-                  {["a", "b", "c", "d"].map((letter) => {
-                    const isCorrect =
-                      revealed[i] && q.correct_choice === letter.toUpperCase();
-                    return (
-                      <li
-                        key={letter}
-                        className={`flex items-start gap-2 px-2 py-1 rounded ${
-                          isCorrect ? "bg-emerald-50 text-emerald-900" : ""
-                        }`}
-                      >
-                        <span className="font-semibold w-5 shrink-0">
-                          {letter.toUpperCase()}.
-                        </span>
-                        <span className="flex-1">{q[`choice_${letter}`]}</span>
-                        {isCorrect && (
-                          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRevealed((prev) => ({ ...prev, [i]: !prev[i] }))
-                  }
-                  className="mt-3 text-xs font-medium text-[#2563EB] hover:text-[#1D4ED8]"
-                >
-                  {revealed[i] ? "Hide answer" : "Show answer"}
-                </button>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
     </div>
   );
 }
