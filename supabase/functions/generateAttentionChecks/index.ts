@@ -90,6 +90,7 @@ For each picked segment, write a 4-choice multiple-choice comprehension question
   - Tests understanding of something specifically said in or before that segment.
   - Can be answered using ONLY content from segments 1 through your chosen index. Treat anything in later segments as content the student has not yet heard — never reference it.
   - Has exactly one correct answer, supported directly by the transcript above.
+  - Writes each answer choice as a concise phrase WITHOUT a trailing period, unless the choice is a full sentence.
 
 Output JSON in this exact shape:
 {
