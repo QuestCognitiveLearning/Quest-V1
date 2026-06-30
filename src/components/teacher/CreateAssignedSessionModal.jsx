@@ -570,11 +570,11 @@ export default function CreateAssignedSessionModal({ open, onClose }) {
               }
               steps={[
                 { label: "Quiz + case study", done: baseDone },
-                ...(includes.inquiry
-                  ? [{ label: "Inquiry hook + Socratic prompt", done: baseDone && !enriching.inquiry }]
-                  : []),
                 ...(includes.attentionChecks
                   ? [{ label: "Attention checks", done: baseDone && !enriching.attentionChecks }]
+                  : []),
+                ...(includes.inquiry
+                  ? [{ label: "Inquiry hook + Socratic prompt", done: baseDone && !enriching.inquiry }]
                   : []),
               ]}
             />

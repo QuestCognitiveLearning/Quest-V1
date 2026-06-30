@@ -1108,12 +1108,22 @@ ${inquiryTranscript ? `
 
                   {searchResults.length > 0 && (
                     <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {searchResults.map((r) => (
+                      {searchResults.map((r) => {
+                        const picked = extractVideoId(url) === r.videoId;
+                        return (
                         <button
                           key={r.videoId}
                           type="button"
-                          onClick={() => runYoutubeGenerate(r.videoId)}
-                          className="text-left group rounded-xl border border-slate-200 hover:border-[#2563EB] hover:shadow-md transition overflow-hidden bg-white"
+                          onClick={() => {
+                            // Select the video (don't generate yet) so the
+                            // teacher can name it before hitting Generate.
+                            setUrl(`https://www.youtube.com/watch?v=${r.videoId}`);
+                            setResultTitle((t) => t || r.title || "");
+                            setError("");
+                          }}
+                          className={`text-left group rounded-xl border hover:shadow-md transition overflow-hidden bg-white ${
+                            picked ? "border-[#2563EB] ring-2 ring-[#2563EB]/30" : "border-slate-200 hover:border-[#2563EB]"
+                          }`}
                         >
                           <div className="relative aspect-video bg-slate-100">
                             {r.thumbnail && (
@@ -1123,6 +1133,11 @@ ${inquiryTranscript ? `
                                 loading="lazy"
                                 className="w-full h-full object-cover"
                               />
+                            )}
+                            {picked && (
+                              <span className="absolute top-2 left-2 bg-[#2563EB] text-white text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" /> Picked
+                              </span>
                             )}
                             {r.duration ? (
                               <span className="absolute bottom-2 right-2 text-[10px] bg-black/75 text-white px-1.5 py-0.5 rounded">
@@ -1140,7 +1155,8 @@ ${inquiryTranscript ? `
                             </p>
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </form>
@@ -1244,6 +1260,17 @@ ${inquiryTranscript ? `
               </div>
             )}
 
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <label className="block text-sm font-semibold text-slate-900 mb-2">
+                Title
+              </label>
+              <Input
+                value={resultTitle}
+                onChange={(e) => setResultTitle(e.target.value)}
+                placeholder="Name this session (optional — defaults to the video title)"
+              />
+            </div>
+
             {error && (
               <p className="text-sm text-red-600" role="alert">
                 {error}
@@ -1276,12 +1303,6 @@ ${inquiryTranscript ? `
             }
             steps={[
               { label: "Quiz + case study", done: !!result?.quiz?.length },
-              ...(options.includeInquiry
-                ? [{
-                    label: "Inquiry hook + Socratic prompt",
-                    done: !!result?.inquiry_session?.hook_question && !enriching.inquiry,
-                  }]
-                : []),
               ...(options.includeAttentionChecks
                 ? [{
                     label: "Attention checks",
@@ -1291,23 +1312,18 @@ ${inquiryTranscript ? `
                       !enriching.attentionChecks,
                   }]
                 : []),
+              ...(options.includeInquiry
+                ? [{
+                    label: "Inquiry hook + Socratic prompt",
+                    done: !!result?.inquiry_session?.hook_question && !enriching.inquiry,
+                  }]
+                : []),
             ]}
           />
         )}
 
         {stage === "result" && result && !isStudent && (
           <div className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                Title
-              </label>
-              <Input
-                value={resultTitle}
-                onChange={(e) => setResultTitle(e.target.value)}
-                placeholder="Name this session"
-                className="text-base"
-              />
-            </div>
             {/* One scrollable row — compact so the actions don't wrap onto a
                 second line; on a narrow screen they scroll horizontally. */}
             <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-2xl p-2 flex items-center gap-2 shadow-sm overflow-x-auto">
