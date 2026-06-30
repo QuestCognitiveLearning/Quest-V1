@@ -2,8 +2,11 @@
  * Samuel.jsx — a standalone personal site for Samuel Michael, served at
  * /samuel. Intentionally NOT linked anywhere in the app and registered as a
  * PUBLIC page (no auth, no app chrome) so it works as a shareable bio link.
+ *
+ * Photo: drop a square image at `public/samuel-photo.jpg` and it appears in the
+ * hero automatically; until then a clean "SM" monogram shows.
  */
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Mail,
   Phone,
@@ -17,7 +20,33 @@ import {
   Award,
   Sparkles,
   ArrowUpRight,
+  Gavel,
+  Church,
+  Calculator,
+  BookOpen,
+  Microscope,
 } from "lucide-react";
+
+// Logo with graceful fallback: shows the image if it loads, otherwise a
+// colored icon tile. Keeps the page from ever showing a broken-image box.
+function Logo({ src, alt, icon: Icon, color = "text-indigo-600 bg-indigo-50", contain = true }) {
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        onError={() => setFailed(true)}
+        className={`w-11 h-11 rounded-xl border border-slate-200 bg-white ${contain ? "object-contain p-1.5" : "object-cover"}`}
+      />
+    );
+  }
+  return (
+    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+      <Icon className="w-5 h-5" />
+    </div>
+  );
+}
 
 const STATS = [
   { value: "35", label: "ACT Composite" },
@@ -28,6 +57,7 @@ const STATS = [
 
 const EXPERIENCE = [
   {
+    logo: "/quest-logo-on-white.png",
     icon: Rocket,
     color: "text-indigo-600 bg-indigo-50",
     role: "Co-Founder",
@@ -41,6 +71,7 @@ const EXPERIENCE = [
     ],
   },
   {
+    logo: "https://logo.clearbit.com/vumc.org",
     icon: FlaskConical,
     color: "text-emerald-600 bg-emerald-50",
     role: "Research Intern — Dr. Charles Flynn Lab",
@@ -67,36 +98,48 @@ const EXPERIENCE = [
 
 const LEADERSHIP = [
   {
+    icon: Landmark,
+    color: "text-emerald-600 bg-emerald-50",
     role: "Director",
     org: "Wealth Education Initiative (Non-Profit)",
     detail:
-      "Sits on the Williamson County 5-Year Strategic Plan Committee shaping student personal-finance standards (20,000+ students over 4 years); authored an ebook sent to 200+ students and launched two county financial-literacy chapters.",
+      "Sits on the Williamson County 5-Year Strategic Plan Committee shaping student personal-finance standards (20,000+ students over 4 years); authored an ebook sent to 200+ students and launched two county chapters.",
   },
   {
+    icon: Gavel,
+    color: "text-blue-600 bg-blue-50",
     role: "Lieutenant Governor / Speaker of the Senate",
     org: "Tennessee American Legion Boys State",
     detail:
       "Elected (0.14% selection) to preside over the inauguration ceremony before 750+ delegates, including the Tennessee Governor.",
   },
   {
+    icon: Church,
+    color: "text-amber-600 bg-amber-50",
     role: "Founder & President",
     org: "Ravenwood Orthodox Christian School Ministries",
     detail:
       "Grew a faith-based club to 50+ members, organized 25+ events and 100+ volunteer hours, and led a 5-person officer team.",
   },
   {
+    icon: Calculator,
+    color: "text-indigo-600 bg-indigo-50",
     role: "Vice President",
     org: "Mu Alpha Theta Math Honor Society",
     detail:
       "Ran monthly meetings for 120+ members, oversaw 750+ volunteer hours, and organized weekly tutoring and middle-school math nights.",
   },
   {
+    icon: BookOpen,
+    color: "text-rose-600 bg-rose-50",
     role: "Educator & Deacon Reader",
     org: "St. Barbara — Coptic Orthodox Church",
     detail:
       "Teaches 4 weekly classes on hymnology and dogma to 150+ children; 500+ service hours and ordained to the rank of Reader.",
   },
   {
+    icon: Microscope,
+    color: "text-cyan-600 bg-cyan-50",
     role: "General Officer",
     org: "BioMedical Sciences",
     detail:
@@ -147,6 +190,26 @@ function SectionTitle({ icon: Icon, children }) {
   );
 }
 
+// Hero avatar — uses the dropped-in photo if present, else an "SM" monogram.
+function Avatar() {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 ring-4 ring-white/10 flex items-center justify-center text-3xl font-extrabold text-white shrink-0">
+        SM
+      </div>
+    );
+  }
+  return (
+    <img
+      src="/samuel-photo.jpg"
+      alt="Samuel Michael"
+      onError={() => setFailed(true)}
+      className="w-24 h-24 rounded-2xl object-cover ring-4 ring-white/10 shrink-0"
+    />
+  );
+}
+
 export default function Samuel() {
   useEffect(() => {
     const prev = document.title;
@@ -170,22 +233,24 @@ export default function Samuel() {
               "radial-gradient(60% 80% at 20% 0%, #4f46e5 0%, transparent 60%), radial-gradient(50% 70% at 90% 20%, #7c3aed 0%, transparent 55%)",
           }}
         />
-        <div className="relative max-w-3xl mx-auto px-6 pt-20 pb-14">
-          <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300 mb-5">
-            <Sparkles className="w-3.5 h-3.5" /> Builder · Researcher · Student
+        <div className="relative max-w-3xl mx-auto px-6 pt-16 pb-14">
+          <div className="flex items-start gap-5">
+            <Avatar />
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300 mb-3">
+                <Sparkles className="w-3.5 h-3.5" /> Builder · Researcher · Student
+              </div>
+              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.05]">
+                Samuel Michael
+              </h1>
+              <p className="mt-1.5 text-indigo-200 font-medium">
+                Cornelius Vanderbilt Scholar · Co-Founder of Quest Learning
+              </p>
+            </div>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.05]">
-            Samuel Michael
-          </h1>
-          <p className="mt-4 text-lg text-slate-300 leading-relaxed max-w-2xl">
-            Cornelius Vanderbilt Scholar and co-founder of{" "}
-            <a
-              href="https://www.questlearning.co"
-              className="text-white font-semibold underline decoration-indigo-400/60 underline-offset-4 hover:decoration-indigo-300"
-            >
-              Quest Learning
-            </a>
-            . I build at the intersection of medicine, technology, and education —
+
+          <p className="mt-6 text-lg text-slate-300 leading-relaxed max-w-2xl">
+            I build at the intersection of medicine, technology, and education —
             from biomedical research at Vanderbilt to an AI platform reaching tens
             of thousands of students.
           </p>
@@ -261,9 +326,7 @@ export default function Samuel() {
                 className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"
               >
                 <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${e.color}`}>
-                    <e.icon className="w-5 h-5" />
-                  </div>
+                  <Logo src={e.logo} alt={e.org} icon={e.icon} color={e.color} />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                       <h3 className="font-bold text-slate-900">{e.role}</h3>
@@ -294,9 +357,16 @@ export default function Samuel() {
                 key={l.org}
                 className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4"
               >
-                <h3 className="font-bold text-slate-900 text-sm">{l.role}</h3>
-                <p className="text-xs font-semibold text-indigo-600 mb-2">{l.org}</p>
-                <p className="text-[13px] text-slate-600 leading-relaxed">{l.detail}</p>
+                <div className="flex items-start gap-3">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${l.color}`}>
+                    <l.icon className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-900 text-sm leading-snug">{l.role}</h3>
+                    <p className="text-xs font-semibold text-indigo-600 mb-2">{l.org}</p>
+                    <p className="text-[13px] text-slate-600 leading-relaxed">{l.detail}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -338,25 +408,42 @@ export default function Samuel() {
           <SectionTitle icon={GraduationCap}>Education</SectionTitle>
           <div className="space-y-3">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <h3 className="font-bold text-slate-900">Vanderbilt University</h3>
-                <span className="text-xs font-medium text-slate-400">Class of 2030</span>
+              <div className="flex items-start gap-4">
+                <Logo
+                  src="https://logo.clearbit.com/vanderbilt.edu"
+                  alt="Vanderbilt University"
+                  icon={GraduationCap}
+                  color="text-amber-700 bg-amber-50"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <h3 className="font-bold text-slate-900">Vanderbilt University</h3>
+                    <span className="text-xs font-medium text-slate-400">Class of 2030</span>
+                  </div>
+                  <p className="text-sm font-semibold text-indigo-600">
+                    B.S. — Cornelius Vanderbilt Scholar (full tuition, &lt;1%)
+                  </p>
+                  <p className="text-sm text-slate-600 mt-2">
+                    Double major in Molecular &amp; Cellular Biology and Medicine,
+                    Health &amp; Society · Minor in Data Science.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm font-semibold text-indigo-600">B.S. — Cornelius Vanderbilt Scholar (full tuition, &lt;1%)</p>
-              <p className="text-sm text-slate-600 mt-2">
-                Double major in Molecular &amp; Cellular Biology and Medicine,
-                Health &amp; Society · Minor in Data Science.
-              </p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <h3 className="font-bold text-slate-900">Ravenwood High School</h3>
-                <span className="text-xs font-medium text-slate-400">Aug 2022 — May 2026</span>
+              <div className="flex items-start gap-4">
+                <Logo src={null} alt="Ravenwood High School" icon={GraduationCap} color="text-slate-600 bg-slate-100" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <h3 className="font-bold text-slate-900">Ravenwood High School</h3>
+                    <span className="text-xs font-medium text-slate-400">Aug 2022 — May 2026</span>
+                  </div>
+                  <p className="text-sm text-slate-600 mt-2">
+                    4.0 unweighted / 4.69 weighted GPA · 35 ACT · 13 AP and 6 dual-enrollment
+                    courses (incl. Calculus III, Linear Algebra, AP Research).
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-slate-600 mt-2">
-                4.0 unweighted / 4.69 weighted GPA · 35 ACT · 13 AP and 6 dual-enrollment
-                courses (incl. Calculus III, Linear Algebra, AP Research).
-              </p>
             </div>
           </div>
         </section>
@@ -364,7 +451,7 @@ export default function Samuel() {
 
       <footer className="border-t border-slate-200 bg-white">
         <div className="max-w-3xl mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
-          <span>© {2026} Samuel Michael</span>
+          <span>© 2026 Samuel Michael</span>
           <div className="flex items-center gap-4">
             <a href="mailto:samuelmic207@gmail.com" className="hover:text-slate-900 inline-flex items-center gap-1.5">
               <Mail className="w-4 h-4" /> Email
