@@ -57,7 +57,9 @@ export default function SignIn() {
   // the backend (edge function + secrets) is provisioned. Hitting the edge
   // function with no `code` kicks off the OAuth authorization redirect.
   const classlinkEnabled = import.meta.env.VITE_CLASSLINK_SSO === 'true';
-  const classlinkUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classlinkSso`;
+  // Proxied through Vercel rewrite (vercel.json) to the classlinkSso Edge
+  // Function. Keeps the redirect_uri ClassLink sees on our own domain.
+  const classlinkUrl = `/auth/classlink`;
   // Surface SSO failures bounced back from the edge function (?sso_error=...).
   const ssoError = new URLSearchParams(location.search).get('sso_error');
 
