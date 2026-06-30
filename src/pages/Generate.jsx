@@ -1933,6 +1933,199 @@ function StudentFlashcardsView({ result, saving, onSave, onStartOver }) {
   );
 }
 
+// Read-only preview shown on the result/download screen. Each section is a
+// collapsed accordion, in play order: inquiry → attention checks → quiz →
+// case study.
+function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: false }, title = "" }) {
+  const { video, quiz, case_study, inquiry_session, attention_checks } = result;
+  const showInquiryPending = enriching.inquiry && !inquiry_session?.hook_question;
+  const showAttentionPending =
+    enriching.attentionChecks && !(Array.isArray(attention_checks) && attention_checks.length > 0);
+  const [revealed, setRevealed] = useState({});
+
+  const fmtTime = (s) => {
+    const m = Math.floor((s || 0) / 60);
+    const ss = String(Math.floor((s || 0) % 60)).padStart(2, "0");
+    return `${m}:${ss}`;
+  };
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="p-6 border-b border-slate-100">
+        <p className="text-xs uppercase tracking-wider text-[#2563EB] font-semibold">
+          Generated handout
+        </p>
+        <h2 className="text-2xl font-bold text-slate-900 leading-tight mt-1">
+          {title || video?.title}
+        </h2>
+        {video?.channelTitle && (
+          <p className="text-sm text-slate-500 mt-1">
+            From {video.channelTitle}
+          </p>
+        )}
+      </div>
+
+      {showInquiryPending && (
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+            <h3 className="text-lg font-semibold text-slate-900">Inquiry hook</h3>
+            <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+              Generating…
+            </span>
+          </div>
+          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
+            <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 animate-pulse" />
+            <div className="space-y-2">
+              <div className="h-5 bg-slate-200 rounded animate-pulse w-3/4" />
+              <div className="h-3 bg-slate-100 rounded animate-pulse w-full" />
+              <div className="h-3 bg-slate-100 rounded animate-pulse w-5/6" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inquiry_session?.hook_question && (
+        <details className="p-6 border-b border-slate-100">
+          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
+            Inquiry hook
+          </summary>
+          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
+            {inquiry_session.hook_image_url ? (
+              <img
+                src={inquiry_session.hook_image_url}
+                alt="Inquiry hook"
+                className="w-full rounded-xl border border-slate-200"
+              />
+            ) : (
+              <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 flex items-center justify-center text-xs text-slate-500 text-center px-4">
+                {inquiry_session.hook_image_prompt ? "Image generating…" : "No hook image"}
+              </div>
+            )}
+            <div>
+              <h3 className="text-base font-bold text-slate-900 mb-2">
+                {inquiry_session.hook_question}
+              </h3>
+              <p className="text-sm text-slate-600 italic leading-relaxed">
+                Panda's opening:&nbsp;
+                <span className="not-italic">{inquiry_session.tutor_first_message}</span>
+              </p>
+            </div>
+          </div>
+        </details>
+      )}
+
+      {showAttentionPending && (
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+            <h3 className="text-lg font-semibold text-slate-900">Attention checks</h3>
+            <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+              Generating…
+            </span>
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="h-16 bg-amber-50/40 border border-slate-200 rounded-xl animate-pulse" />
+            <div className="h-16 bg-amber-50/40 border border-slate-200 rounded-xl animate-pulse" />
+          </div>
+        </div>
+      )}
+
+      {Array.isArray(attention_checks) && attention_checks.length > 0 && (
+        <details className="p-6 border-b border-slate-100">
+          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
+            Attention checks · {attention_checks.length}
+          </summary>
+          <ol className="mt-4 space-y-3">
+            {attention_checks.map((ac, i) => (
+              <li key={i} className="border border-slate-200 rounded-xl p-4 bg-amber-50/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700">
+                    At {fmtTime(ac.timestamp)}
+                  </span>
+                  <span className="text-[11px] text-slate-500">Correct: {ac.correct_choice}</span>
+                </div>
+                <p className="font-medium text-slate-900 mb-2">{ac.question}</p>
+                <ul className="space-y-1 text-sm text-slate-700">
+                  {["a", "b", "c", "d"].map((l) => (
+                    <li key={l} className="flex gap-2">
+                      <span className="font-semibold w-5">{l.toUpperCase()}</span>
+                      <span>{ac[`choice_${l}`]}</span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+
+      {quiz?.length > 0 && (
+        <details className="p-6 border-b border-slate-100">
+          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
+            Quiz · {quiz.length} questions
+          </summary>
+          <ol className="space-y-4 mt-4">
+            {quiz.map((q, i) => (
+              <li key={i} className="border border-slate-200 rounded-xl p-4">
+                <p className="font-medium text-slate-900 mb-3">
+                  {i + 1}. {q.question}
+                </p>
+                <ul className="space-y-1.5 text-sm text-slate-700">
+                  {["a", "b", "c", "d"].map((letter) => {
+                    const isCorrect = revealed[i] && q.correct_choice === letter.toUpperCase();
+                    return (
+                      <li
+                        key={letter}
+                        className={`flex items-start gap-2 px-2 py-1 rounded ${
+                          isCorrect ? "bg-emerald-50 text-emerald-900" : ""
+                        }`}
+                      >
+                        <span className="font-semibold w-5 shrink-0">{letter.toUpperCase()}</span>
+                        <span className="flex-1">{q[`choice_${letter}`]}</span>
+                        {isCorrect && (
+                          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => setRevealed((prev) => ({ ...prev, [i]: !prev[i] }))}
+                  className="mt-3 text-xs font-medium text-[#2563EB] hover:text-[#1D4ED8]"
+                >
+                  {revealed[i] ? "Hide answer" : "Show answer"}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+
+      {case_study?.scenario && (
+        <details className="p-6 border-b border-slate-100">
+          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
+            Case Study
+          </summary>
+          <p className="text-slate-700 leading-relaxed mt-3 mb-4">{case_study.scenario}</p>
+          {case_study.discussion_questions?.length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-slate-900 mb-2">Discussion Questions</h4>
+              <ol className="list-decimal space-y-4 text-slate-700 pl-5">
+                {case_study.discussion_questions.map((q, i) => (
+                  <li key={i}>
+                    <span>{dqText(q)}</span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </details>
+      )}
+    </div>
+  );
+}
+
 // In-page confirm dialog used for library deletes (replaces window.confirm so
 // the prompt lives inside the app, not the browser chrome).
 function ConfirmDialog({ title, message, confirmLabel = "Confirm", onConfirm, onCancel, onDone }) {
