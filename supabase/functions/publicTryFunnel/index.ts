@@ -17,6 +17,7 @@ import { handlePreflight, json, safeErrorResponse } from '../_shared/cors.ts';
 import { invokeLLMWithUsage } from '../_shared/llm.ts';
 import { clientIp, rateLimitByIp, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
 import { decodeHtmlEntities } from '../_shared/htmlEntities.ts';
+import { rebalanceCorrect } from '../_shared/rebalance.ts';
 
 const YT_API_KEY = Deno.env.get('YOUTUBE_API_KEY')!;
 const TRANSCRIPT_API_KEY = Deno.env.get('TRANSCRIPTAPI_KEY')!;
@@ -195,21 +196,23 @@ Output strictly the JSON shape requested.`;
 
   const content = result.content as Record<string, unknown> | null;
   const rawQuiz = Array.isArray(content?.quiz) ? content.quiz : [];
-  const quiz = rawQuiz
-    .map((q: Record<string, unknown>) => {
-      const correct = String(q.correct_choice ?? '').toUpperCase();
-      if (!['A', 'B', 'C', 'D'].includes(correct)) return null;
-      return {
-        question: String(q.question ?? ''),
-        choice_a: String(q.choice_a ?? ''),
-        choice_b: String(q.choice_b ?? ''),
-        choice_c: String(q.choice_c ?? ''),
-        choice_d: String(q.choice_d ?? ''),
-        correct_choice: correct,
-        explanation: String(q.explanation ?? ''),
-      };
-    })
-    .filter((q): q is NonNullable<typeof q> => q !== null && q.question.length > 5);
+  const quiz = rebalanceCorrect(
+    rawQuiz
+      .map((q: Record<string, unknown>) => {
+        const correct = String(q.correct_choice ?? '').toUpperCase();
+        if (!['A', 'B', 'C', 'D'].includes(correct)) return null;
+        return {
+          question: String(q.question ?? ''),
+          choice_a: String(q.choice_a ?? ''),
+          choice_b: String(q.choice_b ?? ''),
+          choice_c: String(q.choice_c ?? ''),
+          choice_d: String(q.choice_d ?? ''),
+          correct_choice: correct,
+          explanation: String(q.explanation ?? ''),
+        };
+      })
+      .filter((q): q is NonNullable<typeof q> => q !== null && q.question.length > 5),
+  );
 
   const cs = (content?.case_study as Record<string, unknown> | undefined) ?? {};
   const discussion = Array.isArray(cs.discussion_questions)

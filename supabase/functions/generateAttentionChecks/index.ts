@@ -20,6 +20,7 @@ import { getMe } from '../_shared/auth.ts';
 import { invokeLLMWithUsage } from '../_shared/llm.ts';
 import { guardLLMRequest, logLLMUsage, guardFailureResponse } from '../_shared/llmGuard.ts';
 import { clientIp, rateLimitByIp, rateLimitByUser, tooManyRequestsResponse } from '../_shared/rateLimit.ts';
+import { rebalanceCorrect } from '../_shared/rebalance.ts';
 
 interface Segment { timestamp: number; text: string }
 
@@ -180,7 +181,8 @@ If nothing important is taught, return {"checks": []}.`;
     .filter((c, i, arr) => i === 0 || c.timestamp - arr[i - 1].timestamp >= 5)
     .map((c, i) => ({ ...c, check_order: i + 1 }));
 
-  return json({ attention_checks: checks }, 200, req);
+  // Spread the correct answer across A–D (never the same letter 3+ in a row).
+  return json({ attention_checks: rebalanceCorrect(checks) }, 200, req);
 });
 
 function formatTime(s: number): string {
