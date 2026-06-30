@@ -611,6 +611,10 @@ ${inquiryTranscript ? `
 
   const handleGenerate = async () => {
     setError("");
+    if (!resultTitle.trim()) {
+      setError("Give this session a title first.");
+      return;
+    }
     // Free-tier students hit the cap → open upgrade modal instead of
     // calling the LLM. canStudentGenerate is true for teachers and for
     // classroom-tier (paid) students.
@@ -694,12 +698,6 @@ ${inquiryTranscript ? `
     setError("");
   };
 
-  // Seed the editable title from the video once a result lands (only if the
-  // teacher hasn't already typed one).
-  useEffect(() => {
-    if (result?.video?.title) setResultTitle((t) => t || result.video.title);
-  }, [result]);
-
   // ---- Library save ------------------------------------------------------
   const saveToLibrary = async (payload, titleOverride) => {
     const me = user || (await quest.auth.me());
@@ -709,7 +707,7 @@ ${inquiryTranscript ? `
       : (payload?.video?.url || null);
     const row = await quest.entities.GeneratedHandout.create({
       teacher_id: me.id,
-      title: (titleOverride && titleOverride.trim()) || payload?.video?.title || "Untitled handout",
+      title: (titleOverride && titleOverride.trim()) || "Untitled handout",
       source_type: tab === "pdf" ? "pdf" : "youtube",
       source_url: url,
       payload,
@@ -1118,7 +1116,6 @@ ${inquiryTranscript ? `
                             // Select the video (don't generate yet) so the
                             // teacher can name it before hitting Generate.
                             setUrl(`https://www.youtube.com/watch?v=${r.videoId}`);
-                            setResultTitle((t) => t || r.title || "");
                             setError("");
                           }}
                           className={`text-left group rounded-xl border hover:shadow-md transition overflow-hidden bg-white ${
@@ -1262,12 +1259,12 @@ ${inquiryTranscript ? `
 
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <label className="block text-sm font-semibold text-slate-900 mb-2">
-                Title
+                Title <span className="text-red-500">*</span>
               </label>
               <Input
                 value={resultTitle}
                 onChange={(e) => setResultTitle(e.target.value)}
-                placeholder="Name this session (optional — defaults to the video title)"
+                placeholder="Name this session"
               />
             </div>
 
@@ -1280,6 +1277,7 @@ ${inquiryTranscript ? `
             <Button
               onClick={handleGenerate}
               disabled={
+                !resultTitle.trim() ||
                 (tab === "youtube" && !url.trim()) ||
                 (tab === "pdf" && (!pdfMeta || extracting))
               }
