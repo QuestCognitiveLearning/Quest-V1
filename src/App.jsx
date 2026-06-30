@@ -49,6 +49,7 @@ const PUBLIC_PAGES = [
   'Enterprise',
   'Join',
   'LiveSessionPlay',
+  'Samuel',
 ];
 
 /**

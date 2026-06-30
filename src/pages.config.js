@@ -29,6 +29,8 @@ import __Layout from './Layout.jsx';
 // Each entry is React.lazy() — emits a separate chunk at build time.
 export const PAGES = {
   "AuthCallback":         lazy(() => import('./pages/AuthCallback')),
+  // Standalone personal bio page (questlearning.co/samuel) — not linked anywhere.
+  "Samuel":               lazy(() => import('./pages/Samuel')),
   "Privacy":              lazy(() => import('./pages/Privacy')),
   "Terms":                lazy(() => import('./pages/Terms')),
   "Security":             lazy(() => import('./pages/Security')),
