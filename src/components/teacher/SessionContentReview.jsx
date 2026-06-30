@@ -222,9 +222,9 @@ function MathField({ as = "input", enableMath = false, className = "", value, on
 // Editable multiple-choice block shared by quiz questions and attention checks.
 // When the item carries a `difficulty` field, a difficulty picker is shown
 // (curriculum quizzes); `mathEditing` adds the equation inserter to every field.
-function ChoiceEditor({ item, onChange, mathEditing = false }) {
+function ChoiceEditor({ item, onChange, mathEditing = false, showDifficulty = false }) {
   const correct = String(item.correct_choice || "").toUpperCase();
-  const hasDifficulty = item.difficulty !== undefined;
+  const hasDifficulty = showDifficulty || item.difficulty !== undefined;
   return (
     <div className="space-y-2">
       <MathField
@@ -341,9 +341,10 @@ function EditableText({ value, onChange, multiline = false, mathEditing = false,
 // A quiz / attention-check item. Read-only by default (full question + choices,
 // correct answer highlighted); "Edit" reveals the ChoiceEditor (where the math
 // inserter lives). Mirrors the edit-on-click feel of the prose fields.
-function QuestionCard({ index, item, onChange, onRemove, mathEditing = false, label = "Q" }) {
+function QuestionCard({ index, item, onChange, onRemove, mathEditing = false, label = "Q", showDifficulty = false }) {
   const [editing, setEditing] = useState(false);
   const correct = String(item.correct_choice || "").toUpperCase();
+  const difficulty = showDifficulty ? item.difficulty || "medium" : item.difficulty;
   return (
     <li className="border border-slate-200 rounded-xl p-3">
       <div className="flex items-center justify-between mb-2">
@@ -369,7 +370,7 @@ function QuestionCard({ index, item, onChange, onRemove, mathEditing = false, la
         </div>
       </div>
       {editing ? (
-        <ChoiceEditor item={item} onChange={onChange} mathEditing={mathEditing} />
+        <ChoiceEditor item={item} onChange={onChange} mathEditing={mathEditing} showDifficulty={showDifficulty} />
       ) : (
         <div className="space-y-1.5">
           <p className="text-sm font-medium text-slate-800 whitespace-pre-wrap break-words">
@@ -400,17 +401,17 @@ function QuestionCard({ index, item, onChange, onRemove, mathEditing = false, la
               );
             })}
           </ul>
-          {item.difficulty !== undefined && (
+          {difficulty !== undefined && (
             <span
               className={`inline-block text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                item.difficulty === "easy"
+                difficulty === "easy"
                   ? "bg-green-100 text-green-700"
-                  : item.difficulty === "hard"
+                  : difficulty === "hard"
                   ? "bg-red-100 text-red-700"
                   : "bg-amber-100 text-amber-700"
               }`}
             >
-              {item.difficulty}
+              {difficulty}
             </span>
           )}
         </div>
@@ -768,6 +769,7 @@ export function SessionContentReview({
                       onChange={(patch) => setQuizItem(i, patch)}
                       onRemove={() => removeQuizItem(i)}
                       mathEditing={mathEditing}
+                      showDifficulty
                     />
                   ))}
                 </ol>
