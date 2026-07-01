@@ -108,11 +108,76 @@ const ENTREPRENEURSHIP = {
     "Currently part of my county's Entrepreneurship & Innovation Center, a chapter of the national INCubatoredu program. Mentored by Clay Banks (Shark Tank participant and serial entrepreneur), I was invited to pitch at the Nashville Entrepreneurship Center — where I presented to the adult cohort as an example of effective pitching.",
 };
 
+const LEADERSHIP = [
+  {
+    role: "General Assembly Vice President",
+    org: "YMCA Civic Engagement · Model United Nations",
+    detail:
+      "Coordinated a 700–900-delegate conference; chaired parliamentary debate for a 30-member committee, ensuring equitable participation and balanced speaking.",
+  },
+  {
+    role: "Communications Director",
+    org: "ScienceFinds",
+    detail:
+      "Led outreach and speaker coordination for a school STEM club, connecting 75+ students with 200+ Nashville STEM professors as guest speakers.",
+  },
+  {
+    role: "Director",
+    org: "Voice4You Podcast",
+    detail:
+      "Led a team that interviewed 15+ student leaders and generated 30,000+ social media views; built the podcast's website to expand its digital presence.",
+  },
+  {
+    role: "Member",
+    org: "Ravenwood Wrestling Team",
+    detail:
+      "Competed in 25+ matches. Received multiple regional-level awards while building discipline, resilience, and leadership through strenuous training.",
+  },
+  {
+    role: "Member",
+    org: "Science Olympiad",
+    detail:
+      "Competed in team-based STEM events including Dynamic Planet, Tower Building, and Disease Detectors, sharpening problem-solving and STEM expertise.",
+  },
+  {
+    role: "Member",
+    org: "Public Forum Debate",
+    detail:
+      "Partner-based debate on current-event topics. Conducted extensive research, built evidence-based arguments, and delivered persuasive speeches.",
+  },
+  {
+    role: "Community Service · 200 hours",
+    org: "Salahadeen Center",
+    detail:
+      "Tutored 12 students in Arabic weekly; mentored youth and organized prayers and community events for 50+ members. Received an award for contributions.",
+  },
+];
+
 const AWARDS = [
   "DECA International Career Development Conference (ICDC) — 2× International Finalist (top 1% of 25,000+ competitors)",
   "Breakthrough Junior Challenge Finalist — top 15 of 2,500+ international submissions in global science communication (2025)",
-  "TSA Nationals — 6th, Data Science & Analytics · Top 12, Biotechnology Design · 3× 1st-Place State Titles",
+  "TSA Nationals — 6th, Data Science & Analytics · Top 12, Biotechnology Design · 3× 1st-Place State Titles (Biotechnology, Data Science, Geospatial Technologies)",
   "EIC Final Pitch — selected as one of the companies to pitch for the EIC; received $2,500 in funding",
+  "2× Tennessee DECA SCDC Finalist",
+  "2× 1st Place — Virtual Business Challenge (TN DECA)",
+  "2nd Place — System Control Technology 2025 (TSA); Marketing Team Decision Making (TN DECA)",
+  "3rd Place — System Control Technology 2024 (TSA)",
+  "6th Place — Quick Service Restaurant Management (TN DECA)",
+  "Award of Excellence — Local Salahadeen Center (<1%)",
+  "3rd Place — Cookeville Debate Tournament",
+  "4th Place — Tower Building, Science Olympiad",
+  "AP Scholar with Distinction",
+  "2× Model UN Awards — Outstanding Delegate & Outstanding Resolution",
+  "1st Place — Peach Cup Karate Tournament (3-state)",
+  "1st Place — Wilson Central Wrestling; 3rd Place — SBA Wrestling",
+];
+
+const LANGUAGES = ["English", "Russian", "Arabic", "Uzbek"];
+
+const HOBBIES = [
+  "Rubik's cubes & strategic games (chess)",
+  "Martial arts, calisthenics, rock climbing",
+  "Traveling to new places",
 ];
 
 const PROJECTS = [
@@ -223,6 +288,11 @@ const EDUCATION = [
       "Multivariable Calculus",
       "Introduction to Linear Algebra",
     ],
+  },
+  {
+    school: "Azhar University",
+    location: "Cairo, Egypt",
+    period: "2021 – 2023",
   },
 ];
 
@@ -501,15 +571,47 @@ export default function Adam() {
           </Card>
         </section>
 
+        {/* Leadership & Service */}
+        <section>
+          <SectionHeader
+            eyebrow="Leadership & Service"
+            title="Where else I show up."
+          />
+          <div className="grid sm:grid-cols-2 gap-3">
+            {LEADERSHIP.map((l) => (
+              <Card key={l.org} className="!p-5">
+                <h3
+                  className="font-bold text-[14px] leading-snug"
+                  style={{ color: INK }}
+                >
+                  {l.role}
+                </h3>
+                <p
+                  className="text-[12.5px] font-semibold mt-0.5"
+                  style={{ color: BLUE }}
+                >
+                  {l.org}
+                </p>
+                <p
+                  className="mt-2 text-[13px] leading-relaxed"
+                  style={{ color: BODY }}
+                >
+                  {l.detail}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </section>
+
         {/* Honors & Awards */}
         <section>
           <SectionHeader eyebrow="Competitions & Awards" title="Recognition." />
           <Card>
-            <ul className="space-y-3">
+            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
               {AWARDS.map((a, i) => (
                 <li
                   key={i}
-                  className="text-[14px] leading-relaxed flex gap-2.5"
+                  className="text-[13.5px] leading-relaxed flex gap-2.5"
                   style={{ color: BODY }}
                 >
                   <span
@@ -667,57 +769,61 @@ export default function Adam() {
           </div>
         </section>
 
-        {/* Reflections */}
+        {/* Languages & Interests */}
         <section>
           <SectionHeader
-            eyebrow="Notes"
-            title="A couple of stories I keep coming back to."
+            eyebrow="Languages & Interests"
+            title="Outside the resume."
           />
-          <div className="space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
             <Card>
-              <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
-                A time I "hacked" a non-computer system
-              </h3>
-              <p
-                className="mt-3 text-[14px] leading-relaxed"
-                style={{ color: BODY }}
+              <div
+                className="text-[11px] font-semibold tracking-[0.12em] uppercase mb-3"
+                style={{ color: MUTED }}
               >
-                When I was 10, I beat everyone at Roblox Bodybuilding Simulator
-                by putting a heavy weight on my keyboard and walking away. The
-                game worked by having you press the "Q" key to increase your
-                strength one point at a time. I got tired of clicking the same
-                button, so I built a small pyramid out of two books to push the
-                key endlessly, optimizing my way to the top without lifting a
-                finger. I was the strongest player in the game within the first
-                day. :)
-              </p>
-              <p
-                className="mt-3 text-[14px] leading-relaxed"
-                style={{ color: BODY }}
-              >
-                Looking back, that little contraption taught me something I
-                still rely on: never get hung up on how things have always been
-                done, because there's almost always a way to improve, innovate,
-                and think outside the box. It set the foundation for the
-                projects I've built since — and taught me to question the
-                default approach instead of accepting it.
+                Languages
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {LANGUAGES.map((l) => (
+                  <span
+                    key={l}
+                    className="inline-flex text-[12.5px] font-medium rounded-full px-3 py-1 border"
+                    style={{
+                      color: INK,
+                      backgroundColor: "#F8FAFC",
+                      borderColor: BORDER,
+                    }}
+                  >
+                    {l}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[12px] mt-3" style={{ color: MUTED }}>
+                Fluent and articulate in all four.
               </p>
             </Card>
             <Card>
-              <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
-                Most impressive thing I've built
-              </h3>
-              <p
-                className="mt-3 text-[14px] leading-relaxed"
-                style={{ color: BODY }}
+              <div
+                className="text-[11px] font-semibold tracking-[0.12em] uppercase mb-3"
+                style={{ color: MUTED }}
               >
-                I grew my family's pizza restaurant's social media from zero to
-                17K followers and 40M+ views across 1,000+ posts, ran and
-                optimized Google and Meta ad campaigns, and managed a
-                10-person team and operations. I learned what makes content
-                actually get watched, how to convert online attention into
-                walk-in customers, and how to run a small business end-to-end.
-              </p>
+                Hobbies & Skills
+              </div>
+              <ul className="space-y-1.5">
+                {HOBBIES.map((h) => (
+                  <li
+                    key={h}
+                    className="text-[13.5px] leading-relaxed flex gap-2.5"
+                    style={{ color: BODY }}
+                  >
+                    <span
+                      className="mt-[9px] w-1 h-1 rounded-full shrink-0"
+                      style={{ backgroundColor: BORDER }}
+                    />
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
             </Card>
           </div>
         </section>
