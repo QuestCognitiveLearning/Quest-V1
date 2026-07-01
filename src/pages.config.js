@@ -31,6 +31,8 @@ export const PAGES = {
   "AuthCallback":         lazy(() => import('./pages/AuthCallback')),
   // Standalone personal bio page (questlearning.co/samuel) — not linked anywhere.
   "Samuel":               lazy(() => import('./pages/Samuel')),
+  // Standalone personal bio page (questlearning.co/adam) — not linked anywhere.
+  "Adam":                 lazy(() => import('./pages/Adam')),
   "Privacy":              lazy(() => import('./pages/Privacy')),
   "Terms":                lazy(() => import('./pages/Terms')),
   "Security":             lazy(() => import('./pages/Security')),
