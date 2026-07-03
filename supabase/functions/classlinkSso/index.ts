@@ -51,19 +51,21 @@ function fail(reason: string): Response {
   return redirect(`${SITE_URL}/SignIn?sso_error=${encodeURIComponent(reason)}`);
 }
 
-// Map a ClassLink role string onto Quest's two account types. Anything we
+// Map a ClassLink role string onto Quest's three account types. Anything we
 // can't classify returns null, which sends the user through RoleSelection.
-function mapRole(raw: unknown): 'teacher' | 'student' | null {
+//
+// Order matters: check the more specific district/admin match before the
+// generic teacher match, because ClassLink role strings often overlap
+// (e.g. "district_admin" or "tenant_admin" contain both "admin" and no
+// "teacher", but "school_admin" is more admin-ish than teacher-ish).
+function mapRole(raw: unknown): 'teacher' | 'student' | 'district_admin' | null {
   const r = String(raw ?? '').toLowerCase();
   if (!r) return null;
   if (r.includes('student')) return 'student';
-  if (
-    r.includes('teacher') ||
-    r.includes('staff') ||
-    r.includes('admin') ||
-    r.includes('faculty') ||
-    r.includes('tenant')
-  ) {
+  if (r.includes('admin') || r.includes('tenant') || r.includes('district')) {
+    return 'district_admin';
+  }
+  if (r.includes('teacher') || r.includes('staff') || r.includes('faculty')) {
     return 'teacher';
   }
   return null;
