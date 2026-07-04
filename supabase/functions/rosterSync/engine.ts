@@ -531,6 +531,22 @@ async function syncMemberships(
 // enrollment upsert
 // ---------------------------------------------------------------------------
 
+// Scaffold StudentProgress for a rostered enrollment via the shared
+// seed_student_progress() function (migration 0050) — the same one the
+// student client calls lazily on class open. No-op (returns 0) while the
+// class has no curriculum; the lazy client path picks those students up
+// when a curriculum is attached later. Non-fatal: a seeding hiccup must
+// never fail the enrollment itself.
+async function seedProgress(admin: any, studentId: string, classId: string) {
+  const { error } = await admin.rpc('seed_student_progress', {
+    p_student_id: studentId,
+    p_class_id: classId,
+  });
+  if (error) {
+    console.log(`[rosterSync] progress seed failed for class=${classId}: ${error.message}`);
+  }
+}
+
 async function lookupClass(admin: any, tenantKey: string, sourcedId: string) {
   const rows = await throwing<any[]>(
     admin.from('classes').select('id, status, teacher_id, managed_by')
@@ -588,10 +604,12 @@ async function upsertEnrollment(
           classlink_tenant_id: tenantKey,
           classlink_sourced_id: enr.sourcedId,
         }).eq('student_id', user.id).eq('class_id', cls.id));
+        await seedProgress(admin, user.id, cls.id);
         return 'updated';
       }
       throw new Error(error.message);
     }
+    await seedProgress(admin, user.id, cls.id);
     return 'created';
   }
 
