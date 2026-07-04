@@ -1,0 +1,18 @@
+{
+  "classes": [
+    {
+      "sourcedId": "cls-bio1",
+      "status": "active",
+      "dateLastModified": "2026-06-02T00:00:00.000Z",
+      "title": "Biology 1",
+      "classType": "scheduled",
+      "courseSourcedId": "crs-bio",
+      "schoolSourcedId": "org-sch1",
+      "termSourcedIds": ["term-fall", "term-spring"],
+      "grades": ["09", "10"],
+      "location": "Rm 310",
+      "periods": ["3"],
+      "subjects": ["science"]
+    }
+  ]
+}

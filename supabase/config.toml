@@ -21,3 +21,18 @@ project_id = "lgymrkodypbqghyjocxg"
 # Also add https://questlearning.co/AuthCallback to Supabase Auth → URL
 # Configuration → Redirect URLs, and set frontend VITE_CLASSLINK_SSO=true to
 # reveal the "Continue with ClassLink" button.
+#
+# rosterSync (nightly ClassLink OneRoster ingest) — invoked by pg_cron via
+# pg_net, which carries no JWT, so deploy with --no-verify-jwt; the function
+# gates on X-Quest-Internal-Token like processTimeTriggers:
+#   supabase functions deploy rosterSync --no-verify-jwt
+# Secrets:
+#   supabase secrets set CLASSLINK_ROSTER_API_KEY=...   (Partner Portal admin
+#     generates this under Settings; bearer token for the OAuth2 proxy)
+#   QUEST_INTERNAL_TOKEN is already set for the cron/email functions.
+# Schedule: see the commented cron.schedule() block in migration 0049.
+# Manual test run:
+#   curl -X POST .../functions/v1/rosterSync \
+#     -H "X-Quest-Internal-Token: $TOKEN" -H "Content-Type: application/json" \
+#     -d '{"fixtures":"full"}'        # canned data, no ClassLink needed
+#     -d '{"mode":"full"}'           # real pull from the proxy

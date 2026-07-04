@@ -27,6 +27,7 @@
 //   CLASSLINK_AUTH_URL, CLASSLINK_TOKEN_URL, CLASSLINK_INFO_URL
 
 import { adminClient } from '../_shared/client.ts';
+import { mapRole } from '../_shared/classlinkRole.ts';
 
 const CLASSLINK_AUTH_URL =
   Deno.env.get('CLASSLINK_AUTH_URL') ?? 'https://launchpad.classlink.com/oauth2/v2/auth';
@@ -51,25 +52,8 @@ function fail(reason: string): Response {
   return redirect(`${SITE_URL}/SignIn?sso_error=${encodeURIComponent(reason)}`);
 }
 
-// Map a ClassLink role string onto Quest's three account types. Anything we
-// can't classify returns null, which sends the user through RoleSelection.
-//
-// Order matters: check the more specific district/admin match before the
-// generic teacher match, because ClassLink role strings often overlap
-// (e.g. "district_admin" or "tenant_admin" contain both "admin" and no
-// "teacher", but "school_admin" is more admin-ish than teacher-ish).
-function mapRole(raw: unknown): 'teacher' | 'student' | 'district_admin' | null {
-  const r = String(raw ?? '').toLowerCase();
-  if (!r) return null;
-  if (r.includes('student')) return 'student';
-  if (r.includes('admin') || r.includes('tenant') || r.includes('district')) {
-    return 'district_admin';
-  }
-  if (r.includes('teacher') || r.includes('staff') || r.includes('faculty')) {
-    return 'teacher';
-  }
-  return null;
-}
+// Role mapping lives in _shared/classlinkRole.ts, shared with rosterSync so
+// SSO and roster ingest can never disagree about what a role string means.
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);

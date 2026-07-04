@@ -1,0 +1,21 @@
+{
+  "orgs": [
+    {
+      "sourcedId": "org-dist",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "name": "Springfield Unified School District",
+      "type": "district",
+      "identifier": "SHOULD-BE-DROPPED-AT-PARSE",
+      "metadata": { "address1": "SHOULD-BE-DROPPED" }
+    },
+    {
+      "sourcedId": "org-sch1",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "name": "Springfield High School",
+      "type": "school",
+      "parentSourcedId": "org-dist"
+    }
+  ]
+}

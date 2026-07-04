@@ -1,0 +1,89 @@
+{
+  "users": [
+    {
+      "sourcedId": "usr-t1",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "enabledUser": "true",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "teacher",
+      "username": "ekrabappel",
+      "givenName": "Edna",
+      "familyName": "Krabappel",
+      "email": "fixture-teacher1@example.edu",
+      "password": "SHOULD-BE-DROPPED-AT-PARSE",
+      "phone": "SHOULD-BE-DROPPED"
+    },
+    {
+      "sourcedId": "usr-t2",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "enabledUser": "true",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "teacher",
+      "username": "dhoover",
+      "givenName": "Elizabeth",
+      "familyName": "Hoover",
+      "email": "fixture-teacher2@example.edu"
+    },
+    {
+      "sourcedId": "usr-s1",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "enabledUser": "true",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "student",
+      "username": "bsimpson",
+      "givenName": "Bart",
+      "familyName": "Simpson",
+      "email": "fixture-student1@example.edu"
+    },
+    {
+      "sourcedId": "usr-s2",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "enabledUser": "true",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "student",
+      "username": "mvanhouten",
+      "givenName": "Milhouse",
+      "familyName": "Van Houten",
+      "email": "fixture-student2@example.edu"
+    },
+    {
+      "sourcedId": "usr-s3",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "enabledUser": "true",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "student",
+      "username": "lsimpson",
+      "givenName": "Lisa",
+      "familyName": "Simpson",
+      "email": "fixture-student3@example.edu"
+    },
+    {
+      "sourcedId": "usr-guardian1",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "enabledUser": "true",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "guardian",
+      "username": "hsimpson",
+      "givenName": "Homer",
+      "familyName": "Simpson",
+      "email": "fixture-guardian@example.edu"
+    },
+    {
+      "sourcedId": "usr-s-noemail",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "enabledUser": "true",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "student",
+      "username": "noemail",
+      "givenName": "No",
+      "familyName": "Email"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "enrollments": [
+    {
+      "sourcedId": "enr-t1-bio",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-t1",
+      "role": "teacher",
+      "primary": "true"
+    },
+    {
+      "sourcedId": "enr-t2-bio",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-t2",
+      "role": "teacher",
+      "primary": "false"
+    },
+    {
+      "sourcedId": "enr-s1-bio",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-s1",
+      "role": "student"
+    },
+    {
+      "sourcedId": "enr-s2-bio",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-s2",
+      "role": "student"
+    },
+    {
+      "sourcedId": "enr-s3-bio",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-s3",
+      "role": "student"
+    },
+    {
+      "sourcedId": "enr-s1-alg",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "classSourcedId": "cls-alg1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-s1",
+      "role": "student"
+    },
+    {
+      "sourcedId": "enr-aide-bio",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-guardian1",
+      "role": "aide"
+    }
+  ]
+}

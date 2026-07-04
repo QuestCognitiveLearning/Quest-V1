@@ -1,0 +1,16 @@
+{
+  "users": [
+    {
+      "sourcedId": "usr-s2",
+      "status": "tobedeleted",
+      "dateLastModified": "2026-06-02T00:00:00.000Z",
+      "enabledUser": "false",
+      "orgSourcedIds": ["org-sch1"],
+      "role": "student",
+      "username": "mvanhouten",
+      "givenName": "Milhouse",
+      "familyName": "Van Houten",
+      "email": "fixture-student2@example.edu"
+    }
+  ]
+}

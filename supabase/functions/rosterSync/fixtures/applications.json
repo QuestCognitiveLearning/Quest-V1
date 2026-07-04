@@ -1,0 +1,9 @@
+{
+  "applications": [
+    {
+      "oneroster_applications_id": "APPFIX1",
+      "tenant_id": "999001",
+      "tenant_name": "Springfield USD (fixture)"
+    }
+  ]
+}

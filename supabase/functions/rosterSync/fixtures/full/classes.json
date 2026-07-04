@@ -1,0 +1,38 @@
+{
+  "classes": [
+    {
+      "sourcedId": "cls-bio1",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "title": "Biology 1",
+      "classType": "scheduled",
+      "courseSourcedId": "crs-bio",
+      "schoolSourcedId": "org-sch1",
+      "termSourcedIds": ["term-fall", "term-spring"],
+      "grades": ["09", "10"],
+      "location": "Rm 204",
+      "periods": ["3"],
+      "subjects": ["science"]
+    },
+    {
+      "sourcedId": "cls-alg1",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "title": "Algebra 1",
+      "classType": "scheduled",
+      "courseSourcedId": "crs-alg",
+      "schoolSourcedId": "org-sch1",
+      "termSourcedIds": ["term-fall", "term-spring"],
+      "grades": ["09"],
+      "periods": ["1"]
+    },
+    {
+      "sourcedId": "cls-homeroom",
+      "status": "active",
+      "dateLastModified": "2026-06-01T00:00:00.000Z",
+      "title": "Homeroom 9A",
+      "classType": "homeroom",
+      "schoolSourcedId": "org-sch1"
+    }
+  ]
+}

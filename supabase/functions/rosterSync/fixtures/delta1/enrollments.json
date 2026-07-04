@@ -1,0 +1,23 @@
+{
+  "enrollments": [
+    {
+      "sourcedId": "enr-s2-bio",
+      "status": "tobedeleted",
+      "dateLastModified": "2026-06-02T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-s2",
+      "role": "student"
+    },
+    {
+      "sourcedId": "enr-t1-bio",
+      "status": "tobedeleted",
+      "dateLastModified": "2026-06-02T00:00:00.000Z",
+      "classSourcedId": "cls-bio1",
+      "schoolSourcedId": "org-sch1",
+      "userSourcedId": "usr-t1",
+      "role": "teacher",
+      "primary": "true"
+    }
+  ]
+}
