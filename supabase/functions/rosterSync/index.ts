@@ -96,9 +96,27 @@ function readApp(app: any): { appId: string; tenantId: string | null; name: stri
   };
 }
 
+// Config fallback: Vault (see migration vault_internal_config). The internal
+// token is generated inside Postgres and read by pg_cron when it builds the
+// request header; we accept it here alongside the env secret so the two
+// never have to be hand-synchronized. get_vault_secret() is a
+// security-definer function executable by service_role only.
+const vaultCache: Record<string, string | null> = {};
+async function vaultSecret(admin: any, name: string): Promise<string | null> {
+  if (name in vaultCache) return vaultCache[name];
+  const { data, error } = await admin.rpc('get_vault_secret', { secret_name: name });
+  vaultCache[name] = error ? null : (data ?? null);
+  return vaultCache[name];
+}
+
 Deno.serve(async (req) => {
+  const admin = adminClient();
   const presented = req.headers.get('X-Quest-Internal-Token') ?? '';
-  if (!INTERNAL_TOKEN || presented !== INTERNAL_TOKEN) {
+  const vaultToken = await vaultSecret(admin, 'quest_internal_token');
+  const authorized = presented.length > 0 &&
+    ((INTERNAL_TOKEN && presented === INTERNAL_TOKEN) ||
+      (vaultToken && presented === vaultToken));
+  if (!authorized) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
@@ -106,13 +124,13 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { /* empty body from pg_net is fine */ }
   const fixtures = typeof body.fixtures === 'string' ? body.fixtures : null;
 
-  if (!API_KEY && !fixtures) {
+  const apiKey = API_KEY || (await vaultSecret(admin, 'classlink_roster_api_key')) || '';
+  if (!apiKey && !fixtures) {
     return json({ error: 'CLASSLINK_ROSTER_API_KEY not configured' }, 500);
   }
 
-  const admin = adminClient();
   const client = new OneRosterClient({
-    apiKey: fixtures ? 'fixture' : API_KEY,
+    apiKey: fixtures ? 'fixture' : apiKey,
     fetchImpl: fixtures ? fixtureFetch(fixtures) : undefined,
   });
 
