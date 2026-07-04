@@ -65,7 +65,7 @@
     "next-themes": "^0.4.4",
     "pdfjs-dist": "^6.0.227",
     "pg": "^8.20.0",
-    "react": "^18.2.0",
+    "react": "^19.2.7",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.54.2",
@@ -87,7 +87,7 @@
   "devDependencies": {
     "@eslint/js": "^9.19.0",
     "@types/node": "^22.13.5",
-    "@types/react": "^18.2.66",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
