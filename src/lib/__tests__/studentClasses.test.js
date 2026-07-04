@@ -88,6 +88,17 @@ describe("loadStudentClasses", () => {
     expect(classes.map((c) => c.id)).toEqual(["c_active"]);
   });
 
+  it("still returns classes if seeding rejects (degraded, not blocked)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    quest.entities.StudentEnrollment.filter.mockResolvedValue(enroll(["c_active"]));
+    ensureProgressSeeded.mockRejectedValueOnce(new Error("seed exploded"));
+    const { classes, selectedClassId } = await loadStudentClasses(user);
+    expect(classes.map((c) => c.id)).toEqual(["c_active"]);
+    expect(selectedClassId).toBe("c_active");
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
   it("returns empty shape when the student has no enrollments", async () => {
     quest.entities.StudentEnrollment.filter.mockResolvedValue([]);
     const out = await loadStudentClasses(user);

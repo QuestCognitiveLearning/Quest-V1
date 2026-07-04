@@ -32,7 +32,14 @@ export async function loadStudentClasses(currentUser) {
     .map((e) => allClasses.find((c) => c.id === e.class_id))
     .filter(isActiveStudentClass);
 
-  await ensureProgressSeeded(currentUser.id, classes);
+  // Defensive belt on top of ensureProgressSeeded's own never-throw
+  // contract: a seeding failure must degrade the experience (scaffolding
+  // arrives on a later load), never blank the class list.
+  try {
+    await ensureProgressSeeded(currentUser.id, classes);
+  } catch (err) {
+    console.warn("Progress seeding failed; rendering classes anyway:", err);
+  }
 
   let selectedClassId = null;
   if (classes.length > 0) {
