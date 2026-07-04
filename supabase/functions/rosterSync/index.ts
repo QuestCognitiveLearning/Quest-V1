@@ -40,45 +40,46 @@ import { json } from '../_shared/cors.ts';
 import { adminClient } from '../_shared/client.ts';
 import { OneRosterClient, FetchLike } from '../_shared/oneroster.ts';
 import { syncTenant, TenantRow } from './engine.ts';
+import { FIXTURES } from './fixturesData.ts';
 
 const INTERNAL_TOKEN = Deno.env.get('QUEST_INTERNAL_TOKEN') || '';
 const API_KEY = Deno.env.get('CLASSLINK_ROSTER_API_KEY') || '';
 
 // ---------------------------------------------------------------------------
-// Fixture mode: serve fixtures/<scenario>/<entity>.json for data requests and
-// fixtures/applications.json for discovery. Keeps the full engine + DB path
-// hot without ClassLink connectivity — used for local acceptance testing and
-// certification dry-runs.
+// Fixture mode: serve canned collections for data requests and discovery.
+// Keeps the full engine + DB path hot without ClassLink connectivity — used
+// for acceptance testing and certification dry-runs. Fixtures live in
+// fixtures/*.json in the repo (read from disk when present, e.g. local dev)
+// with an inlined copy (fixturesData.ts) for deployed bundles.
 // ---------------------------------------------------------------------------
 function fixtureFetch(scenario: string): FetchLike {
   const dir = new URL(`./fixtures/`, import.meta.url);
   return async (url: string) => {
     const path = new URL(url).pathname;
-    let file: URL;
-    if (path.endsWith('/applications')) {
-      file = new URL('applications.json', dir);
-    } else {
-      const entity = path.split('/').filter(Boolean).pop() ?? '';
-      file = new URL(`${scenario}/${entity}.json`, dir);
-    }
+    const isApplications = path.endsWith('/applications');
+    const entity = isApplications ? 'applications' : (path.split('/').filter(Boolean).pop() ?? '');
+    let body: any = null;
     try {
-      const text = await Deno.readTextFile(file);
-      // Fixtures hold the full collection; emulate offset/limit pagination.
-      const u = new URL(url);
-      const limit = Number(u.searchParams.get('limit') ?? 500);
-      const offset = Number(u.searchParams.get('offset') ?? 0);
-      const body = JSON.parse(text);
-      const key = Object.keys(body).find((k) => Array.isArray(body[k]));
-      if (key) body[key] = body[key].slice(offset, offset + limit);
-      return new Response(JSON.stringify(body), {
-        status: 200, headers: { 'Content-Type': 'application/json' },
-      });
+      const file = isApplications
+        ? new URL('applications.json', dir)
+        : new URL(`${scenario}/${entity}.json`, dir);
+      body = JSON.parse(await Deno.readTextFile(file));
     } catch {
-      // Entity file absent in this scenario → empty collection (valid delta).
-      return new Response(JSON.stringify({ [path.split('/').pop() ?? 'items']: [] }), {
-        status: 200, headers: { 'Content-Type': 'application/json' },
-      });
+      body = isApplications
+        ? FIXTURES.applications
+        : (FIXTURES as any)[scenario]?.[entity] ?? null;
     }
+    if (!body) body = { [entity || 'items']: [] };
+    // Fixtures hold the full collection; emulate offset/limit pagination.
+    const u = new URL(url);
+    const limit = Number(u.searchParams.get('limit') ?? 500);
+    const offset = Number(u.searchParams.get('offset') ?? 0);
+    const out = JSON.parse(JSON.stringify(body));
+    const key = Object.keys(out).find((k) => Array.isArray(out[k]));
+    if (key) out[key] = out[key].slice(offset, offset + limit);
+    return new Response(JSON.stringify(out), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
   };
 }
 
@@ -158,6 +159,8 @@ Deno.serve(async (req) => {
     // ---- 2. run each enabled tenant --------------------------------------
     let q = admin.from('classlink_sync_tenants').select('*').eq('enabled', true);
     if (typeof body.tenantId === 'string' && body.tenantId) q = q.eq('id', body.tenantId);
+    // Fixture runs only ever touch the fixture tenant — never real districts.
+    if (fixtures) q = q.eq('oneroster_application_id', 'APPFIX1');
     const { data: tenants, error: tErr } = await q;
     if (tErr) throw new Error(tErr.message);
 
