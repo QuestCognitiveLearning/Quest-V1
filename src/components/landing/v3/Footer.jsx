@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import LegalModal, { LEGAL_DOCS } from "./LegalModals";
 
 /**
@@ -8,10 +10,12 @@ import LegalModal, { LEGAL_DOCS } from "./LegalModals";
  * mobile. Top padding (pt-44 = 176px) is intentionally generous so there's a
  * meaningful dark band between the CTA card and the footer content.
  *
- * Contact email is `admin@questlearning.co` (our verified mailbox). All Legal
- * items open in-page modals — they never navigate away.
+ * Contact email is `admin@questlearning.co` (our verified mailbox). Privacy
+ * navigates to /privacy (a shareable, indexable page). Other legal items
+ * still open in-page modals.
  */
 export default function Footer() {
+  const navigate = useNavigate();
   const [modal, setModal] = useState(null);
 
   const scrollTo = (id) => (e) => {
@@ -85,7 +89,7 @@ export default function Footer() {
             </FooterCol>
 
             <FooterCol h="Legal">
-              <FooterLink onClick={openModal("privacy")}>Privacy</FooterLink>
+              <FooterLink href={createPageUrl("Privacy")} onClick={(e) => { e.preventDefault(); navigate(createPageUrl("Privacy")); }}>Privacy</FooterLink>
               <FooterLink onClick={openModal("terms")}>Terms</FooterLink>
               <FooterLink onClick={openModal("security")}>Security</FooterLink>
               <FooterLink onClick={openModal("ferpa")}>FERPA</FooterLink>
@@ -125,11 +129,11 @@ function FooterCol({ h, children }) {
   );
 }
 
-function FooterLink({ onClick, children }) {
+function FooterLink({ href = "#", onClick, children }) {
   return (
     <li>
       <a
-        href="#"
+        href={href}
         onClick={onClick}
         className="text-white/65 hover:text-white text-[14px] transition-colors cursor-pointer"
       >

@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { ShieldCheck, Lock, UserCheck, EyeOff } from "lucide-react";
 import LegalModal, { LEGAL_DOCS } from "./LegalModals";
 
@@ -46,7 +48,16 @@ const BADGES = [
 ];
 
 export default function Compliance() {
+  const navigate = useNavigate();
   const [modal, setModal] = useState(null);
+
+  const handleBadge = (key) => {
+    if (key === "privacy") {
+      navigate(createPageUrl("Privacy"));
+      return;
+    }
+    setModal(key);
+  };
 
   return (
     <>
@@ -75,7 +86,7 @@ export default function Compliance() {
               <button
                 key={key}
                 type="button"
-                onClick={() => setModal(key)}
+                onClick={() => handleBadge(key)}
                 className="group flex items-center gap-3.5 bg-white rounded-2xl border border-[#E2E8F0] pl-3.5 pr-5 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-16px_rgba(15,23,42,0.4)] focus:outline-none focus:ring-2 focus:ring-offset-2"
                 style={{ "--tint": tint }}
               >
