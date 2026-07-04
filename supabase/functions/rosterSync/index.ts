@@ -49,36 +49,56 @@ const API_KEY = Deno.env.get('CLASSLINK_ROSTER_API_KEY') || '';
 // fixtures/applications.json for discovery. Keeps the full engine + DB path
 // hot without ClassLink connectivity — used for local acceptance testing and
 // certification dry-runs.
+//
+// Fixtures are imported as JSON modules (not Deno.readTextFile) so they ride
+// along in the module graph: the edge runtime compiles functions into a temp
+// dir where sibling data files don't exist, which made runtime reads fail
+// silently and "sync" nothing.
 // ---------------------------------------------------------------------------
+import fxApplications from './fixtures/applications.json' with { type: 'json' };
+import fxFullOrgs from './fixtures/full/orgs.json' with { type: 'json' };
+import fxFullSessions from './fixtures/full/academicSessions.json' with { type: 'json' };
+import fxFullUsers from './fixtures/full/users.json' with { type: 'json' };
+import fxFullClasses from './fixtures/full/classes.json' with { type: 'json' };
+import fxFullEnrollments from './fixtures/full/enrollments.json' with { type: 'json' };
+import fxD1Users from './fixtures/delta1/users.json' with { type: 'json' };
+import fxD1Classes from './fixtures/delta1/classes.json' with { type: 'json' };
+import fxD1Enrollments from './fixtures/delta1/enrollments.json' with { type: 'json' };
+
+const FIXTURES: Record<string, Record<string, unknown> | undefined> = {
+  'applications': fxApplications,
+  'full/orgs': fxFullOrgs,
+  'full/academicSessions': fxFullSessions,
+  'full/users': fxFullUsers,
+  'full/classes': fxFullClasses,
+  'full/enrollments': fxFullEnrollments,
+  'delta1/users': fxD1Users,
+  'delta1/classes': fxD1Classes,
+  'delta1/enrollments': fxD1Enrollments,
+};
+
 function fixtureFetch(scenario: string): FetchLike {
-  const dir = new URL(`./fixtures/`, import.meta.url);
-  return async (url: string) => {
+  return (url: string) => {
     const path = new URL(url).pathname;
-    let file: URL;
-    if (path.endsWith('/applications')) {
-      file = new URL('applications.json', dir);
-    } else {
-      const entity = path.split('/').filter(Boolean).pop() ?? '';
-      file = new URL(`${scenario}/${entity}.json`, dir);
-    }
-    try {
-      const text = await Deno.readTextFile(file);
+    const entity = path.split('/').filter(Boolean).pop() ?? '';
+    const key = path.endsWith('/applications') ? 'applications' : `${scenario}/${entity}`;
+    const fixture = FIXTURES[key];
+    let body: Record<string, unknown>;
+    if (fixture) {
       // Fixtures hold the full collection; emulate offset/limit pagination.
       const u = new URL(url);
       const limit = Number(u.searchParams.get('limit') ?? 500);
       const offset = Number(u.searchParams.get('offset') ?? 0);
-      const body = JSON.parse(text);
-      const key = Object.keys(body).find((k) => Array.isArray(body[k]));
-      if (key) body[key] = body[key].slice(offset, offset + limit);
-      return new Response(JSON.stringify(body), {
-        status: 200, headers: { 'Content-Type': 'application/json' },
-      });
-    } catch {
-      // Entity file absent in this scenario → empty collection (valid delta).
-      return new Response(JSON.stringify({ [path.split('/').pop() ?? 'items']: [] }), {
-        status: 200, headers: { 'Content-Type': 'application/json' },
-      });
+      body = { ...fixture };
+      const arrKey = Object.keys(body).find((k) => Array.isArray(body[k]));
+      if (arrKey) body[arrKey] = (body[arrKey] as unknown[]).slice(offset, offset + limit);
+    } else {
+      // Entity absent in this scenario → empty collection (valid delta).
+      body = { [entity || 'items']: [] };
     }
+    return Promise.resolve(new Response(JSON.stringify(body), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
   };
 }
 

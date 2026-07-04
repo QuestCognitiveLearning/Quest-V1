@@ -36,3 +36,13 @@ project_id = "lgymrkodypbqghyjocxg"
 #     -H "X-Quest-Internal-Token: $TOKEN" -H "Content-Type: application/json" \
 #     -d '{"fixtures":"full"}'        # canned data, no ClassLink needed
 #     -d '{"mode":"full"}'           # real pull from the proxy
+
+# Both SSO and roster sync answer requests that carry no Supabase JWT
+# (browser redirects / pg_net cron posts); each gates itself instead
+# (state param + internal token). verify_jwt=false here means local serve
+# and `supabase functions deploy` agree with the documented deploy flags.
+[functions.classlinkSso]
+verify_jwt = false
+
+[functions.rosterSync]
+verify_jwt = false
