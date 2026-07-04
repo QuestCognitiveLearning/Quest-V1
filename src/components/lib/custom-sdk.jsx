@@ -61,6 +61,14 @@ const TABLE_NAME_OVERRIDES = {
   // so it doesn't shadow LearningSession above — that one is the original
   // student-progress table and remains the canonical entity for per-
   // student session tracking.
+  // Rostering entities (migrations 0043–0049). Reads are governed by RLS:
+  // e.g. classlink_sync_runs has no user-facing policies yet, so it reads
+  // empty for everyone until the district-admin scope migration lands.
+  ClassTeacher: "class_teachers",
+  Organization: "organizations",
+  UserOrgMembership: "user_org_memberships",
+  AcademicSession: "academic_sessions",
+  ClasslinkSyncRun: "classlink_sync_runs",
   LessonBundle: "lesson_bundles",
   LessonBundleItem: "lesson_bundle_items",
   LessonBundleAssignment: "lesson_bundle_assignments",
