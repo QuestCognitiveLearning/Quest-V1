@@ -17,4 +17,9 @@ export default defineConfig({
     // bandwidth cost; massively faster debugging.
     sourcemap: true,
   },
+  test: {
+    // Vitest owns src/ only; supabase/functions tests are Deno tests
+    // (https: imports) and run via `deno test` in the function directory.
+    include: ['src/**/*.test.{js,jsx}'],
+  },
 });
