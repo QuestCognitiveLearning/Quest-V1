@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import SubscriptionCheck from "@/components/teacher/SubscriptionCheck";
 import StandardsPicker from "@/components/teacher/StandardsPicker";
 import CurriculumMethodChooser from "@/components/teacher/CurriculumMethodChooser";
+import GradeLevelPicker from "@/components/teacher/GradeLevelPicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,8 @@ export default function CreateCurriculum() {
   const [formData, setFormData] = useState({
     subject_name: "",
     curriculum_difficulty: "High",
-    color: "blue"
+    color: "blue",
+    target_grades: []
   });
 
   const colorOptions = [
@@ -124,7 +126,8 @@ export default function CreateCurriculum() {
         teacher_id: user.id,
         subject_name: formData.subject_name,
         curriculum_difficulty: formData.curriculum_difficulty,
-        color: formData.color
+        color: formData.color,
+        target_grades: formData.target_grades?.length ? formData.target_grades : null
       });
 
       for (let unitIndex = 0; unitIndex < validUnits.length; unitIndex++) {
@@ -255,6 +258,16 @@ export default function CreateCurriculum() {
                         />
                       ))}
                     </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-800 mb-2">
+                      Target Grade Level(s) <span className="font-medium text-gray-400">(optional)</span>
+                    </label>
+                    <GradeLevelPicker
+                      value={formData.target_grades}
+                      onChange={(target_grades) => setFormData({ ...formData, target_grades })}
+                      hint="Pinpoints which standards to suggest and tunes generated content to the right level."
+                    />
                   </div>
                 </div>
               </CardContent>

@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import GradeLevelPicker from "../components/teacher/GradeLevelPicker";
 
 export default function TeacherClasses() {
   const navigate = useNavigate();
@@ -32,7 +33,8 @@ export default function TeacherClasses() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newClass, setNewClass] = useState({
     class_name: "",
-    curriculum_id: ""
+    curriculum_id: "",
+    grade_levels: []
   });
 
   const tryOpenCreate = () => setShowCreateForm(true);
@@ -84,6 +86,7 @@ export default function TeacherClasses() {
       const payload = {
         ...newClass,
         curriculum_id: newClass.curriculum_id || null,
+        grade_levels: newClass.grade_levels?.length ? newClass.grade_levels : null,
         teacher_id: user.id,
         join_code: joinCode,
       };
@@ -106,7 +109,7 @@ export default function TeacherClasses() {
       }
 
       setShowCreateForm(false);
-      setNewClass({ class_name: "", curriculum_id: "" });
+      setNewClass({ class_name: "", curriculum_id: "", grade_levels: [] });
       loadData();
     } catch (err) {
       console.error("Failed to create class:", err);
@@ -234,6 +237,14 @@ export default function TeacherClasses() {
                   Skip this if you just want to assign Generated learning sessions to your students.
                 </p>
               </div>
+              <div className="sm:col-span-2">
+                <GradeLevelPicker
+                  label={<>Grade Level(s) <span className="normal-case font-medium text-gray-400">(optional)</span></>}
+                  value={newClass.grade_levels}
+                  onChange={(grade_levels) => setNewClass({ ...newClass, grade_levels })}
+                  hint="Used to filter standards and tune content to grade level. Pick all that apply."
+                />
+              </div>
             </div>
             <div className="flex gap-3 mt-5">
               <Button
@@ -245,7 +256,7 @@ export default function TeacherClasses() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => { setShowCreateForm(false); setNewClass({ class_name: "", curriculum_id: "" }); }}
+                onClick={() => { setShowCreateForm(false); setNewClass({ class_name: "", curriculum_id: "", grade_levels: [] }); }}
                 className="rounded-xl border-gray-200"
               >
                 Cancel
