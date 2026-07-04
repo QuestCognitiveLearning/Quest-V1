@@ -56,6 +56,13 @@ export default function Classes() {
   const handleLeaveClass = async (classItem) => {
     const enrollment = enrollments.find((e) => e.class_id === classItem.id);
     if (!enrollment) return;
+    // SIS-rostered membership is owned by the district's SIS, not the
+    // student — the leave affordance is hidden for these, but guard here
+    // too in case a stale render slips a click through.
+    if (enrollment.classlink_sourced_id) {
+      toast.error("This class membership is managed by your district's SIS.");
+      return;
+    }
     const ok = await confirmDialog({
       title: `Leave ${classItem.class_name}?`,
       message: "You'll be removed from this class and stop seeing its assignments. You can rejoin later with the class code.",
@@ -381,15 +388,26 @@ export default function Classes() {
                               ></div>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Leave class"
-                            onClick={() => handleLeaveClass(classItem)}
-                            className="shrink-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {enrollment?.classlink_sourced_id ? (
+                            <span
+                              className="shrink-0 text-[10px] text-gray-400 text-right leading-tight"
+                              title="Membership managed by your district's SIS"
+                            >
+                              Managed by
+                              <br />
+                              your district
+                            </span>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Leave class"
+                              onClick={() => handleLeaveClass(classItem)}
+                              className="shrink-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
