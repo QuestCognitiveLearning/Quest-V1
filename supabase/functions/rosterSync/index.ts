@@ -51,9 +51,10 @@ const API_KEY = Deno.env.get('CLASSLINK_ROSTER_API_KEY') || '';
 // certification dry-runs.
 //
 // Fixtures are imported as JSON modules (not Deno.readTextFile) so they ride
-// along in the module graph: the edge runtime compiles functions into a temp
-// dir where sibling data files don't exist, which made runtime reads fail
-// silently and "sync" nothing.
+// along in the module graph everywhere — local serve compiles functions into
+// a temp dir and deployed bundles ship only the module graph, so runtime
+// file reads fail silently in both and "sync" nothing. The JSON files stay
+// the single source of truth (no hand-synced inline copy).
 // ---------------------------------------------------------------------------
 import fxApplications from './fixtures/applications.json' with { type: 'json' };
 import fxFullOrgs from './fixtures/full/orgs.json' with { type: 'json' };
@@ -178,6 +179,8 @@ Deno.serve(async (req) => {
     // ---- 2. run each enabled tenant --------------------------------------
     let q = admin.from('classlink_sync_tenants').select('*').eq('enabled', true);
     if (typeof body.tenantId === 'string' && body.tenantId) q = q.eq('id', body.tenantId);
+    // Fixture runs only ever touch the fixture tenant — never real districts.
+    if (fixtures) q = q.eq('oneroster_application_id', 'APPFIX1');
     const { data: tenants, error: tErr } = await q;
     if (tErr) throw new Error(tErr.message);
 
