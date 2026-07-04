@@ -58,35 +58,6 @@ function fail(reason: string): Response {
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
-  // TEMPORARY debug endpoint — remove before going to production.
-  // Hit /functions/v1/classlinkSso?debug=quest-debug-2026 to see what
-  // the function actually thinks each configured value is. Secret values
-  // are masked; only their presence + previews are returned.
-  if (url.searchParams.get('debug') === 'quest-debug-2026') {
-    const mask = (v: string) =>
-      v ? `${v.slice(0, 6)}…${v.slice(-4)} (len ${v.length})` : null;
-    return new Response(
-      JSON.stringify(
-        {
-          client_id_set: Boolean(CLIENT_ID),
-          client_id_preview: mask(CLIENT_ID),
-          client_secret_set: Boolean(CLIENT_SECRET),
-          client_secret_preview: mask(CLIENT_SECRET),
-          redirect_uri: REDIRECT_URI || null,
-          redirect_uri_length: REDIRECT_URI.length,
-          scopes: SCOPES,
-          site_url: SITE_URL,
-          auth_url: CLASSLINK_AUTH_URL,
-          token_url: CLASSLINK_TOKEN_URL,
-          info_url: CLASSLINK_INFO_URL,
-        },
-        null,
-        2,
-      ),
-      { headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
   // ClassLink reported an error (denied consent, expired request, etc.).
   const provErr = url.searchParams.get('error');
   if (provErr) return fail(provErr);
