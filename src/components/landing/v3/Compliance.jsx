@@ -16,34 +16,38 @@ import LegalModal, { LEGAL_DOCS } from "./LegalModals";
  * in. Each badge says "Compliant" (our own attested commitment) and links to
  * the policy that backs it up.
  */
+// All badges share the Quest brand blue (matches the logo) so the compliance
+// strip reads as one unified band rather than a rainbow of per-badge colors.
+const BRAND_TINT = "#2563EB";
+
 const BADGES = [
   {
     key: "ferpa",
     icon: ShieldCheck,
     label: "FERPA Compliant",
     sub: "Education records protected",
-    tint: "#2563EB",
+    tint: BRAND_TINT,
   },
   {
     key: "coppa",
     icon: UserCheck,
     label: "COPPA Compliant",
     sub: "Safe for learners under 13",
-    tint: "#16A34A",
+    tint: BRAND_TINT,
   },
   {
     key: "security",
     icon: Lock,
     label: "Encrypted & Secure",
     sub: "TLS in transit, encrypted at rest",
-    tint: "#7C3AED",
+    tint: BRAND_TINT,
   },
   {
     key: "privacy",
     icon: EyeOff,
     label: "Never Sold, No Ad Tracking",
     sub: "Zero advertising trackers",
-    tint: "#F97316",
+    tint: BRAND_TINT,
   },
 ];
 
