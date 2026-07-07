@@ -94,7 +94,7 @@ export default function Pricing() {
           >
             Simple Pricing. <em className="not-italic text-[#2563EB]">Built for the way you teach.</em>
           </h2>
-          <p className="text-[17px] text-[#64748B]">
+          <p className="text-[17px] text-[#475569]">
             Students learning solo pay $9/mo. Teachers get full classroom
             tooling. Students invited by a teacher join free with a class
             code.

@@ -180,7 +180,7 @@ export default function CtaFinal() {
                 <button
                   type="submit"
                   disabled={state === "sending"}
-                  className="inline-flex items-center gap-2 self-start h-12 px-6 rounded-xl bg-[#F97316] hover:bg-[#EA580C] text-white font-semibold text-[14.5px] transition-colors mt-1 shadow-[0_8px_20px_-10px_rgba(249,115,22,0.6)] disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 self-start h-12 px-6 rounded-xl bg-[#C2410C] hover:bg-[#9A3412] text-white font-semibold text-[14.5px] transition-colors mt-1 shadow-[0_8px_20px_-10px_rgba(249,115,22,0.6)] disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {state === "sending" ? (
                     <>

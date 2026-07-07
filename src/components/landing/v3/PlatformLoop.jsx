@@ -10,7 +10,7 @@ function VStandards({ on }) {
           className={`inline-block w-fit px-2.5 py-1 rounded-full text-[11.5px] font-semibold transition-colors ${
             on
               ? "bg-[#2563EB] text-white border border-[#2563EB]"
-              : "bg-[#E5ECF7] text-[#64748B] border border-[#E2E8F0]"
+              : "bg-[#E5ECF7] text-[#475569] border border-[#E2E8F0]"
           }`}
           style={{ transitionDelay: `${i * 0.12}s` }}
         >
@@ -29,8 +29,8 @@ function VAI({ on }) {
         <span
           key={u}
           className={`inline-flex items-center gap-2 text-[11.5px] font-semibold ${
-            on ? "text-[#0F172A]" : "text-[#64748B]"
-          } ${i === 2 ? "opacity-70" : ""}`}
+            on ? "text-[#0F172A]" : "text-[#475569]"
+          }`}
         >
           <span
             className={`w-2 h-2 rounded-sm ${
@@ -103,7 +103,7 @@ function VMastery({ on }) {
             </span>
             <span
               className="text-[11px] font-bold text-right"
-              style={{ color: on ? "#1E293B" : "#64748B" }}
+              style={{ color: on ? "#1E293B" : "#475569" }}
             >
               {b}%
             </span>
@@ -117,7 +117,7 @@ function VMastery({ on }) {
 const PHASES = [
   { who: "teacher", h: "You Set the Standards", sub: "Pick a program, subject, and grade.", Viz: VStandards, tag: "TEACHER", tagColor: "#2563EB", border: "#2563EB", grad: "from-white to-[#EFF6FF]" },
   { who: "ai", h: "AI Builds the Quest", sub: "Units, inquiry, quizzes, case studies.", Viz: VAI, tag: "AI", tagColor: "#7C3AED", border: "#7C3AED", grad: "from-white to-[#F5F3FF]" },
-  { who: "student", h: "Students Learn It Four Ways", sub: "Four phases. Spaced review locks it in.", Viz: VStudent, tag: "STUDENT", tagColor: "#F97316", border: "#F97316", grad: "from-white to-[#FFF7ED]" },
+  { who: "student", h: "Students Learn It Four Ways", sub: "Four phases. Spaced review locks it in.", Viz: VStudent, tag: "STUDENT", tagColor: "#C2410C", border: "#C2410C", grad: "from-white to-[#FFF7ED]" },
   { who: "teacher", h: "You See What Stuck", sub: "Live mastery. Flagged questions. Refine.", Viz: VMastery, tag: "TEACHER", tagColor: "#2563EB", border: "#2563EB", grad: "from-white to-[#EFF6FF]" },
 ];
 
@@ -150,7 +150,7 @@ export default function PlatformLoop() {
           >
             The Loop, in <em className="not-italic text-[#2563EB]">Four Moves.</em>
           </h2>
-          <p className="text-[17px] text-[#64748B]">
+          <p className="text-[17px] text-[#475569]">
             Built once, then it runs. The same data that helps students improve teaches you what to refine next.
           </p>
         </div>
@@ -197,7 +197,7 @@ export default function PlatformLoop() {
                   >
                     <div
                       className="font-extrabold text-[13px] tracking-wider"
-                      style={{ color: isOn ? "#0F172A" : "#94A3B8" }}
+                      style={{ color: isOn ? "#0F172A" : "#64748B" }}
                     >
                       {String(i + 1).padStart(2, "0")}
                     </div>
@@ -212,7 +212,7 @@ export default function PlatformLoop() {
                             : "rgba(37,99,235,0.06)"
                           : "#E5ECF7",
                         filter: isOn ? "grayscale(0)" : "grayscale(1)",
-                        opacity: isOn ? 1 : 0.55,
+                        opacity: isOn ? 1 : 0.9,
                       }}
                     >
                       <p.Viz on={isOn} />

@@ -13,14 +13,14 @@ const VOICES = [
     nm: "Drumwright",
     rl: "Teacher",
     initials: "DW",
-    c: "#F97316",
+    c: "#C2410C",
   },
   {
     q: "The Socratic inquiry feature effectively promotes higher-order thinking in students. It functions as a personalized tutoring experience that genuinely supports individual learning progression.",
     nm: "Evelina",
     rl: "College Staff",
     initials: "EV",
-    c: "#16A34A",
+    c: "#15803D",
   },
 ];
 

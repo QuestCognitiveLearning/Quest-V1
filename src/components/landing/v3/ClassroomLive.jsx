@@ -94,7 +94,7 @@ export default function ClassroomLive() {
           >
             The Data Was Always There. Quest <em className="not-italic text-[#2563EB]">Shows It.</em>
           </h2>
-          <p className="text-[17px] text-[#64748B] max-w-2xl">
+          <p className="text-[17px] text-[#475569] max-w-2xl">
             Every quiz, every review in one feed. Catch slippage on Tuesday, not Friday.
           </p>
         </div>

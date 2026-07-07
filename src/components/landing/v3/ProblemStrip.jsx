@@ -49,11 +49,11 @@ export default function ProblemStrip() {
               }}
             >
               Teachers spend their nights{" "}
-              <em className="not-italic text-[#F97316] font-extrabold">
+              <em className="not-italic text-[#C2410C] font-extrabold">
                 planning.
               </em>{" "}
               Students forget by{" "}
-              <em className="not-italic text-[#F97316] font-extrabold">
+              <em className="not-italic text-[#C2410C] font-extrabold">
                 next week.
               </em>{" "}
               <span className="inline-block mt-2 px-3.5 py-1 rounded-full bg-[#2563EB] text-white font-extrabold">
@@ -74,14 +74,14 @@ export default function ProblemStrip() {
               >
                 <CountUp to={11} duration={1.4} />
               </span>
-              <span className="text-[#64748B] text-lg font-semibold whitespace-nowrap">
+              <span className="text-[#475569] text-lg font-semibold whitespace-nowrap">
                 hrs/wk
               </span>
             </div>
             <div className="text-[#475569] font-medium text-[15px] mt-4 leading-snug">
               U.S. teachers spend planning &amp; prep outside paid hours.
             </div>
-            <div className="text-[#94A3B8] text-xs mt-2">
+            <div className="text-[#475569] text-xs mt-2">
               RAND Corporation, 2024
             </div>
           </div>
@@ -98,14 +98,14 @@ export default function ProblemStrip() {
               >
                 <CountUp to={2} duration={1.8} decimals={1} suffix="×" />
               </span>
-              <span className="text-[#64748B] text-lg font-semibold whitespace-nowrap">
+              <span className="text-[#475569] text-lg font-semibold whitespace-nowrap">
                 retention
               </span>
             </div>
             <div className="text-[#475569] font-medium text-[15px] mt-4 leading-snug">
               When learning is active and spaced, not passive.
             </div>
-            <div className="text-[#94A3B8] text-xs mt-2">
+            <div className="text-[#475569] text-xs mt-2">
               Dunlosky et al., 2013
             </div>
           </div>

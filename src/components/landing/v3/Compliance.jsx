@@ -78,7 +78,7 @@ export default function Compliance() {
             >
               Compliant by <em className="not-italic text-[#2563EB]">design.</em>
             </h2>
-            <p className="text-[#64748B] text-[14.5px] mt-2 max-w-[52ch] mx-auto">
+            <p className="text-[#475569] text-[14.5px] mt-2 max-w-[52ch] mx-auto">
               Quest follows FERPA and COPPA for every account — we collect only
               what a lesson needs, never sell student data, and run no ad
               trackers. Tap any badge to read the policy.
@@ -112,7 +112,7 @@ export default function Compliance() {
             ))}
           </div>
 
-          <p className="text-center text-[11.5px] text-[#94A3B8] mt-7 max-w-[64ch] mx-auto">
+          <p className="text-center text-[11.5px] text-[#475569] mt-7 max-w-[64ch] mx-auto">
             Quest Learning attests to these practices; FERPA and COPPA are U.S.
             laws, not certification programs. Questions from administrators?{" "}
             <a

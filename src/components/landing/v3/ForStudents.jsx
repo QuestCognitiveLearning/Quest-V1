@@ -295,7 +295,7 @@ export default function ForStudents() {
           >
             Three Methods. <em className="not-italic text-[#2563EB]">One Quest.</em>
           </h2>
-          <p className="text-[16px] text-[#64748B] whitespace-normal">
+          <p className="text-[16px] text-[#475569] whitespace-normal">
             Inquiry-based learning, active recall, and spaced repetition, wired into every Quest lesson.
           </p>
         </div>
