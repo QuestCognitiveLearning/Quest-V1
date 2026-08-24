@@ -185,10 +185,13 @@ export default function Generate() {
     if (baseData?.flashcards?.length) return;
     try {
       const topic = baseData?.video?.title || pdfTopic || "this topic";
-      const sourceText = (baseData?.timestamped_segments || [])
-        .map((s) => s.text || "")
-        .join(" ")
-        .slice(0, 12000);
+      // PDF-only generations have no transcript segments — fall back to the
+      // extracted PDF text so the deck is grounded in the actual material.
+      const sourceText =
+        ((baseData?.timestamped_segments || [])
+          .map((s) => s.text || "")
+          .join(" ") || pdfMeta?.text || "")
+          .slice(0, 12000);
       const schema = {
         type: "object",
         properties: {
@@ -243,10 +246,12 @@ Return JSON: { cards: [{ front, back }, ...] }`,
     if (baseData?.summary?.bullets?.length) return;
     try {
       const topic = baseData?.video?.title || pdfTopic || "this topic";
-      const transcriptText = (baseData?.timestamped_segments || [])
-        .map((s) => s.text || "")
-        .join(" ")
-        .slice(0, 6000);
+      // Same PDF fallback as flashcards: no segments → use extracted PDF text.
+      const transcriptText =
+        ((baseData?.timestamped_segments || [])
+          .map((s) => s.text || "")
+          .join(" ") || pdfMeta?.text || "")
+          .slice(0, 6000);
       const schema = {
         type: "object",
         properties: {
@@ -957,7 +962,7 @@ ${inquiryTranscript ? `
             <StepHeader
               n={1}
               label="Choose what to create"
-              hint={isStudent ? "Turn a video into a flashcard deck." : "Run it live, or make a handout."}
+              hint={isStudent ? "Turn a video or reading material into a flashcard deck." : "Run it live, or make a handout."}
             />
             {isStudent ? null : (
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
@@ -1018,20 +1023,20 @@ ${inquiryTranscript ? `
             <StepHeader
               n={2}
               label="Pick your source"
-              hint={isStudent ? "Turn a YouTube video into a session." : "Start from a YouTube video or a PDF."}
+              hint="Start from a YouTube video or a PDF."
             />
-            {/* Source picker — a clean segmented control. Students only have
-                YouTube today, so the toggle is hidden for them. */}
-            {!isStudent && (
-              <div className="inline-flex bg-slate-100 rounded-xl p-1 mb-5 gap-1">
+            {/* Source picker — a clean segmented control. Both roles can start
+                from a YouTube video or an uploaded PDF (reading material). */}
+            <div className="inline-flex bg-slate-100 rounded-xl p-1 mb-5 gap-1">
                 {[
                   { id: "youtube", label: "YouTube", icon: Youtube },
                   { id: "pdf", label: "PDF", icon: FileText },
                 ].map((t) => {
                   // The chosen output drives which sources are available: a live
                   // session needs a video, so the PDF source is greyed out
-                  // whenever "Live session" is selected.
-                  const disabled = t.id === "pdf" && mode === "live";
+                  // whenever a teacher has "Live session" selected. Students
+                  // don't run live sessions, so PDF is always available to them.
+                  const disabled = t.id === "pdf" && !isStudent && mode === "live";
                   return (
                     <button
                       key={t.id}
@@ -1056,7 +1061,6 @@ ${inquiryTranscript ? `
                   );
                 })}
               </div>
-            )}
           </>
         )}
 

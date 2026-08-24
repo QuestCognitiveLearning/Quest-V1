@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
-import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio, Menu, X } from "lucide-react";
+import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio, Menu, X, Sparkles } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -87,6 +87,9 @@ export default function StudentSidebar({
         </button>
         <button onClick={() => go("live-sessions", "StudentLiveSessions")} className={navItem(activeNav === "live-sessions")}>
           <Radio className="w-4 h-4 flex-shrink-0" /><span>Live Sessions</span>
+        </button>
+        <button onClick={() => go("generate", "Generate")} className={navItem(activeNav === "generate")}>
+          <Sparkles className="w-4 h-4 flex-shrink-0" /><span>Create</span>
         </button>
       </nav>
 
