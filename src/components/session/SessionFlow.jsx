@@ -17,6 +17,7 @@
  *     topic, unitName, badgeLabel,
  *     videoId, videoDurationSeconds, transcript,
  *     attentionChecks: [{ id?, timestamp, question, choice_a..d, correct_choice }],
+ *     readingSections: [{ title?, text, check: { question, choice_a..d, correct_choice } | null }],
  *     questions:       [{ id, question, options:[], correctIndex, explanation }],
  *     caseStudy:       { scenario, question_a..d, answer_a..d } | null,
  *     inquiry:         { hook_question, hook_image_url } | null,
@@ -40,7 +41,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { PASS_THRESHOLD, computeSessionScore } from "@/lib/spacedRepetition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Play, CheckCircle, X } from "lucide-react";
+import { RefreshCw, Play, CheckCircle, X, BookOpen } from "lucide-react";
 import CaseStudyChat from "../newSession/CaseStudyChat";
 import LofiMusicPlayer from "../shared/LofiMusicPlayer";
 import AttentionCheckDisplay from "../shared/AttentionCheckDisplay";
@@ -76,21 +77,24 @@ export default function SessionFlow({
     videoId,
     videoDurationSeconds,
     attentionChecks = [],
+    readingSections = [],
     questions = [],
     caseStudy = null,
     inquiry = null,
   } = content || {};
 
-  // Ordered phases present in this session.
+  // Ordered phases present in this session. "reading" is the PDF/text
+  // counterpart of "video": sectioned material with gated attention checks.
   const phases = useMemo(() => {
     const out = [];
     if (inquiry?.hook_question) out.push("inquiry");
     if (videoId) out.push("video");
+    if (readingSections.length > 0) out.push("reading");
     if (questions.length > 0) out.push("quiz");
     if (caseStudy?.scenario) out.push("article");
     out.push("results");
     return out;
-  }, [inquiry, videoId, questions.length, caseStudy]);
+  }, [inquiry, videoId, readingSections.length, questions.length, caseStudy]);
 
   const [step, setStep] = useState(phases[0]);
   const [showInquiryChat, setShowInquiryChat] = useState(false);
@@ -107,6 +111,16 @@ export default function SessionFlow({
   const [actualVideoDuration, setActualVideoDuration] = useState(null);
   const [lastKnownTime, setLastKnownTime] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
+
+  // Reading-phase state (PDF sessions). The student must scroll to the end
+  // of each section, then pass its attention check, to move on — the reading
+  // equivalent of the video's no-skip + open-checks rules.
+  const [currentSection, setCurrentSection] = useState(0);
+  const [readCheckActive, setReadCheckActive] = useState(false);
+  const [readSelected, setReadSelected] = useState(null);
+  const [readFeedback, setReadFeedback] = useState(false);
+  const [sectionScrolled, setSectionScrolled] = useState(false);
+  const readScrollRef = useRef(null);
 
   // Quiz state.
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -233,6 +247,65 @@ export default function SessionFlow({
     }, 2000);
   };
 
+  // ---- Reading phase ------------------------------------------------------
+  // A short section may not overflow its scroll container; count that as read.
+  useEffect(() => {
+    if (step !== "reading") return;
+    const el = readScrollRef.current;
+    if (el && el.scrollHeight <= el.clientHeight + 8) setSectionScrolled(true);
+  }, [step, currentSection]);
+
+  const handleReadScroll = (e) => {
+    const el = e.target;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) setSectionScrolled(true);
+  };
+
+  const goToSection = (idx) => {
+    setCurrentSection(idx);
+    setSectionScrolled(false);
+    setReadCheckActive(false);
+    setReadSelected(null);
+    setReadFeedback(false);
+    if (readScrollRef.current) readScrollRef.current.scrollTop = 0;
+  };
+
+  const handleReadContinue = () => {
+    const section = readingSections[currentSection];
+    if (section?.check) {
+      setReadCheckActive(true);
+      setReadSelected(null);
+      setReadFeedback(false);
+    } else if (currentSection < readingSections.length - 1) {
+      goToSection(currentSection + 1);
+    } else {
+      advance();
+    }
+  };
+
+  const handleReadCheckSubmit = async () => {
+    const section = readingSections[currentSection];
+    if (!readSelected || !section?.check) return;
+    setReadFeedback(true);
+    const isCorrect = readSelected === section.check.correct_choice;
+    try {
+      await events.onAttentionCheck?.({ check: section.check, selectedChoice: readSelected, isCorrect, index: currentSection });
+    } catch (err) { console.warn("onAttentionCheck failed:", err); }
+    setTimeout(() => {
+      if (isCorrect) {
+        if (currentSection < readingSections.length - 1) goToSection(currentSection + 1);
+        else advance();
+      } else {
+        // Wrong answer → back to the top of the section to re-read, same as
+        // the video rewinding to the previous checkpoint.
+        setReadCheckActive(false);
+        setReadSelected(null);
+        setReadFeedback(false);
+        setSectionScrolled(false);
+        if (readScrollRef.current) readScrollRef.current.scrollTop = 0;
+      }
+    }, 2000);
+  };
+
   const handleAnswerSubmit = async () => {
     const q = questions[currentQuestion];
     const correct = selectedAnswer === q.correctIndex;
@@ -299,6 +372,7 @@ export default function SessionFlow({
     setCurrentQuestion(0); setSelectedAnswer(null);
     setCurrentCheck(null); setCurrentCheckIndex(0); setChecksCompleted([]); setCanProceed(false);
     setVideoProgress(0); setLastKnownTime(0); setYoutubePlayer(null);
+    setCurrentSection(0); setReadCheckActive(false); setReadSelected(null); setReadFeedback(false); setSectionScrolled(false);
     setShowInquiryChat(false);
     setStep(phases[0]);
   };
@@ -308,7 +382,7 @@ export default function SessionFlow({
   const totalPhases = phases.length;
   const progress = step === "results"
     ? 100
-    : Math.round(((stepIndex + (step === "video" ? (canProceed ? 1 : videoProgress / videoTotalDuration) : step === "quiz" ? currentQuestion / Math.max(1, questions.length) : 0)) / totalPhases) * 100);
+    : Math.round(((stepIndex + (step === "video" ? (canProceed ? 1 : videoProgress / videoTotalDuration) : step === "reading" ? currentSection / Math.max(1, readingSections.length) : step === "quiz" ? currentQuestion / Math.max(1, questions.length) : 0)) / totalPhases) * 100);
 
   const startInquiry = () => {
     if (inquiryMode === "navigate") { onInquiryStart?.(); return; }
@@ -476,6 +550,84 @@ export default function SessionFlow({
                     {canProceed ? "Continue" : "Complete video to continue"}
                   </Button>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* READING (PDF sessions) */}
+        {step === "reading" && readingSections[currentSection] && (
+          <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px]">
+            <CardContent className="p-0">
+              <div className="p-6 border-b border-[#C4B5FD]/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <BookOpen className="w-6 h-6 text-[#2563EB]" />
+                    <div>
+                      <h2 className="text-xl font-semibold text-[#1A1A1A]">
+                        {readingSections[currentSection].title || `Reading: ${topic}`}
+                      </h2>
+                      <p className="text-sm text-[#1A1A1A]/60" style={{ fontWeight: 450 }}>
+                        Section {currentSection + 1} of {readingSections.length}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-sm text-[#1A1A1A]/60">
+                    Checks: {currentSection}/{readingSections.filter((s) => s.check).length}
+                  </span>
+                </div>
+              </div>
+
+              {/* The section text. Scroll to the bottom to unlock Continue. */}
+              <div
+                ref={readScrollRef}
+                onScroll={handleReadScroll}
+                className="max-h-[52vh] overflow-y-auto px-8 py-6"
+              >
+                {String(readingSections[currentSection].text || "")
+                  .split(/\n{2,}|\n(?=\S)/)
+                  .filter((p) => p.trim())
+                  .map((p, i) => (
+                    <p key={i} className="text-[15px] leading-7 text-[#1A1A1A] mb-4" style={{ fontWeight: 450 }}>
+                      {p.trim()}
+                    </p>
+                  ))}
+              </div>
+
+              <div className="p-6 border-t border-[#C4B5FD]/20">
+                {readCheckActive && readingSections[currentSection].check ? (
+                  <AttentionCheckDisplay
+                    currentCheck={readingSections[currentSection].check}
+                    currentCheckIndex={currentSection}
+                    totalChecks={readingSections.filter((s) => s.check).length}
+                    selectedCheckAnswer={readSelected}
+                    showCheckFeedback={readFeedback}
+                    onAnswerSelect={setReadSelected}
+                    onSubmit={handleReadCheckSubmit}
+                  />
+                ) : (
+                  <>
+                    <div className="bg-[#2563EB]/5 border border-[#2563EB]/20 rounded-[20px] p-4 mb-4">
+                      <p className="text-sm text-[#1A1A1A] font-medium mb-1">Active Reading Required</p>
+                      <p className="text-xs text-[#1A1A1A]/70" style={{ fontWeight: 450 }}>
+                        Read each section fully and answer the check to move on. A wrong answer sends you back to re-read.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleReadContinue}
+                      disabled={!sectionScrolled}
+                      className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-3 disabled:opacity-50 font-semibold rounded-full"
+                    >
+                      {!sectionScrolled
+                        ? "Read to the end to continue"
+                        : readingSections[currentSection].check
+                        ? "I've read this — take the check"
+                        : currentSection < readingSections.length - 1
+                        ? "Next section"
+                        : "Continue"}
+                    </Button>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>

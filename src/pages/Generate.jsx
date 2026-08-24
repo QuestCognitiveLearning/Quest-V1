@@ -66,6 +66,43 @@ function downloadBlobLocally(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Split raw PDF text into readable sections along paragraph boundaries —
+// ~350 words each, capped at 8 sections (longer docs get proportionally
+// bigger sections). Single-blob PDFs with no paragraph breaks fall back to
+// sentence grouping. Returns [] for texts too short to section.
+function splitIntoSections(text) {
+  const clean = String(text || "").replace(/\r/g, "").trim();
+  const totalWords = clean ? clean.split(/\s+/).length : 0;
+  if (totalWords < 40) return [];
+  const target = Math.max(350, Math.ceil(totalWords / 8));
+
+  let units = clean.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  let joiner = "\n\n";
+  if (units.length <= 2 && totalWords > 500) {
+    units = clean.match(/[^.!?]+[.!?]+["')\]]*(\s+|$)/g)?.map((s) => s.trim()).filter(Boolean) || units;
+    joiner = " ";
+  }
+
+  const sections = [];
+  let buf = [];
+  let count = 0;
+  for (const u of units) {
+    buf.push(u);
+    count += u.split(/\s+/).length;
+    if (count >= target) {
+      sections.push(buf.join(joiner));
+      buf = [];
+      count = 0;
+    }
+  }
+  if (buf.length) {
+    const tail = buf.join(joiner);
+    if (count < 60 && sections.length > 0) sections[sections.length - 1] += joiner + tail;
+    else sections.push(tail);
+  }
+  return sections;
+}
+
 function extractVideoId(url) {
   if (!url) return null;
   const trimmed = url.trim();
@@ -291,6 +328,84 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
       }
     } catch (err) {
       console.warn("Summary generation failed (non-fatal):", err);
+    }
+  };
+
+  // PDF Learning Sessions: split the extracted text into sections and give
+  // each one an attention-check MCQ. SessionFlow's "reading" phase renders
+  // these — the student reads section by section and must pass each check
+  // to continue, the reading counterpart of the video's mid-play checks.
+  const enrichWithReadingSections = async (baseData, setProgressive) => {
+    if (!isStudent || studentMode !== "session") return;
+    if (tab !== "pdf" || !pdfMeta?.text) return;
+    try {
+      const sections = splitIntoSections(pdfMeta.text);
+      if (sections.length === 0) return;
+
+      let checks = [];
+      if (includeAttention) {
+        const schema = {
+          type: "object",
+          properties: {
+            checks: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  question: { type: "string" },
+                  choice_a: { type: "string" },
+                  choice_b: { type: "string" },
+                  choice_c: { type: "string" },
+                  choice_d: { type: "string" },
+                  correct_choice: { type: "string" },
+                },
+                required: ["question", "choice_a", "choice_b", "choice_c", "choice_d", "correct_choice"],
+              },
+            },
+          },
+          required: ["checks"],
+        };
+        const excerpts = sections
+          .map((s, i) => `SECTION ${i + 1}:\n${s.slice(0, 2200)}`)
+          .join("\n\n---\n\n");
+        const out = await invokeLLM({
+          model: LLM_MODELS.CASE_STUDY_GRADING,
+          prompt: `You are creating reading attention checks for a student study session.
+
+For EACH numbered section below, write exactly ONE multiple-choice question that can only be answered by someone who actually read that section — quote or reference a concrete detail, number, name, or claim from the section, never general knowledge. Also give each section a short title (2-5 words) describing what it covers.
+
+Keep questions simple comprehension checks (under 20 words), with one clearly correct choice and three plausible wrong ones.
+
+${excerpts}
+
+Return JSON: { checks: [{ title, question, choice_a, choice_b, choice_c, choice_d, correct_choice: "A"|"B"|"C"|"D" }, ...] } — one entry per section, in the same order as the sections.`,
+          response_json_schema: schema,
+        });
+        checks = Array.isArray(out?.checks) ? out.checks : [];
+      }
+
+      const reading_sections = sections.map((text, i) => {
+        const c = checks[i];
+        const letter = String(c?.correct_choice || "").toUpperCase();
+        return {
+          title: c?.title || null,
+          text,
+          check: c?.question
+            ? {
+                question: c.question,
+                choice_a: c.choice_a,
+                choice_b: c.choice_b,
+                choice_c: c.choice_c,
+                choice_d: c.choice_d,
+                correct_choice: ["A", "B", "C", "D"].includes(letter) ? letter : "A",
+              }
+            : null,
+        };
+      });
+      setProgressive((prev) => (prev ? { ...prev, reading_sections } : prev));
+    } catch (err) {
+      console.warn("Reading section generation failed (non-fatal):", err);
     }
   };
 
@@ -693,6 +808,7 @@ ${inquiryTranscript ? `
           enrichWithCurriculumGeneration(data, setResult),
           enrichWithSummary(data, setResult),
           enrichWithFlashcards(data, setResult),
+          enrichWithReadingSections(data, setResult),
         ]);
         setStage("result");
       } catch (err) {
@@ -1370,10 +1486,17 @@ ${inquiryTranscript ? `
               (options.includeInquiry ? 30 : 0) +
               (options.includeAttentionChecks ? 18 : 0) +
               (isStudent && includeSummary ? 10 : 0) +
-              (isStudent && studentMode === "flashcards" ? 12 : 0)
+              (isStudent && studentMode === "flashcards" ? 12 : 0) +
+              (isStudent && studentMode === "session" && tab === "pdf" ? 20 : 0)
             }
             steps={[
               { label: "Quiz + case study", done: !!result?.quiz?.length },
+              ...(isStudent && studentMode === "session" && tab === "pdf"
+                ? [{
+                    label: "Reading sections + checks",
+                    done: Array.isArray(result?.reading_sections) && result.reading_sections.length > 0,
+                  }]
+                : []),
               ...(options.includeAttentionChecks
                 ? [{
                     label: "Attention checks",
@@ -1845,7 +1968,7 @@ function StudentSessionControls({
           on={includeAttention}
           onChange={setIncludeAttention}
           title="Attention checks"
-          desc="Pop-up MCQs mid-video. You can still skip them."
+          desc="Checkpoint questions during the video or between reading sections."
         />
       </div>
     </div>
@@ -1893,10 +2016,16 @@ function ToggleRow({ on, onChange, title, desc }) {
 // Starting auto-saves the payload to the library, so there's no separate
 // save button — the session is always replayable from the library below.
 function StudentSessionReadyView({ result, includeSummary, saving, onStart, onStartOver }) {
+  const readingCount = Array.isArray(result?.reading_sections) ? result.reading_sections.length : 0;
+  const readingCheckCount = readingCount
+    ? result.reading_sections.filter((s) => s?.check).length
+    : 0;
   const parts = [
     result?.inquiry_session?.hook_question && "Curiosity hook + Socratic warm-up",
     includeSummary && result?.summary?.bullets?.length > 0 && "Pre-watch summary",
     result?.video?.videoId && "Video",
+    readingCount > 0 &&
+      `${readingCount} reading section${readingCount === 1 ? "" : "s"}${readingCheckCount ? ` with ${readingCheckCount} check${readingCheckCount === 1 ? "" : "s"}` : ""}`,
     Array.isArray(result?.attention_checks) && result.attention_checks.length > 0 &&
       `${result.attention_checks.length} attention check${result.attention_checks.length === 1 ? "" : "s"}`,
     result?.quiz?.length > 0 && `${result.quiz.length}-question quiz`,

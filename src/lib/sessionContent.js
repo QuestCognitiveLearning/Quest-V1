@@ -66,6 +66,7 @@ export function bundlePayloadToContent(payload, { badgeLabel = "Assigned", sourc
     videoId,
     videoDurationSeconds: p.video_duration || video.duration || video.duration_seconds,
     attentionChecks: Array.isArray(p.attention_checks) ? p.attention_checks : [],
+    readingSections: Array.isArray(p.reading_sections) ? p.reading_sections : [],
     questions: Array.isArray(p.quiz) ? p.quiz.map(toQuizQuestion) : [],
     caseStudy: toCaseStudy(p.case_study),
     inquiry: p.inquiry_session?.hook_question
