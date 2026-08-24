@@ -66,6 +66,60 @@ function downloadBlobLocally(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Scrub PDF-extraction junk out of text destined for the reading phase:
+// re-join words hyphenated across line breaks, drop page numbers and
+// running headers/footers, strip URLs/DOIs/emails and bracket citations,
+// and cut the References/Bibliography tail entirely. Deterministic only —
+// author/metadata sections are additionally flagged by the LLM checks call.
+function cleanPdfTextForReading(raw) {
+  let t = String(raw || "").replace(/\r/g, "");
+
+  // Cut references/bibliography/acknowledgments onward, but only when the
+  // heading sits in the second half of the doc (avoid nuking a doc that
+  // merely mentions the word early on).
+  const refRe = /^\s*(references|bibliography|works cited|citations|acknowledg?ements?)\s*:?\s*$/gim;
+  let m;
+  while ((m = refRe.exec(t)) !== null) {
+    if (m.index > t.length / 2) { t = t.slice(0, m.index); break; }
+  }
+
+  // Re-join words split by end-of-line hyphenation ("exam-\nple" → "example").
+  t = t.replace(/([a-z])-\n([a-z])/g, "$1$2");
+
+  // Strip URLs, DOIs, emails, and numeric bracket citations like [1] / [2,3] / [4-6].
+  t = t
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\bdoi:\S+/gi, "")
+    .replace(/\b[\w.+-]+@[\w-]+\.[\w.]+\b/g, "")
+    .replace(/\[\d+(?:\s*[,–-]\s*\d+)*\]/g, "");
+
+  // Line-level pass: drop page numbers, "Page X of Y", and any short line
+  // repeated 3+ times (running headers/footers).
+  const lines = t.split("\n");
+  const freq = {};
+  for (const l of lines) {
+    const key = l.trim();
+    if (key && key.length <= 80) freq[key] = (freq[key] || 0) + 1;
+  }
+  const kept = lines.filter((l) => {
+    const s = l.trim();
+    if (/^\d{1,4}$/.test(s)) return false;
+    if (/^page\s+\d+(\s+of\s+\d+)?$/i.test(s)) return false;
+    if (s && s.length <= 80 && freq[s] >= 3) return false;
+    // Mostly non-letter lines (dotted TOC leaders, number tables).
+    if (s.length >= 6 && (s.replace(/[^a-zA-Z]/g, "").length / s.length) < 0.3) return false;
+    return true;
+  });
+
+  return kept
+    .join("\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +([.,;:!?])/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // Split raw PDF text into readable sections along paragraph boundaries —
 // ~350 words each, capped at 8 sections (longer docs get proportionally
 // bigger sections). Single-blob PDFs with no paragraph breaks fall back to
@@ -339,7 +393,7 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
     if (!isStudent || studentMode !== "session") return;
     if (tab !== "pdf" || !pdfMeta?.text) return;
     try {
-      const sections = splitIntoSections(pdfMeta.text);
+      const sections = splitIntoSections(cleanPdfTextForReading(pdfMeta.text));
       if (sections.length === 0) return;
 
       let checks = [];
@@ -352,6 +406,7 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
               items: {
                 type: "object",
                 properties: {
+                  skip: { type: "boolean" },
                   title: { type: "string" },
                   question: { type: "string" },
                   choice_a: { type: "string" },
@@ -360,7 +415,7 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
                   choice_d: { type: "string" },
                   correct_choice: { type: "string" },
                 },
-                required: ["question", "choice_a", "choice_b", "choice_c", "choice_d", "correct_choice"],
+                required: ["skip"],
               },
             },
           },
@@ -373,25 +428,28 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
           model: LLM_MODELS.CASE_STUDY_GRADING,
           prompt: `You are creating reading attention checks for a student study session.
 
-For EACH numbered section below, write exactly ONE multiple-choice question that can only be answered by someone who actually read that section — quote or reference a concrete detail, number, name, or claim from the section, never general knowledge. Also give each section a short title (2-5 words) describing what it covers.
+For EACH numbered section below:
+- If the section is mostly document metadata rather than learnable content — author names and affiliations, journal/publisher info, copyright lines, a table of contents, reference lists, acknowledgments — return { "skip": true } for it and nothing else. Students should not be made to read these.
+- Otherwise return { "skip": false } plus a short title (2-5 words) describing what the section covers and exactly ONE multiple-choice question that can only be answered by someone who actually read that section — reference a concrete detail, number, name, or claim from the section, never general knowledge.
 
 Keep questions simple comprehension checks (under 20 words), with one clearly correct choice and three plausible wrong ones.
 
 ${excerpts}
 
-Return JSON: { checks: [{ title, question, choice_a, choice_b, choice_c, choice_d, correct_choice: "A"|"B"|"C"|"D" }, ...] } — one entry per section, in the same order as the sections.`,
+Return JSON: { checks: [{ skip, title?, question?, choice_a?, choice_b?, choice_c?, choice_d?, correct_choice?: "A"|"B"|"C"|"D" }, ...] } — one entry per section, in the same order as the sections.`,
           response_json_schema: schema,
         });
         checks = Array.isArray(out?.checks) ? out.checks : [];
       }
 
-      const reading_sections = sections.map((text, i) => {
+      let reading_sections = sections.map((text, i) => {
         const c = checks[i];
         const letter = String(c?.correct_choice || "").toUpperCase();
         return {
+          skip: c?.skip === true,
           title: c?.title || null,
           text,
-          check: c?.question
+          check: !c?.skip && c?.question
             ? {
                 question: c.question,
                 choice_a: c.choice_a,
@@ -403,6 +461,11 @@ Return JSON: { checks: [{ title, question, choice_a, choice_b, choice_c, choice_
             : null,
         };
       });
+      // Drop metadata sections the model flagged — unless it flagged
+      // everything, in which case trust the text over the model.
+      const keep = reading_sections.filter((s) => !s.skip);
+      if (keep.length > 0) reading_sections = keep;
+      reading_sections = reading_sections.map(({ skip: _skip, ...rest }) => rest);
       setProgressive((prev) => (prev ? { ...prev, reading_sections } : prev));
     } catch (err) {
       console.warn("Reading section generation failed (non-fatal):", err);

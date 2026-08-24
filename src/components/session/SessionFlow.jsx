@@ -50,6 +50,32 @@ import MathRenderer from "@/components/utils/MathRenderer";
 import SessionReview from "../student/SessionReview";
 import SocraticInquiryChat from "./SocraticInquiryChat";
 
+// Give cleaned reading text light typographic structure: short lines with
+// no terminal punctuation render as subheadings, runs of bullet/numbered
+// lines render as lists, everything else flows as paragraphs.
+function parseReadingBlocks(text) {
+  const bulletRe = /^([-•*‣▪]|\d{1,2}[.)])\s+/;
+  const blocks = [];
+  for (const raw of String(text || "").split(/\n{2,}/)) {
+    const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) continue;
+    if (lines.length > 1 && lines.every((l) => bulletRe.test(l))) {
+      blocks.push({ type: "list", items: lines.map((l) => l.replace(bulletRe, "")) });
+    } else if (
+      lines.length === 1 &&
+      lines[0].length <= 70 &&
+      lines[0].split(/\s+/).length <= 10 &&
+      !/[.!?;:,]$/.test(lines[0]) &&
+      /[A-Za-z]/.test(lines[0])
+    ) {
+      blocks.push({ type: "heading", text: lines[0] });
+    } else {
+      blocks.push({ type: "p", text: lines.join(" ") });
+    }
+  }
+  return blocks;
+}
+
 export default function SessionFlow({
   content,
   inquiryMode = "inline",
@@ -582,16 +608,30 @@ export default function SessionFlow({
               <div
                 ref={readScrollRef}
                 onScroll={handleReadScroll}
-                className="max-h-[52vh] overflow-y-auto px-8 py-6"
+                className="max-h-[52vh] overflow-y-auto px-8 py-7 bg-gradient-to-b from-white to-slate-50/40"
               >
-                {String(readingSections[currentSection].text || "")
-                  .split(/\n{2,}|\n(?=\S)/)
-                  .filter((p) => p.trim())
-                  .map((p, i) => (
-                    <p key={i} className="text-[15px] leading-7 text-[#1A1A1A] mb-4" style={{ fontWeight: 450 }}>
-                      {p.trim()}
-                    </p>
-                  ))}
+                <div className="max-w-[65ch] mx-auto">
+                  {parseReadingBlocks(readingSections[currentSection].text).map((b, i) =>
+                    b.type === "heading" ? (
+                      <h3 key={i} className="text-lg font-semibold text-[#1A1A1A] mt-7 first:mt-0 mb-3">
+                        {b.text}
+                      </h3>
+                    ) : b.type === "list" ? (
+                      <ul key={i} className="space-y-2 mb-5 pl-1">
+                        {b.items.map((item, j) => (
+                          <li key={j} className="flex gap-3 text-[15.5px] leading-7 text-[#1A1A1A]/90" style={{ fontWeight: 450 }}>
+                            <span className="text-[#2563EB] shrink-0 mt-0.5">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p key={i} className="text-[15.5px] leading-[1.85] text-[#1A1A1A]/90 mb-5" style={{ fontWeight: 450 }}>
+                        {b.text}
+                      </p>
+                    )
+                  )}
+                </div>
               </div>
 
               <div className="p-6 border-t border-[#C4B5FD]/20">
