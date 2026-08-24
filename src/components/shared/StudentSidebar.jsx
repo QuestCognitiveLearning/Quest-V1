@@ -73,6 +73,9 @@ export default function StudentSidebar({
       }
 
       <nav className="flex-1 overflow-y-auto py-2 px-2">
+        <button onClick={() => go("generate", "Generate")} className={navItem(activeNav === "generate")}>
+          <Sparkles className="w-4 h-4 flex-shrink-0" /><span>Create</span>
+        </button>
         <button onClick={() => go("knowledge-map", "KnowledgeMap")} className={navItem(activeNav === "knowledge-map")}>
           <BookOpen className="w-4 h-4 flex-shrink-0" /><span>Knowledge Map</span>
         </button>
@@ -87,9 +90,6 @@ export default function StudentSidebar({
         </button>
         <button onClick={() => go("live-sessions", "StudentLiveSessions")} className={navItem(activeNav === "live-sessions")}>
           <Radio className="w-4 h-4 flex-shrink-0" /><span>Live Sessions</span>
-        </button>
-        <button onClick={() => go("generate", "Generate")} className={navItem(activeNav === "generate")}>
-          <Sparkles className="w-4 h-4 flex-shrink-0" /><span>Create</span>
         </button>
       </nav>
 
