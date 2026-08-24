@@ -44,7 +44,7 @@ import TeacherLayout from "../components/teacher/TeacherLayout";
 import StudentSidebar from "../components/shared/StudentSidebar";
 import { quest } from "@/api/questClient";
 import { supabase } from "@/components/lib/supabase-client";
-import { studentGenerationsRemaining, canStudentGenerate, getLimits } from "@/lib/tier";
+import { studentGenerationsRemaining, canStudentGenerate, getLimits, getUserTier } from "@/lib/tier";
 import { invokeLLM } from "@/components/utils/openai";
 import { LLM_MODELS } from "@/lib/llmModels";
 import CustomizePanel, { DEFAULT_OPTIONS } from "@/components/try/CustomizePanel";
@@ -542,6 +542,25 @@ Return JSON: { checks: [{ skip, title?, question?, choice_a?, choice_b?, choice_
         const me = await quest.auth.me();
         setUser(me);
         loadLibrary(me.id);
+
+        // Self-heal a stale tier for students. The tier normally flips via
+        // the Stripe webhook or the ?checkout=success sync in Layout, but if
+        // either is missed (closed checkout tab, webhook hiccup) a paying
+        // student would stay capped at 5 forever. One cheap re-check per
+        // visit: ask Stripe for the truth and refetch the user if it moved.
+        if (me?.account_type === "student" && getUserTier(me) === "free") {
+          try {
+            const syncResp = await quest.functions.invoke("syncStripeSubscription", {});
+            const syncedTier = syncResp?.data?.tier || syncResp?.tier;
+            if (syncedTier && syncedTier !== "free") {
+              const fresh = await quest.auth.me();
+              setUser(fresh);
+              toast.success("Student Pro active — unlimited learning sessions unlocked.");
+            }
+          } catch (syncErr) {
+            console.warn("Subscription sync failed (non-fatal):", syncErr);
+          }
+        }
       } catch (err) {
         console.error("Failed to load teacher context:", err);
         setLibraryLoading(false);
