@@ -28,6 +28,8 @@ import {
   Pencil,
   Eye,
   X,
+  Layers,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,17 +91,11 @@ export default function Generate() {
   const [mode, setMode] = useState("live"); // teacher: live | handout
   // Student-only post-generation view. Students create flashcard decks.
   const [studentMode, setStudentMode] = useState("flashcards");
-  // Pre-generation toggles + scheduling for student Learning Sessions.
+  // Pre-generation toggles for student Learning Sessions.
   // includeSummary: prepend a quick 5-bullet summary of the video.
   // includeAttention: pause-on-timestamp attention checks during the video.
-  // scheduledFor: date the session appears on the student's Learning Hub.
-  // reviewsEnabled: queue spaced-repetition reviews at +1/+3/+7/+14/+30 days.
   const [includeSummary, setIncludeSummary] = useState(true);
   const [includeAttention, setIncludeAttention] = useState(true);
-  const [scheduledFor, setScheduledFor] = useState(() =>
-    new Date().toISOString().slice(0, 10)
-  );
-  const [reviewsEnabled, setReviewsEnabled] = useState(true);
   const [stage, setStage] = useState("input"); // input | generating | result
   const [error, setError] = useState("");
   const [options, setOptions] = useState({ ...DEFAULT_OPTIONS });
@@ -161,6 +157,20 @@ export default function Generate() {
   const studentLimit = getLimits(user).studentGenerationsTotal ?? 0;
   const studentUsed = user?.student_generations_used ?? 0;
   const studentBlocked = isStudent && !canStudentGenerate(user);
+
+  // Keep generation options in sync with the student's chosen outcome.
+  // Flashcards only need the base quiz (cards derive from the transcript),
+  // so skip the heavier inquiry / attention-check passes. A Learning Session
+  // mirrors a teacher-assigned session: inquiry hook + attention checks
+  // (attention checks follow the student's toggle).
+  useEffect(() => {
+    if (!isStudent) return;
+    if (studentMode === "flashcards") {
+      setOptions((o) => ({ ...o, includeInquiry: false, includeAttentionChecks: false }));
+    } else {
+      setOptions((o) => ({ ...o, includeInquiry: true, includeAttentionChecks: includeAttention }));
+    }
+  }, [isStudent, studentMode, includeAttention]);
 
   // Auto-open the shared review/edit modal once a teacher's content is ready,
   // so the review experience matches assigned/live/curriculum exactly.
@@ -770,6 +780,22 @@ ${inquiryTranscript ? `
     }
   };
 
+  // Student "Start session": persist the full payload to the library first so
+  // the session survives a refresh and is replayable later, then hand off to
+  // the StudentSessionPlay player (shared SessionFlow engine).
+  const handleStartSelfSession = async () => {
+    if (!result) return;
+    setSaving(true);
+    try {
+      const row = await saveToLibrary(result, resultTitle || result?.video?.title);
+      navigate(createPageUrl("StudentSessionPlay") + `?handout_id=${row.id}`);
+    } catch (err) {
+      console.error("Start session failed:", err);
+      toast.error(err?.message || "Could not start the session.");
+      setSaving(false);
+    }
+  };
+
   const handleRunLive = async () => {
     if (!result) return;
     // A live session plays the video + mid-video attention checks, so it needs
@@ -962,9 +988,46 @@ ${inquiryTranscript ? `
             <StepHeader
               n={1}
               label="Choose what to create"
-              hint={isStudent ? "Turn a video or reading material into a flashcard deck." : "Run it live, or make a handout."}
+              hint={isStudent ? "A quick flashcard deck, or a full learning session." : "Run it live, or make a handout."}
             />
-            {isStudent ? null : (
+            {isStudent ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
+                <button
+                  type="button"
+                  onClick={() => setStudentMode("flashcards")}
+                  className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+                    studentMode === "flashcards"
+                      ? "bg-blue-50 border-2 border-[#2563EB]"
+                      : "border-2 border-transparent hover:bg-slate-50"
+                  }`}
+                >
+                  <Layers className={`w-5 h-5 mt-0.5 shrink-0 ${studentMode === "flashcards" ? "text-[#2563EB]" : "text-slate-400"}`} />
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Flashcards</div>
+                    <div className="text-[11.5px] text-slate-500 mt-0.5">
+                      A flippable study deck you can review anytime.
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudentMode("session")}
+                  className={`flex-1 flex items-start gap-3 p-3 rounded-xl text-left transition-colors ${
+                    studentMode === "session"
+                      ? "bg-emerald-50 border-2 border-emerald-500"
+                      : "border-2 border-transparent hover:bg-slate-50"
+                  }`}
+                >
+                  <GraduationCap className={`w-5 h-5 mt-0.5 shrink-0 ${studentMode === "session" ? "text-emerald-600" : "text-slate-400"}`} />
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Learning session</div>
+                    <div className="text-[11.5px] text-slate-500 mt-0.5">
+                      The full class experience: hook, video, quiz, case study.
+                    </div>
+                  </div>
+                </button>
+              </div>
+            ) : (
           <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex gap-1 mb-5">
             <button
               type="button"
@@ -1066,16 +1129,22 @@ ${inquiryTranscript ? `
 
         {stage === "input" && (
           <div className="space-y-5">
-            {/* Student-only Learning Session controls — summary toggle,
-                picks what to include BEFORE choosing a source. Hidden for
-                students. */}
-            {!isStudent && (
+            {/* Teachers get the full customize panel; students building a
+                Learning Session get the lighter summary/attention toggles. */}
+            {!isStudent ? (
               <CustomizePanel
                 options={options}
                 onChange={setOptions}
                 mode={mode}
               />
-            )}
+            ) : studentMode === "session" ? (
+              <StudentSessionControls
+                includeSummary={includeSummary}
+                setIncludeSummary={setIncludeSummary}
+                includeAttention={includeAttention}
+                setIncludeAttention={setIncludeAttention}
+              />
+            ) : null}
 
             {tab === "youtube" ? (
               <div className="space-y-4">
@@ -1373,12 +1442,22 @@ ${inquiryTranscript ? `
         )}
 
         {stage === "result" && result && isStudent && (
-          <StudentFlashcardsView
-            result={result}
-            saving={saving}
-            onSave={handleSaveFlashcardsToLibrary}
-            onStartOver={startOver}
-          />
+          studentMode === "session" ? (
+            <StudentSessionReadyView
+              result={result}
+              includeSummary={includeSummary}
+              saving={saving}
+              onStart={handleStartSelfSession}
+              onStartOver={startOver}
+            />
+          ) : (
+            <StudentFlashcardsView
+              result={result}
+              saving={saving}
+              onSave={handleSaveFlashcardsToLibrary}
+              onStartOver={startOver}
+            />
+          )
         )}
 
         {/* Library section — always visible (when not actively generating) */}
@@ -1482,6 +1561,17 @@ ${inquiryTranscript ? `
                               className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
                             >
                               <PlayCircle className="w-3.5 h-3.5" /> Run live
+                            </Button>
+                          )}
+                          {isStudent && row.payload?.quiz?.length > 0 && (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                navigate(createPageUrl("StudentSessionPlay") + `?handout_id=${row.id}`)
+                              }
+                              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs"
+                            >
+                              <PlayCircle className="w-3.5 h-3.5" /> Start session
                             </Button>
                           )}
                           <Button
@@ -1740,10 +1830,6 @@ function StudentSessionControls({
   setIncludeSummary,
   includeAttention,
   setIncludeAttention,
-  scheduledFor,
-  setScheduledFor,
-  reviewsEnabled,
-  setReviewsEnabled,
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
@@ -1760,25 +1846,6 @@ function StudentSessionControls({
           onChange={setIncludeAttention}
           title="Attention checks"
           desc="Pop-up MCQs mid-video. You can still skip them."
-        />
-      </div>
-      <div className="border-t border-slate-100 pt-4 grid sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold tracking-wider uppercase text-slate-500 mb-1.5">
-            Show on Learning Hub on
-          </label>
-          <input
-            type="date"
-            value={scheduledFor}
-            onChange={(e) => setScheduledFor(e.target.value)}
-            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm"
-          />
-        </div>
-        <ToggleRow
-          on={reviewsEnabled}
-          onChange={setReviewsEnabled}
-          title="Spaced-repetition reviews"
-          desc="After you complete this, reviews appear at +1, 3, 7, 14, 30 days."
         />
       </div>
     </div>
@@ -1820,6 +1887,70 @@ function ToggleRow({ on, onChange, title, desc }) {
 // =========================================================================
 // Student-side post-generation views
 // =========================================================================
+
+// Session-ready screen for the student "Learning session" mode. Shows what
+// the generated session contains and a single primary action: start it.
+// Starting auto-saves the payload to the library, so there's no separate
+// save button — the session is always replayable from the library below.
+function StudentSessionReadyView({ result, includeSummary, saving, onStart, onStartOver }) {
+  const parts = [
+    result?.inquiry_session?.hook_question && "Curiosity hook + Socratic warm-up",
+    includeSummary && result?.summary?.bullets?.length > 0 && "Pre-watch summary",
+    result?.video?.videoId && "Video",
+    Array.isArray(result?.attention_checks) && result.attention_checks.length > 0 &&
+      `${result.attention_checks.length} attention check${result.attention_checks.length === 1 ? "" : "s"}`,
+    result?.quiz?.length > 0 && `${result.quiz.length}-question quiz`,
+    result?.case_study?.scenario && "Case study",
+  ].filter(Boolean);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm text-center">
+      <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <GraduationCap className="w-7 h-7 text-emerald-600" />
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 mb-1">
+        {result?.video?.title || "Your session is ready"}
+      </h2>
+      <p className="text-sm text-slate-500 mb-5">Your learning session includes:</p>
+      <ul className="inline-flex flex-col items-start gap-1.5 mb-6 text-left">
+        {parts.map((p) => (
+          <li key={p} className="flex items-center gap-2 text-sm text-slate-700">
+            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" /> {p}
+          </li>
+        ))}
+      </ul>
+      {/* The player has no summary phase, so the pre-watch summary lives here
+          — read it, then start. */}
+      {includeSummary && result?.summary?.bullets?.length > 0 && (
+        <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 mb-6 text-left max-w-lg mx-auto">
+          <div className="text-xs font-semibold tracking-wider uppercase text-[#2563EB] mb-2">
+            Before you start
+          </div>
+          <ul className="space-y-1.5">
+            {result.summary.bullets.map((b, i) => (
+              <li key={i} className="text-sm text-slate-700 flex gap-2">
+                <span className="text-[#2563EB] shrink-0">•</span> {b}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="flex items-center justify-center gap-3">
+        <Button
+          onClick={onStart}
+          disabled={saving}
+          className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 h-11"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+          Start session
+        </Button>
+        <Button onClick={onStartOver} variant="ghost" className="h-11">
+          Generate another
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // Flippable flashcard deck. Source of truth is result.flashcards
 // (LLM-generated, variable count) when present; falls back to quiz-
