@@ -146,6 +146,7 @@ export default function SessionFlow({
   const [readSelected, setReadSelected] = useState(null);
   const [readFeedback, setReadFeedback] = useState(false);
   const [sectionScrolled, setSectionScrolled] = useState(false);
+  const [readScrollPct, setReadScrollPct] = useState(0);
   const readScrollRef = useRef(null);
 
   // Quiz state.
@@ -278,17 +279,23 @@ export default function SessionFlow({
   useEffect(() => {
     if (step !== "reading") return;
     const el = readScrollRef.current;
-    if (el && el.scrollHeight <= el.clientHeight + 8) setSectionScrolled(true);
+    if (el && el.scrollHeight <= el.clientHeight + 8) {
+      setSectionScrolled(true);
+      setReadScrollPct(100);
+    }
   }, [step, currentSection]);
 
   const handleReadScroll = (e) => {
     const el = e.target;
+    const denom = el.scrollHeight - el.clientHeight;
+    setReadScrollPct(denom > 0 ? Math.min(100, Math.round((el.scrollTop / denom) * 100)) : 100);
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) setSectionScrolled(true);
   };
 
   const goToSection = (idx) => {
     setCurrentSection(idx);
     setSectionScrolled(false);
+    setReadScrollPct(0);
     setReadCheckActive(false);
     setReadSelected(null);
     setReadFeedback(false);
@@ -582,62 +589,106 @@ export default function SessionFlow({
         )}
 
         {/* READING (PDF sessions) */}
-        {step === "reading" && readingSections[currentSection] && (
-          <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px]">
+        {step === "reading" && readingSections[currentSection] && (() => {
+          const section = readingSections[currentSection];
+          const wordCount = String(section.text || "").split(/\s+/).length;
+          const readMins = Math.max(1, Math.round(wordCount / 200));
+          return (
+          <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-xl rounded-[32px] overflow-hidden">
             <CardContent className="p-0">
-              <div className="p-6 border-b border-[#C4B5FD]/20">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <BookOpen className="w-6 h-6 text-[#2563EB]" />
-                    <div>
-                      <h2 className="text-xl font-semibold text-[#1A1A1A]">
-                        {readingSections[currentSection].title || `Reading: ${topic}`}
-                      </h2>
-                      <p className="text-sm text-[#1A1A1A]/60" style={{ fontWeight: 450 }}>
-                        Section {currentSection + 1} of {readingSections.length}
-                      </p>
+              <div className="px-8 pt-6 pb-5 border-b border-slate-100">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <BookOpen className="w-4 h-4 text-[#2563EB]" />
+                      <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-[#2563EB]">
+                        Reading · Section {currentSection + 1} of {readingSections.length}
+                      </span>
                     </div>
+                    <h2 className="text-2xl font-bold text-[#1A1A1A] leading-snug">
+                      {section.title || topic}
+                    </h2>
                   </div>
-                  <span className="text-sm text-[#1A1A1A]/60">
-                    Checks: {currentSection}/{readingSections.filter((s) => s.check).length}
+                  <span className="shrink-0 text-xs text-[#1A1A1A]/50 bg-slate-100 rounded-full px-3 py-1.5 mt-1" style={{ fontWeight: 500 }}>
+                    ~{readMins} min read
                   </span>
+                </div>
+                {/* Section stepper dots */}
+                <div className="flex items-center gap-1.5 mt-4">
+                  {readingSections.map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        i < currentSection
+                          ? "w-6 bg-[#3B82F6]"
+                          : i === currentSection
+                          ? "w-10 bg-[#3B82F6]/40"
+                          : "w-6 bg-slate-200"
+                      }`}
+                    >
+                      {i === currentSection && (
+                        <div className="h-full bg-[#3B82F6] rounded-full transition-all duration-200" style={{ width: `${readScrollPct}%` }} />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {/* The section text. Scroll to the bottom to unlock Continue. */}
-              <div
-                ref={readScrollRef}
-                onScroll={handleReadScroll}
-                className="max-h-[52vh] overflow-y-auto px-8 py-7 bg-gradient-to-b from-white to-slate-50/40"
-              >
-                <div className="max-w-[65ch] mx-auto">
-                  {parseReadingBlocks(readingSections[currentSection].text).map((b, i) =>
-                    b.type === "heading" ? (
-                      <h3 key={i} className="text-lg font-semibold text-[#1A1A1A] mt-7 first:mt-0 mb-3">
-                        {b.text}
-                      </h3>
-                    ) : b.type === "list" ? (
-                      <ul key={i} className="space-y-2 mb-5 pl-1">
-                        {b.items.map((item, j) => (
-                          <li key={j} className="flex gap-3 text-[15.5px] leading-7 text-[#1A1A1A]/90" style={{ fontWeight: 450 }}>
-                            <span className="text-[#2563EB] shrink-0 mt-0.5">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p key={i} className="text-[15.5px] leading-[1.85] text-[#1A1A1A]/90 mb-5" style={{ fontWeight: 450 }}>
-                        {b.text}
-                      </p>
-                    )
-                  )}
+              <div className="relative">
+                <div
+                  ref={readScrollRef}
+                  onScroll={handleReadScroll}
+                  className="max-h-[56vh] overflow-y-auto px-8 sm:px-12 py-8 bg-white"
+                >
+                  <div
+                    className="max-w-[62ch] mx-auto"
+                    style={{ fontFamily: 'Charter, Georgia, Cambria, "Times New Roman", serif' }}
+                  >
+                    {parseReadingBlocks(section.text).map((b, i) =>
+                      b.type === "heading" ? (
+                        <h3
+                          key={i}
+                          className="text-[19px] font-bold text-[#1A1A1A] mt-9 first:mt-0 mb-3 tracking-tight"
+                          style={{ fontFamily: '"Inter", sans-serif' }}
+                        >
+                          {b.text}
+                        </h3>
+                      ) : b.type === "list" ? (
+                        <ul key={i} className="space-y-2.5 mb-6 pl-1">
+                          {b.items.map((item, j) => (
+                            <li key={j} className="flex gap-3.5 text-[17px] leading-[1.8] text-[#1A1A1A]/85">
+                              <span className="text-[#2563EB] shrink-0 select-none" aria-hidden="true">•</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p key={i} className="text-[17px] leading-[1.9] text-[#1A1A1A]/85 mb-6">
+                          {b.text}
+                        </p>
+                      )
+                    )}
+                    {/* End-of-section marker so "the end" is unambiguous */}
+                    <div className="flex items-center gap-3 pt-2 pb-1 text-slate-300 select-none" aria-hidden="true">
+                      <div className="h-px bg-slate-200 flex-1" />
+                      <span className="text-xs tracking-[0.3em]">◆</span>
+                      <div className="h-px bg-slate-200 flex-1" />
+                    </div>
+                  </div>
                 </div>
+                {/* Bottom fade hints there's more below; lifts once fully read */}
+                <div
+                  className={`pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent transition-opacity duration-300 ${
+                    sectionScrolled ? "opacity-0" : "opacity-100"
+                  }`}
+                />
               </div>
 
-              <div className="p-6 border-t border-[#C4B5FD]/20">
-                {readCheckActive && readingSections[currentSection].check ? (
+              <div className="px-8 py-5 border-t border-slate-100 bg-slate-50/60">
+                {readCheckActive && section.check ? (
                   <AttentionCheckDisplay
-                    currentCheck={readingSections[currentSection].check}
+                    currentCheck={section.check}
                     currentCheckIndex={currentSection}
                     totalChecks={readingSections.filter((s) => s.check).length}
                     selectedCheckAnswer={readSelected}
@@ -646,32 +697,34 @@ export default function SessionFlow({
                     onSubmit={handleReadCheckSubmit}
                   />
                 ) : (
-                  <>
-                    <div className="bg-[#2563EB]/5 border border-[#2563EB]/20 rounded-[20px] p-4 mb-4">
-                      <p className="text-sm text-[#1A1A1A] font-medium mb-1">Active Reading Required</p>
-                      <p className="text-xs text-[#1A1A1A]/70" style={{ fontWeight: 450 }}>
-                        Read each section fully and answer the check to move on. A wrong answer sends you back to re-read.
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-4">
+                    <p className="text-xs text-[#1A1A1A]/55 flex-1 hidden sm:block" style={{ fontWeight: 450 }}>
+                      {currentSection === 0
+                        ? "Read each section fully, then pass its check to move on. Miss it and you'll re-read the section."
+                        : section.check
+                        ? "A quick check on this section comes next."
+                        : ""}
+                    </p>
                     <Button
                       onClick={handleReadContinue}
                       disabled={!sectionScrolled}
-                      className="w-full bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-3 disabled:opacity-50 font-semibold rounded-full"
+                      className="sm:w-auto w-full shrink-0 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white py-3 px-7 disabled:opacity-50 font-semibold rounded-full"
                     >
                       {!sectionScrolled
                         ? "Read to the end to continue"
-                        : readingSections[currentSection].check
+                        : section.check
                         ? "I've read this — take the check"
                         : currentSection < readingSections.length - 1
                         ? "Next section"
                         : "Continue"}
                     </Button>
-                  </>
+                  </div>
                 )}
               </div>
             </CardContent>
           </Card>
-        )}
+          );
+        })()}
 
         {/* QUIZ */}
         {step === "quiz" && questions[currentQuestion] && (
