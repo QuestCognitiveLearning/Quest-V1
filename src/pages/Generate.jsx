@@ -53,7 +53,6 @@ import { downloadTryWord } from "@/lib/pdf/generateWord";
 import { createPageUrl } from "@/utils";
 import { GenerationProgress, SessionContentReview } from "@/components/teacher/SessionContentReview";
 import { dqText } from "@/lib/caseStudy";
-import { REVIEW_OFFSETS } from "@/lib/spacedRepetition";
 
 function downloadBlobLocally(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -182,11 +181,10 @@ export default function Generate() {
   const [mode, setMode] = useState("live"); // teacher: live | handout
   // Student-only post-generation view. Students create flashcard decks.
   const [studentMode, setStudentMode] = useState("flashcards");
-  // Pre-generation toggles for student Learning Sessions.
+  // Pre-generation toggle for student Learning Sessions.
   // includeSummary: prepend a quick 5-bullet summary of the video.
-  // includeAttention: pause-on-timestamp attention checks during the video.
+  // (Attention checks are always on for learning sessions — no toggle.)
   const [includeSummary, setIncludeSummary] = useState(true);
-  const [includeAttention, setIncludeAttention] = useState(true);
   const [stage, setStage] = useState("input"); // input | generating | result
   const [error, setError] = useState("");
   const [options, setOptions] = useState({ ...DEFAULT_OPTIONS });
@@ -252,16 +250,18 @@ export default function Generate() {
   // Keep generation options in sync with the student's chosen outcome.
   // Flashcards only need the base quiz (cards derive from the transcript),
   // so skip the heavier inquiry / attention-check passes. A Learning Session
-  // mirrors a teacher-assigned session: inquiry hook + attention checks
-  // (attention checks follow the student's toggle).
+  // mirrors a teacher-assigned session: inquiry hook + attention checks.
+  // Attention checks are ALWAYS on for a learning session — they're the
+  // mechanism that makes students actually watch/read, same as
+  // teacher-assigned sessions.
   useEffect(() => {
     if (!isStudent) return;
     if (studentMode === "flashcards") {
       setOptions((o) => ({ ...o, includeInquiry: false, includeAttentionChecks: false }));
     } else {
-      setOptions((o) => ({ ...o, includeInquiry: true, includeAttentionChecks: includeAttention }));
+      setOptions((o) => ({ ...o, includeInquiry: true, includeAttentionChecks: true }));
     }
-  }, [isStudent, studentMode, includeAttention]);
+  }, [isStudent, studentMode]);
 
   // Auto-open the shared review/edit modal once a teacher's content is ready,
   // so the review experience matches assigned/live/curriculum exactly.
@@ -397,7 +397,7 @@ Return JSON: { bullets: [string, string, string, string, string] }`,
       if (sections.length === 0) return;
 
       let checks = [];
-      if (includeAttention) {
+      {
         const schema = {
           type: "object",
           properties: {
@@ -1357,8 +1357,6 @@ ${inquiryTranscript ? `
               <StudentSessionControls
                 includeSummary={includeSummary}
                 setIncludeSummary={setIncludeSummary}
-                includeAttention={includeAttention}
-                setIncludeAttention={setIncludeAttention}
               />
             ) : null}
 
@@ -2049,12 +2047,7 @@ function UpgradeModal({ used, limit, onCancel, onUpgrade, upgrading }) {
 // Summary / attention-checks toggles + scheduled date + reviews toggle.
 // Sits above the source picker on the Generate page when a student is
 // in Learning Session mode.
-function StudentSessionControls({
-  includeSummary,
-  setIncludeSummary,
-  includeAttention,
-  setIncludeAttention,
-}) {
+function StudentSessionControls({ includeSummary, setIncludeSummary }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
       <div className="text-sm font-semibold text-slate-900">Customize this session</div>
@@ -2065,12 +2058,15 @@ function StudentSessionControls({
           title="Pre-watch summary"
           desc="A 5-bullet preview of the key ideas before you watch."
         />
-        <ToggleRow
-          on={includeAttention}
-          onChange={setIncludeAttention}
-          title="Attention checks"
-          desc="Checkpoint questions during the video or between reading sections."
-        />
+        {/* Attention checks are always part of a learning session (video
+            pause-checks or between-section reading checks) — not optional,
+            same as teacher-assigned sessions. */}
+        <div className="text-left p-3 rounded-xl border-2 border-blue-500 bg-blue-50 opacity-90">
+          <div className="text-sm font-semibold text-slate-900">Attention checks · always on</div>
+          <div className="text-[11.5px] text-slate-500 mt-0.5">
+            Checkpoint questions during the video or between reading sections.
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2131,6 +2127,7 @@ function StudentSessionReadyView({ result, includeSummary, saving, onStart, onSt
       `${result.attention_checks.length} attention check${result.attention_checks.length === 1 ? "" : "s"}`,
     result?.quiz?.length > 0 && `${result.quiz.length}-question quiz`,
     result?.case_study?.scenario && "Case study",
+    result?.quiz?.length > 0 && "Spaced-repetition reviews (scheduled after you finish)",
   ].filter(Boolean);
 
   return (

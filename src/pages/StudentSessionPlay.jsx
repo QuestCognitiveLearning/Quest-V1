@@ -2,11 +2,13 @@
  * StudentSessionPlay — player for a student's self-generated learning session.
  * Mirrors AssignedSessionPlay: renders through the SHARED SessionFlow engine
  * so a self-made session has the exact same design/steps/flow as a
- * teacher-assigned one. The only differences are the data source (the
- * student's own generated_handouts row, saved from /Generate) and that there
- * is no completion/spaced-repetition persistence — it's a self-study run.
+ * teacher-assigned one. The data source is the student's own
+ * generated_handouts row (saved from /Generate), and finishing a run persists
+ * the score + spaced-repetition schedule onto that same row — first
+ * completion grades like a learn session, later runs advance the review
+ * ladder (1/3/7/14/21/30 days), identical to assigned sessions.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
@@ -15,15 +17,21 @@ import { Button } from "@/components/ui/button";
 import { Loader2, XCircle, ArrowLeft } from "lucide-react";
 import SessionFlow from "@/components/session/SessionFlow";
 import { bundlePayloadToContent } from "@/lib/sessionContent";
+import { gradeLearnSession, gradeReview, addDays } from "@/lib/spacedRepetition";
 
 export default function StudentSessionPlay() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const handoutId = searchParams.get("handout_id");
+  // review=N marks a run entered from the LearningHub review queue (N = the
+  // upcoming review number). Grading actually keys off the row's own
+  // completed_at/review_count, so this is display/context only.
+  const isReviewRun = !!searchParams.get("review");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [handout, setHandout] = useState(null);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!handoutId) {
@@ -44,7 +52,7 @@ export default function StudentSessionPlay() {
       await quest.auth.me();
       const { data: row, error: hErr } = await supabase
         .from("generated_handouts")
-        .select("id, title, source_type, source_url, payload")
+        .select("id, title, source_type, source_url, payload, completed_at, review_count, next_review_date")
         .eq("id", handoutId)
         .single();
       if (hErr) throw hErr;
@@ -60,14 +68,53 @@ export default function StudentSessionPlay() {
   const content = useMemo(
     () =>
       bundlePayloadToContent(handout?.payload, {
-        badgeLabel: "My Session",
+        badgeLabel: isReviewRun ? "Review" : "My Session",
         sourceUrl: handout?.source_url,
         title: handout?.title,
       }),
-    [handout]
+    [handout, isReviewRun]
   );
 
   const backToGenerate = () => navigate(createPageUrl("Generate"));
+
+  // Persist the run onto the handout row, mirroring AssignedSessionPlay's
+  // grading: never-completed row → learn grading (pass schedules review #1);
+  // already-completed row → review grading (pass advances the ladder,
+  // borderline retries tomorrow, fail resets to relearn).
+  const handleFinish = async (result) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      const sessionScore = result?.score ?? null;
+      if (handout && sessionScore !== null) {
+        const now = new Date();
+        const priorCount = handout.completed_at ? (handout.review_count ?? 0) : null;
+        const graded = priorCount === null
+          ? gradeLearnSession(sessionScore)
+          : gradeReview(sessionScore, priorCount);
+        const reviewCount = priorCount === null ? 0 : graded.reviewCount;
+        const nextReview = graded.nextReviewDate || addDays(1, now);
+        const { error: upErr } = await supabase
+          .from("generated_handouts")
+          .update({
+            completed_at: handout.completed_at || now.toISOString(),
+            last_score_pct: sessionScore,
+            next_review_date: nextReview.toISOString(),
+            last_review_date: now.toISOString(),
+            review_count: reviewCount,
+            urgency_status: graded.urgency,
+          })
+          .eq("id", handout.id);
+        if (upErr) throw upErr;
+      }
+    } catch (err) {
+      console.error("Failed to save self-session completion:", err);
+    } finally {
+      submittingRef.current = false;
+      // Land on the hub so the freshly scheduled review is visible.
+      navigate(createPageUrl("LearningHub"));
+    }
+  };
 
   if (loading) {
     return (
@@ -96,7 +143,7 @@ export default function StudentSessionPlay() {
     <SessionFlow
       content={content}
       inquiryMode="inline"
-      onFinish={backToGenerate}
+      onFinish={handleFinish}
       onExit={backToGenerate}
     />
   );

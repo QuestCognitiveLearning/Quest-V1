@@ -50,6 +50,9 @@ export default function LearningHub() {
   const [classes, setClasses] = useState([]);
   const [user, setUser] = useState(null);
   const [studentProgress, setStudentProgress] = useState([]);
+  // Self-generated study sessions (Create tab) that have entered the review
+  // ladder — completed at least once, so next_review_date is set.
+  const [selfSessions, setSelfSessions] = useState([]);
   const [units, setUnits] = useState([]);
   const [subunits, setSubunits] = useState([]);
   const [curriculum, setCurriculum] = useState(null);
@@ -94,6 +97,21 @@ export default function LearningHub() {
       if (enrollments.length > 0) {
         const progressData = await quest.entities.StudentProgress.filter({ student_id: currentUser.id });
         setStudentProgress(progressData);
+      }
+
+      // Self-study reviews load regardless of class enrollment — a student
+      // with no class can still build a review queue from the Create tab.
+      // RLS scopes generated_handouts to the owner.
+      try {
+        const { data: selfRows } = await supabase
+          .from("generated_handouts")
+          .select("id, title, source_type, completed_at, last_score_pct, next_review_date, review_count")
+          .eq("teacher_id", currentUser.id)
+          .not("next_review_date", "is", null);
+        setSelfSessions(selfRows || []);
+      } catch (err) {
+        console.warn("Could not load self-study reviews:", err);
+        setSelfSessions([]);
       }
     } catch (err) {
       console.error("Error loading data:", err);
@@ -337,7 +355,30 @@ export default function LearningHub() {
         };
       });
 
-    return [...subunitReviews, ...bundleReviews]
+    // Self-study reviews — sessions the student generated themselves on the
+    // Create tab. StudentSessionPlay writes next_review_date on finish, so
+    // they ride the same 1/3/7/14/21/30 ladder as assigned work.
+    const selfReviews = (selfSessions || [])
+      .filter(h => h.completed_at && h.next_review_date)
+      .map(h => {
+        const nextReview = new Date(h.next_review_date);
+        const dueDate = new Date(nextReview.getFullYear(), nextReview.getMonth(), nextReview.getDate());
+        const daysLate = Math.max(0, Math.floor((today - dueDate) / (1000 * 60 * 60 * 24)));
+        return {
+          id: `self_${h.id}`,
+          topic: h.title || "My session",
+          unit: "My session",
+          reviewNumber: (h.review_count || 0) + 1,
+          daysLate,
+          dueDate: h.next_review_date,
+          status: daysLate > 0 ? "overdue" : (dueDate.getTime() === today.getTime() ? "due" : "upcoming"),
+          handoutId: h.id,
+          nextReviewDate: dueDate,
+          source: "self",
+        };
+      });
+
+    return [...subunitReviews, ...bundleReviews, ...selfReviews]
       .filter(r => r.status === "overdue" || r.status === "due")
       .sort((a, b) => b.daysLate - a.daysLate || a.nextReviewDate - b.nextReviewDate);
   };
@@ -405,6 +446,28 @@ export default function LearningHub() {
       });
 
     upcoming.push(...futureNewTopics);
+
+    // Future self-study reviews (due after today).
+    const futureSelfReviews = (selfSessions || [])
+      .filter(h => h.completed_at && h.next_review_date)
+      .map(h => {
+        const nextReview = new Date(h.next_review_date);
+        const dueDate = new Date(nextReview.getFullYear(), nextReview.getMonth(), nextReview.getDate());
+        if (dueDate <= today) return null;
+        return {
+          id: `self_${h.id}`,
+          topic: h.title || "My session",
+          unit: "My session",
+          reviewNumber: (h.review_count || 0) + 1,
+          dueDate: h.next_review_date,
+          status: "scheduled",
+          nextReviewDate: dueDate,
+          type: "review",
+        };
+      })
+      .filter(Boolean);
+
+    upcoming.push(...futureSelfReviews);
 
     return upcoming.sort((a, b) => a.nextReviewDate - b.nextReviewDate);
   };
@@ -479,8 +542,13 @@ export default function LearningHub() {
   };
 
   const handleReviewSessionClick = (session) => {
+    // Self-study reviews → replay the student's own session via StudentSessionPlay.
     // Bundle-based reviews → replay the assigned session via AssignedSessionPlay.
     // Subunit-based reviews → PracticeSession with the SM2 review counter.
+    if (session.source === "self" && session.handoutId) {
+      navigate(createPageUrl("StudentSessionPlay") + `?handout_id=${session.handoutId}&review=${session.reviewNumber}`);
+      return;
+    }
     if (session.source === "bundle" && session.assignmentId) {
       navigate(createPageUrl("AssignedSessionPlay") + `?assignment_id=${session.assignmentId}&review=${session.reviewNumber}`);
       return;
@@ -507,7 +575,7 @@ export default function LearningHub() {
           <div className="flex items-center justify-center h-full">
             <div className="w-12 h-12 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : !hasClass ? (
+        ) : !hasClass && reviewSessions.length === 0 && upcomingSessions.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md">
               <div className="w-24 h-24 bg-[#2563EB]/10 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
