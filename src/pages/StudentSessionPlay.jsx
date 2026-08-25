@@ -65,15 +65,44 @@ export default function StudentSessionPlay() {
     }
   };
 
-  const content = useMemo(
-    () =>
-      bundlePayloadToContent(handout?.payload, {
-        badgeLabel: isReviewRun ? "Review" : "My Session",
-        sourceUrl: handout?.source_url,
-        title: handout?.title,
-      }),
-    [handout, isReviewRun]
-  );
+  const content = useMemo(() => {
+    const c = bundlePayloadToContent(handout?.payload, {
+      badgeLabel: isReviewRun ? "Review" : "My Session",
+      sourceUrl: handout?.source_url,
+      title: handout?.title,
+    });
+    // Self-study sessions skip the inquiry hook / Socratic warm-up — students
+    // go straight into the material. (Older saved payloads may still carry an
+    // inquiry_session; null it so the phase never renders.)
+    return { ...c, inquiry: null };
+  }, [handout, isReviewRun]);
+
+  // ---- Resume support ----------------------------------------------------
+  // Progress lives in localStorage keyed per run "generation": handout id +
+  // review count + learn/review flag, so finishing a run (which bumps
+  // review_count / sets completed_at) naturally orphans the old key and the
+  // next run starts fresh.
+  const progressKey = handout
+    ? `qs_self_progress_${handout.id}_${handout.review_count ?? 0}_${handout.completed_at ? "r" : "l"}`
+    : null;
+
+  const initialProgress = useMemo(() => {
+    if (!progressKey) return null;
+    try {
+      const raw = localStorage.getItem(progressKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, [progressKey]);
+
+  const handleProgress = (snapshot) => {
+    if (!progressKey) return;
+    try {
+      if (snapshot) localStorage.setItem(progressKey, JSON.stringify(snapshot));
+      else localStorage.removeItem(progressKey);
+    } catch { /* storage full/blocked — resume just won't survive */ }
+  };
 
   const backToGenerate = () => navigate(createPageUrl("Generate"));
 
@@ -106,6 +135,10 @@ export default function StudentSessionPlay() {
           })
           .eq("id", handout.id);
         if (upErr) throw upErr;
+      }
+      // Run is over — drop any saved mid-session progress.
+      if (progressKey) {
+        try { localStorage.removeItem(progressKey); } catch { /* ignore */ }
       }
     } catch (err) {
       console.error("Failed to save self-session completion:", err);
@@ -145,6 +178,9 @@ export default function StudentSessionPlay() {
       inquiryMode="inline"
       onFinish={handleFinish}
       onExit={backToGenerate}
+      initialProgress={initialProgress}
+      onProgress={handleProgress}
+      resumable
     />
   );
 }

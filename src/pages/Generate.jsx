@@ -248,10 +248,9 @@ export default function Generate() {
   const studentBlocked = isStudent && !canStudentGenerate(user);
 
   // Keep generation options in sync with the student's chosen outcome.
-  // Flashcards only need the base quiz (cards derive from the transcript),
-  // so skip the heavier inquiry / attention-check passes. A Learning Session
-  // mirrors a teacher-assigned session: inquiry hook + attention checks.
-  // Attention checks are ALWAYS on for a learning session — they're the
+  // Flashcards only need the base quiz (cards derive from the transcript).
+  // A Learning Session skips the inquiry hook (self-study goes straight into
+  // the material) but ALWAYS includes attention checks — they're the
   // mechanism that makes students actually watch/read, same as
   // teacher-assigned sessions.
   useEffect(() => {
@@ -259,7 +258,7 @@ export default function Generate() {
     if (studentMode === "flashcards") {
       setOptions((o) => ({ ...o, includeInquiry: false, includeAttentionChecks: false }));
     } else {
-      setOptions((o) => ({ ...o, includeInquiry: true, includeAttentionChecks: true }));
+      setOptions((o) => ({ ...o, includeInquiry: false, includeAttentionChecks: true }));
     }
   }, [isStudent, studentMode]);
 

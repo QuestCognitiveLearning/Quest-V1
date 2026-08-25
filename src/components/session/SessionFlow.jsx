@@ -36,6 +36,10 @@
  *   resultsFooter: ReactNode            // extra results content (live leaderboard button)
  *   passThreshold: number (default PASS_THRESHOLD)
  *   showLofi, showPandaWidget: bool
+ *   initialProgress: snapshot | null    // resume a previously-left session
+ *   onProgress: (snapshot|null) => void // called as the student advances;
+ *                                       // null = run finished/reset, clear it
+ *   resumable: bool                     // exit modal says progress is saved
  */
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { PASS_THRESHOLD, computeSessionScore } from "@/lib/spacedRepetition";
@@ -95,6 +99,9 @@ export default function SessionFlow({
   showLofi = true,
   showPandaWidget = true,
   embedded = false,
+  initialProgress = null,
+  onProgress,
+  resumable = false,
 }) {
   const {
     topic = "Topic",
@@ -122,26 +129,33 @@ export default function SessionFlow({
     return out;
   }, [inquiry, videoId, readingSections.length, questions.length, caseStudy]);
 
-  const [step, setStep] = useState(phases[0]);
+  // Resume: seed phase/positions from a caller-provided snapshot (see
+  // onProgress below). Snapshot fields that don't apply are simply ignored.
+  const resume = initialProgress && typeof initialProgress === "object" ? initialProgress : null;
+  const [step, setStep] = useState(() =>
+    resume?.step && phases.includes(resume.step) && resume.step !== "results" ? resume.step : phases[0]
+  );
   const [showInquiryChat, setShowInquiryChat] = useState(false);
 
   // Video / attention-check state (mirrors NewSession exactly).
   const [videoProgress, setVideoProgress] = useState(0);
-  const [currentCheckIndex, setCurrentCheckIndex] = useState(0);
+  const [currentCheckIndex, setCurrentCheckIndex] = useState(resume?.currentCheckIndex ?? 0);
   const [currentCheck, setCurrentCheck] = useState(null);
   const [selectedCheckAnswer, setSelectedCheckAnswer] = useState(null);
   const [showCheckFeedback, setShowCheckFeedback] = useState(false);
-  const [checksCompleted, setChecksCompleted] = useState([]);
+  const [checksCompleted, setChecksCompleted] = useState(() => (Array.isArray(resume?.checksCompleted) ? resume.checksCompleted : []));
   const [canProceed, setCanProceed] = useState(false);
   const [youtubePlayer, setYoutubePlayer] = useState(null);
   const [actualVideoDuration, setActualVideoDuration] = useState(null);
-  const [lastKnownTime, setLastKnownTime] = useState(0);
+  const [lastKnownTime, setLastKnownTime] = useState(resume?.videoTime ?? 0);
   const [imageLoaded, setImageLoaded] = useState(false);
+  // Where to seek the player on resume (0 = start fresh).
+  const resumeSeekRef = useRef(resume?.videoTime || 0);
 
   // Reading-phase state (PDF sessions). The student must scroll to the end
   // of each section, then pass its attention check, to move on — the reading
   // equivalent of the video's no-skip + open-checks rules.
-  const [currentSection, setCurrentSection] = useState(0);
+  const [currentSection, setCurrentSection] = useState(resume?.currentSection ?? 0);
   const [readCheckActive, setReadCheckActive] = useState(false);
   const [readSelected, setReadSelected] = useState(null);
   const [readFeedback, setReadFeedback] = useState(false);
@@ -150,9 +164,9 @@ export default function SessionFlow({
   const readScrollRef = useRef(null);
 
   // Quiz state.
-  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState(resume?.currentQuestion ?? 0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState(() => (Array.isArray(resume?.results) ? resume.results : []));
 
   // Case study + results state.
   const [frqScore, setFrqScore] = useState(null);
@@ -171,6 +185,39 @@ export default function SessionFlow({
 
   // Notify the caller of phase changes (live mirrors this to participant.current_phase).
   useEffect(() => { onPhaseChange?.(step); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [step]);
+
+  // ---- Progress snapshots (resume support) -------------------------------
+  // Latest resumable state + callback, refreshed every render so the interval
+  // below and the change-effect both emit current values without stale
+  // closures (and without resetting on the video's 500ms re-renders).
+  const progressSnapshotRef = useRef(null);
+  progressSnapshotRef.current = {
+    step,
+    currentCheckIndex,
+    checksCompleted,
+    videoTime: Math.floor(lastKnownTime),
+    currentSection,
+    currentQuestion,
+    results,
+  };
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+
+  // Emit on every meaningful transition. Reaching results clears the saved
+  // progress — the run is over; grading/persistence is onFinish's job.
+  useEffect(() => {
+    if (!onProgressRef.current) return;
+    if (step === "results") { onProgressRef.current(null); return; }
+    onProgressRef.current(progressSnapshotRef.current);
+  }, [step, currentCheckIndex, checksCompleted, currentSection, currentQuestion, results]);
+
+  // Video position changes constantly — checkpoint it every 10s instead of
+  // on every tick.
+  useEffect(() => {
+    if (step !== "video") return;
+    const id = setInterval(() => onProgressRef.current?.(progressSnapshotRef.current), 10_000);
+    return () => clearInterval(id);
+  }, [step]);
 
   // ---- YouTube player init (verbatim from NewSession) --------------------
   useEffect(() => {
@@ -199,6 +246,12 @@ export default function SessionFlow({
                   setYoutubePlayer(e.target);
                   const d = e.target.getDuration();
                   if (d) setActualVideoDuration(Math.floor(d));
+                  // Resuming a left-off session — pick the video back up
+                  // where the student stopped (anti-skip allows ≤ lastKnownTime).
+                  if (resumeSeekRef.current > 1) {
+                    try { e.target.seekTo(resumeSeekRef.current, true); } catch { /* ignore */ }
+                    resumeSeekRef.current = 0;
+                  }
                   e.target.playVideo();
                 },
               },
@@ -399,6 +452,7 @@ export default function SessionFlow({
 
   const handleRetry = () => {
     if (typeof onRetry === "function") { onRetry(); return; }
+    onProgress?.(null);
     // Default: restart the whole flow.
     setResults([]); setFrqScore(null); setCaseReviewItems([]); csResponseRef.current = null;
     setReviewStep(false); setReviewDone(false);
@@ -471,7 +525,11 @@ export default function SessionFlow({
               </div>
               <h3 className="text-xl font-semibold text-gray-900">Exit Session?</h3>
             </div>
-            <p className="text-gray-700 mb-6">Are you sure you want to exit? You'll need to restart this session from the beginning.</p>
+            <p className="text-gray-700 mb-6">
+              {resumable
+                ? "Your progress is saved — you can pick up right where you left off next time."
+                : "Are you sure you want to exit? You'll need to restart this session from the beginning."}
+            </p>
             <div className="flex gap-3">
               <Button onClick={() => setShowExitModal(false)} variant="outline" className="flex-1">Cancel</Button>
               <Button onClick={() => onExit?.()} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white">Exit Session</Button>
