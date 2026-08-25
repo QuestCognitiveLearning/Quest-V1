@@ -550,15 +550,22 @@ Return JSON: { checks: [{ skip, title?, question?, choice_a?, choice_b?, choice_
         // visit: ask Stripe for the truth and refetch the user if it moved.
         if (me?.account_type === "student" && getUserTier(me) === "free") {
           try {
+            console.log("[StripeDebug] Generate self-heal: user is free tier, syncing…", {
+              email: me?.email, tier: me?.tier, subscription_status: me?.subscription_status,
+            });
             const syncResp = await quest.functions.invoke("syncStripeSubscription", {});
+            console.log("[StripeDebug] Generate self-heal response:", JSON.stringify(syncResp?.data ?? syncResp, null, 2));
             const syncedTier = syncResp?.data?.tier || syncResp?.tier;
             if (syncedTier && syncedTier !== "free") {
               const fresh = await quest.auth.me();
+              console.log("[StripeDebug] Generate self-heal: tier flipped to", syncedTier, "— refetched user tier:", fresh?.tier);
               setUser(fresh);
               toast.success("Student Pro active — unlimited learning sessions unlocked.");
+            } else {
+              console.log("[StripeDebug] Generate self-heal: still free after sync (no active subscription found for this email).");
             }
           } catch (syncErr) {
-            console.warn("Subscription sync failed (non-fatal):", syncErr);
+            console.error("[StripeDebug] Generate self-heal sync FAILED:", syncErr?.message || syncErr);
           }
         }
       } catch (err) {

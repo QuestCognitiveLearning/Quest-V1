@@ -28,25 +28,39 @@ Deno.serve(async (req) => {
 
   const lastSync = syncCache.get(user.id);
   if (lastSync && Date.now() - lastSync < COOLDOWN_MS) {
+    console.log(`[sync] ${user.email} hit ${COOLDOWN_MS}ms cooldown — returning cached row values`);
     return json({
       cached: true,
       subscription_status: user.subscription_status,
       subscription_tier: user.subscription_tier,
+      tier: user.tier,
+      debug: { step: 'cooldown', email: user.email },
     });
   }
   syncCache.set(user.id, Date.now());
 
   const admin = adminClient();
   const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+  console.log(`[sync] ${user.email}: ${customers.data.length} Stripe customer(s) matched by email`);
   if (customers.data.length === 0) {
     await admin.from('users')
       .update({ subscription_status: 'free', subscription_tier: 'free', tier: 'free' })
       .eq('id', user.id);
-    return json({ subscription_status: 'free', subscription_tier: 'free', tier: 'free' });
+    return json({
+      subscription_status: 'free', subscription_tier: 'free', tier: 'free',
+      debug: { step: 'no_customer', email: user.email, note: 'No Stripe customer with this exact email — checkout may have used a different email.' },
+    });
   }
 
   const customer = customers.data[0];
   const subs = await stripe.subscriptions.list({ customer: customer.id, limit: 100, status: 'all' });
+  const subSummary = subs.data.map((s) => ({
+    id: s.id,
+    status: s.status,
+    priceId: firstPriceId(s),
+    cancel_at: s.cancel_at ? new Date(s.cancel_at * 1000).toISOString() : null,
+  }));
+  console.log(`[sync] ${user.email}: customer ${customer.id}, ${subs.data.length} subscription(s):`, JSON.stringify(subSummary));
 
   let status = 'free';
   let tier = 'free';
@@ -75,13 +89,29 @@ Deno.serve(async (req) => {
     update.tier_started_at = new Date().toISOString();
   }
 
-  await admin.from('users').update({
+  console.log(`[sync] ${user.email}: mapped tier=${newTier}, status=${status}`);
+  const { error: updateError } = await admin.from('users').update({
     subscription_status: status,
     subscription_tier: tier,
     tier: newTier,
     last_subscription_update: new Date().toISOString(),
     ...update,
   }).eq('id', user.id);
+  if (updateError) {
+    console.error(`[sync] ${user.email}: users row update FAILED:`, updateError.message);
+  }
 
-  return json({ subscription_status: status, subscription_tier: tier, tier: newTier });
+  return json({
+    subscription_status: status,
+    subscription_tier: tier,
+    tier: newTier,
+    debug: {
+      step: 'synced',
+      email: user.email,
+      customerId: customer.id,
+      subscriptions: subSummary,
+      mappedTier: newTier,
+      dbUpdateError: updateError?.message || null,
+    },
+  });
 });

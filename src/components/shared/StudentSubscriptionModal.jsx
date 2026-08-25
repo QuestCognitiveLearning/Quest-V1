@@ -35,8 +35,23 @@ export default function StudentSubscriptionModal({ user, onClose, onUserRefresh 
   const refreshStatus = async ({ silent = false } = {}) => {
     setSyncing(true);
     try {
-      await quest.functions.invoke("syncStripeSubscription", {});
+      console.log("[StripeDebug] sync start — current user:", {
+        email: user?.email,
+        tier: user?.tier,
+        subscription_status: user?.subscription_status,
+        subscription_tier: user?.subscription_tier,
+        student_generations_used: user?.student_generations_used,
+      });
+      const syncResp = await quest.functions.invoke("syncStripeSubscription", {});
+      console.log("[StripeDebug] syncStripeSubscription response:", JSON.stringify(syncResp?.data ?? syncResp, null, 2));
       const fresh = await quest.auth.me();
+      console.log("[StripeDebug] refetched user after sync:", {
+        email: fresh?.email,
+        tier: fresh?.tier,
+        subscription_status: fresh?.subscription_status,
+        subscription_tier: fresh?.subscription_tier,
+        effectiveTier: getUserTier(fresh),
+      });
       setMe(fresh);
       onUserRefresh?.(fresh);
       if (!silent) {
@@ -48,7 +63,7 @@ export default function StudentSubscriptionModal({ user, onClose, onUserRefresh 
         );
       }
     } catch (err) {
-      console.warn("Subscription refresh failed:", err);
+      console.error("[StripeDebug] sync FAILED:", err?.message || err, err?.context || "");
       if (!silent) toast.error("Couldn't refresh subscription status.");
     } finally {
       setSyncing(false);
