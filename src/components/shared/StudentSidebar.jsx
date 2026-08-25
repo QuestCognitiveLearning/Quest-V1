@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { quest } from "@/api/questClient";
-import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio, Menu, X, Sparkles } from "lucide-react";
+import { BookOpen, Home, BarChart3, LogOut, ChevronLeft, Users, Radio, Menu, X, Sparkles, Settings } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -11,16 +11,21 @@ import {
   SelectValue } from
 "@/components/ui/select";
 import NotificationCenter from "@/components/shared/NotificationCenter";
+import StudentSubscriptionModal from "@/components/shared/StudentSubscriptionModal";
+import { getUserTier } from "@/lib/tier";
 
 export default function StudentSidebar({
   activeNav,
   classes,
   selectedClassId,
   onClassChange,
-  user
+  user,
+  onUserRefresh
 }) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const tier = getUserTier(user);
 
   const handleSignOut = () => {
     quest.auth.logout();
@@ -103,6 +108,20 @@ export default function StudentSidebar({
             <p className="text-xs text-white/60 truncate">{user?.email}</p>
           </div>
         </div>
+        {/* Plan pill doubles as the settings entry point — one tap shows the
+            live subscription status pulled from Stripe. */}
+        <button
+          onClick={() => { setShowSettings(true); setMobileOpen(false); }}
+          className="w-full mb-2 py-2 px-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all flex items-center gap-2 text-xs font-medium"
+        >
+          <Settings className="w-4 h-4 flex-shrink-0" />
+          <span className="flex-1 text-left">Settings</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            tier === "free" ? "bg-white/15 text-white/80" : "bg-emerald-400/90 text-emerald-950"
+          }`}>
+            {tier === "free" ? "Free" : tier === "classroom" ? "Classroom" : "Pro"}
+          </span>
+        </button>
         <button onClick={handleSignOut} className="w-full py-2 px-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all flex items-center gap-2 justify-center text-xs font-medium">
           <LogOut className="w-4 h-4" />
           Sign Out
@@ -138,6 +157,14 @@ export default function StudentSidebar({
             {inner}
           </div>
         </div>
+      )}
+
+      {showSettings && (
+        <StudentSubscriptionModal
+          user={user}
+          onClose={() => setShowSettings(false)}
+          onUserRefresh={onUserRefresh}
+        />
       )}
     </>
   );

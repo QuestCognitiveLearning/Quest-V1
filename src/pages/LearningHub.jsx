@@ -500,6 +500,7 @@ export default function LearningHub() {
       classes={classes}
       selectedClassId={selectedClassId}
       setSelectedClassId={setSelectedClassId}
+      onUserRefresh={setUser}
       user={user}
     >
         {loading ? (

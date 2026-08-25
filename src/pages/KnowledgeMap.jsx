@@ -229,7 +229,8 @@ export default function KnowledgeMap() {
           setSelectedClassId(val);
           localStorage.setItem('selectedClassId', val);
         }}
-        user={user} />
+        user={user}
+        onUserRefresh={setUser} />
 
 
       <div className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0">

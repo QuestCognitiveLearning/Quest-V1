@@ -21,9 +21,20 @@ Deno.serve(async (req) => {
     return json({ error: 'No Stripe customer found' }, 404);
   }
 
+  // Optional same-origin return path so students land back on their own page
+  // (defaults to the teacher settings page for backwards compatibility).
+  let returnPath = '/teacher/settings';
+  try {
+    const body = await req.json();
+    const candidate = body?.returnPath;
+    if (typeof candidate === 'string' && candidate.startsWith('/') && !candidate.startsWith('//')) {
+      returnPath = candidate;
+    }
+  } catch (_) { /* no body — keep default */ }
+
   const session = await stripe.billingPortal.sessions.create({
     customer: customers.data[0].id,
-    return_url: `${req.headers.get('origin')}/teacher/settings`,
+    return_url: `${req.headers.get('origin')}${returnPath}`,
   });
 
   return json({ url: session.url });

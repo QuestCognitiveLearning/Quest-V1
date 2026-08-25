@@ -1862,6 +1862,7 @@ ${inquiryTranscript ? `
             selectedClassId={null}
             onClassChange={() => {}}
             user={user}
+            onUserRefresh={setUser}
           />
           <div className="flex-1 overflow-auto bg-white pt-14 md:pt-0 min-w-0" style={{ fontFamily: '"Inter", sans-serif' }}>
             {pageBody}

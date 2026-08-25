@@ -16,6 +16,7 @@ export default function StudentPageShell({
   selectedClassId,
   setSelectedClassId,
   user,
+  onUserRefresh,
   bg = "bg-white",
   children,
 }) {
@@ -34,6 +35,7 @@ export default function StudentPageShell({
           localStorage.setItem("selectedClassId", val);
         }}
         user={user}
+        onUserRefresh={onUserRefresh}
       />
 
       <div className={`flex-1 overflow-auto ${bg} pt-14 md:pt-0 min-w-0`} style={{ fontFamily: '"Inter", sans-serif' }}>

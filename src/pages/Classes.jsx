@@ -299,6 +299,7 @@ export default function Classes() {
       classes={classes}
       selectedClassId={selectedClassId}
       setSelectedClassId={setSelectedClassId}
+      onUserRefresh={setUser}
       user={user}
     >
         {loading ? (

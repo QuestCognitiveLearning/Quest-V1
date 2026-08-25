@@ -268,6 +268,7 @@ export default function Progress() {
       classes={classes}
       selectedClassId={selectedClassId}
       setSelectedClassId={setSelectedClassId}
+      onUserRefresh={setUser}
       user={user}
       bg="bg-[#F0F4FF]"
     >
