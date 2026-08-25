@@ -45,6 +45,21 @@ Deno.serve(async (req) => {
     customerId = customer.id;
   }
 
+  // Guard: one live subscription per customer. Without this, every checkout
+  // creates a brand-new subscription (observed: a customer with 40+ stacked
+  // subs). If one already exists, skip checkout — the client should call
+  // syncStripeSubscription instead so the tier reflects what's already paid.
+  const existing = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 });
+  const live = existing.data.filter((s) => s.status === 'active' || s.status === 'trialing');
+  if (live.length > 0) {
+    console.log(`[checkout] ${user.email}: blocked — already has ${live.length} live subscription(s)`);
+    return json({
+      already_subscribed: true,
+      subscription_status: live[0].status,
+      message: 'You already have an active subscription.',
+    });
+  }
+
   // Studio tier gets a 14-day trial; everything else (Classroom + legacy) is
   // 7 days. Source-of-truth is the price ID env vars — keeps the trial length
   // consistent with what /Pricing and /Studio advertise.

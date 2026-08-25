@@ -508,7 +508,18 @@ Return JSON: { checks: [{ skip, title?, question?, choice_a?, choice_b?, choice_
         successUrl,
         cancelUrl,
       });
-      const url = resp?.data?.url || resp?.url;
+      const data = resp?.data ?? resp;
+      // Already subscribed (e.g. tier was stale) — sync instead of
+      // stacking a second subscription, then unlock in place.
+      if (data?.already_subscribed) {
+        await quest.functions.invoke("syncStripeSubscription", {});
+        const fresh = await quest.auth.me();
+        setUser(fresh);
+        setShowUpgrade(false);
+        toast.success("You already have an active subscription — unlimited sessions unlocked.");
+        return;
+      }
+      const url = data?.url;
       if (!url) throw new Error("Checkout could not be started.");
       window.location.href = url;
     } catch (err) {

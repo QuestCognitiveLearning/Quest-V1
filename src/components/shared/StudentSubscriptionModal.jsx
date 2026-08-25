@@ -95,7 +95,14 @@ export default function StudentSubscriptionModal({ user, onClose, onUserRefresh 
         successUrl: `${back}?checkout=success`,
         cancelUrl: `${back}?checkout=canceled`,
       });
-      const url = resp?.data?.url || resp?.url;
+      const data = resp?.data ?? resp;
+      // Already subscribed (stale tier) — just resync and show the truth.
+      if (data?.already_subscribed) {
+        toast.success("You already have an active subscription.");
+        await refreshStatus({ silent: true });
+        return;
+      }
+      const url = data?.url;
       if (!url) throw new Error("Checkout could not be started.");
       window.location.href = url;
     } catch (err) {

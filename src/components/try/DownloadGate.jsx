@@ -54,6 +54,11 @@ export default function DownloadGate({ open, onClose, onAuthorized, format }) {
         successUrl: `${window.location.origin}/try?trial=success`,
         cancelUrl: window.location.href,
       });
+      if (checkout?.already_subscribed) {
+        await quest.functions.invoke('syncStripeSubscription', {});
+        window.location.href = '/try?trial=success';
+        return;
+      }
       if (checkout?.url) {
         window.location.href = checkout.url;
         return;

@@ -124,6 +124,12 @@ export default function Pricing() {
         successUrl: `${window.location.origin}${successPath}`,
         cancelUrl: window.location.href,
       });
+      if (response.data?.already_subscribed) {
+        await quest.functions.invoke("syncStripeSubscription", {});
+        toast.success("You already have an active subscription — status refreshed.");
+        setLoading({ tier: null });
+        return;
+      }
       if (response.data?.url) window.location.href = response.data.url;
     } catch (err) {
       console.error("Checkout error:", err);
