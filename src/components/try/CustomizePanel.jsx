@@ -21,7 +21,7 @@ const DIFFICULTIES = [
   { id: "hard", label: "Hard" },
 ];
 
-export default function CustomizePanel({ options, onChange, compact = false, mode = "live" }) {
+export default function CustomizePanel({ options, onChange, compact = false, mode = "live", hideInquiry = false }) {
   const set = (patch) => onChange?.({ ...options, ...patch });
   const isHandout = mode === "handout";
 
@@ -90,13 +90,15 @@ export default function CustomizePanel({ options, onChange, compact = false, mod
           />
           {!isHandout && (
             <>
-              <Toggle
-                icon={Sparkles}
-                label="Inquiry session"
-                sub="Socratic hook from the Panda Tutor"
-                checked={options.includeInquiry === true}
-                onChange={(v) => set({ includeInquiry: v })}
-              />
+              {!hideInquiry && (
+                <Toggle
+                  icon={Sparkles}
+                  label="Inquiry session"
+                  sub="Socratic hook from the Panda Tutor"
+                  checked={options.includeInquiry === true}
+                  onChange={(v) => set({ includeInquiry: v })}
+                />
+              )}
               <Toggle
                 icon={Eye}
                 label="Attention checks"

@@ -187,7 +187,9 @@ export default function Generate() {
   const [includeSummary, setIncludeSummary] = useState(true);
   const [stage, setStage] = useState("input"); // input | generating | result
   const [error, setError] = useState("");
-  const [options, setOptions] = useState({ ...DEFAULT_OPTIONS });
+  // Inquiry modules are removed from the Generate tab — force the flag off
+  // for every account type (the CustomizePanel toggle is hidden too).
+  const [options, setOptions] = useState({ ...DEFAULT_OPTIONS, includeInquiry: false });
 
   // YouTube state
   const [url, setUrl] = useState("");
@@ -206,7 +208,7 @@ export default function Generate() {
   const [result, setResult] = useState(null);
   // Which enrichment passes are still running after the base result lands.
   // Drives "in progress" skeleton sections so the user knows what's coming.
-  const [enriching, setEnriching] = useState({ inquiry: false, attentionChecks: false });
+  const [enriching, setEnriching] = useState({ attentionChecks: false });
 
   // Library state — teacher's saved handouts
   const [library, setLibrary] = useState([]);
@@ -662,13 +664,10 @@ Return JSON: { checks: [{ skip, title?, question?, choice_a?, choice_b?, choice_
   };
 
   // After publicTryFunnel returns quiz + case_study + segments, fire the
-  // heavier inquiry / image / attention checks generation using the EXACT
-  // code paths the curriculum builder uses. Each runs independently so a
-  // failure on one (e.g. image gen rate-limited) doesn't block the others.
-  // Result is set progressively so the user sees content land as it comes.
+  // attention-check generation (the same code path the curriculum builder
+  // uses). Result is set progressively so the user sees content land as it
+  // comes. (Inquiry-based modules were removed from the Generate tab.)
   const enrichWithCurriculumGeneration = async (baseData, setProgressive) => {
-    const topic = baseData?.video?.title || pdfTopic || "this topic";
-    const wantInquiry = options.includeInquiry === true;
     const wantAttention =
       options.includeAttentionChecks === true &&
       Array.isArray(baseData?.timestamped_segments) &&
@@ -678,104 +677,7 @@ Return JSON: { checks: [{ skip, title?, question?, choice_a?, choice_b?, choice_
 
     // Flip the "in progress" flags up-front so the result panel renders
     // skeleton sections immediately, before the LLM round-trips finish.
-    setEnriching({
-      inquiry: !!wantInquiry,
-      attentionChecks: !!wantAttention,
-    });
-
-    if (wantInquiry) {
-      const { invokeLLM, generateImage } = await import("@/components/utils/openai");
-      const { LLM_MODELS } = await import("@/lib/llmModels");
-
-      // Transcript context so the hook + discussion lead into what the video
-      // actually teaches (not just the title).
-      const inquiryTranscript = (baseData?.timestamped_segments || [])
-        .map((s) => s.text || "")
-        .join(" ")
-        .slice(0, 8000);
-
-      tasks.push(
-        (async () => {
-          try {
-            // EXACT inquiry prompt from ManageCurriculum, with topic
-            // substituted in. Same response schema + model.
-            const inquiry = await invokeLLM({
-              model: LLM_MODELS.INQUIRY_CONTENT,
-              prompt: `You are the world's best automated inquiry-based learning designer.
-
-LANGUAGE: All generated text (hook question, anchor question, bridge question, transfer scenario, all options, all feedback) must be in clear, natural English. Translate non-English source material — never output non-English text.
-
-        Topic: "${topic}"
-        Learning Standard: "Not specified"
-${inquiryTranscript ? `
-        Use this video transcript as CONTEXT for what the lesson actually teaches. Craft the introduction (hook) and the discussion so they lead directly into the specific concepts this video covers, at the depth the video treats them:
-        """
-        ${inquiryTranscript}
-        """
-` : ""}
-        Create a curiosity hook for this topic. IMPORTANT: The student has NOT watched the video yet - they are encountering these concepts for the first time. The hook question must point at the core idea the video will teach, but stay answerable through intuition, prior knowledge, or everyday experience — never require a fact that is only revealed in the video.
-
-        The hook_image_prompt should show the ACTUAL REAL-WORLD application or example of "${topic}" as it appears in the video (not an analogy). Show what this concept looks like in real life.
-
-        The socratic discussion (socratic_system_prompt + tutor_first_message) should steer the student toward the specific concepts the transcript covers, so that when they watch, the video answers the very questions they were just wondering about.
-
-        Return strict JSON:
-        {
-        "hook_image_prompt": "[Describe the real-world application of ${topic}]. Style: cartoon-realistic with simplified forms and accurate physics, minimal and sleek, muted neutral and soft pastel color palette with low saturation (not vibrant), clean thin outlines, modern educational science illustration, pure white background only, single clear centered scenario in ONE UNIFIED SCENE, keep it simple and easy to understand what is happening, no people, no hands, no text, no labels, no arrows, no symbols, no numbers, no multiple panels or stages, calm polished classroom aesthetic, 1792×1024.",
-        "hook_question": "Question (8-18 words) directly about ${topic} that students can answer through intuition or everyday experience, even without formal knowledge of the topic",
-        "relevant_past_memories": [],
-        "socratic_system_prompt": "You are Panda, a Socratic tutor. The student has NOT learned ${topic} yet. Guide them to think about the topic using their intuition and prior knowledge. Ask questions, never explain. Max 3 exchanges. Make sure to stay on topic with the subject of the session. End with: 'Brilliant thinking! Now watch the video.'",
-        "tutor_first_message": "Warm response to student's guess, with follow-up question that helps them explore the topic further"
-        }`,
-              response_json_schema: {
-                type: "object",
-                properties: {
-                  hook_image_prompt: { type: "string" },
-                  hook_question: { type: "string" },
-                  socratic_system_prompt: { type: "string" },
-                  tutor_first_message: { type: "string" },
-                },
-              },
-            });
-            setProgressive((prev) => ({
-              ...prev,
-              inquiry_session: {
-                hook_image_prompt: inquiry?.hook_image_prompt || "",
-                hook_question: inquiry?.hook_question || "",
-                socratic_system_prompt: inquiry?.socratic_system_prompt || "",
-                tutor_first_message: inquiry?.tutor_first_message || "",
-              },
-            }));
-
-            // After we have hook_image_prompt, generate the image.
-            if (inquiry?.hook_image_prompt) {
-              try {
-                const img = await generateImage({
-                  prompt: inquiry.hook_image_prompt,
-                  quality: "medium",
-                });
-                const imageUrl = img?.url || img?.image_url || null;
-                if (imageUrl) {
-                  setProgressive((prev) => ({
-                    ...prev,
-                    inquiry_session: {
-                      ...prev.inquiry_session,
-                      hook_image_url: imageUrl,
-                    },
-                  }));
-                }
-              } catch (err) {
-                console.warn("Hook image failed (non-fatal):", err);
-              }
-            }
-          } catch (err) {
-            console.warn("Inquiry generation failed (non-fatal):", err);
-          } finally {
-            setEnriching((prev) => ({ ...prev, inquiry: false }));
-          }
-        })()
-      );
-    }
+    setEnriching({ attentionChecks: !!wantAttention });
 
     if (wantAttention) {
       tasks.push(
@@ -799,11 +701,8 @@ ${inquiryTranscript ? `
       );
     }
 
-    // Block until every enrichment pass settles. We used to fire-and-forget
-    // so the user saw the partial handout immediately, but that meant the
-    // result page rendered before the inquiry hook + attention checks had
-    // arrived. Holding the stage on "generating" until everything is ready
-    // is a cleaner reveal.
+    // Block until every enrichment pass settles so the result page never
+    // renders a partial state.
     await Promise.allSettled(tasks);
   };
 
@@ -1253,7 +1152,7 @@ ${inquiryTranscript ? `
                 if (tab === "pdf") setTab("youtube");
                 setOptions((o) => ({
                   ...o,
-                  includeInquiry: true,
+                  includeInquiry: false,
                   includeAttentionChecks: true,
                 }));
               }}
@@ -1351,6 +1250,7 @@ ${inquiryTranscript ? `
                 options={options}
                 onChange={setOptions}
                 mode={mode}
+                hideInquiry
               />
             ) : studentMode === "session" ? (
               <StudentSessionControls
@@ -1580,7 +1480,6 @@ ${inquiryTranscript ? `
             started={!!result}
             estimateSeconds={
               45 +
-              (options.includeInquiry ? 30 : 0) +
               (options.includeAttentionChecks ? 18 : 0) +
               (isStudent && includeSummary ? 10 : 0) +
               (isStudent && studentMode === "flashcards" ? 12 : 0) +
@@ -1601,12 +1500,6 @@ ${inquiryTranscript ? `
                       Array.isArray(result?.attention_checks) &&
                       result.attention_checks.length > 0 &&
                       !enriching.attentionChecks,
-                  }]
-                : []),
-              ...(options.includeInquiry
-                ? [{
-                    label: "Inquiry hook + Socratic prompt",
-                    done: !!result?.inquiry_session?.hook_question && !enriching.inquiry,
                   }]
                 : []),
             ]}
@@ -2117,7 +2010,6 @@ function StudentSessionReadyView({ result, includeSummary, saving, onStart, onSt
     ? result.reading_sections.filter((s) => s?.check).length
     : 0;
   const parts = [
-    result?.inquiry_session?.hook_question && "Curiosity hook + Socratic warm-up",
     includeSummary && result?.summary?.bullets?.length > 0 && "Pre-watch summary",
     result?.video?.videoId && "Video",
     readingCount > 0 &&
@@ -2309,11 +2201,9 @@ function StudentFlashcardsView({ result, saving, onSave, onStartOver }) {
 }
 
 // Read-only preview shown on the result/download screen. Each section is a
-// collapsed accordion, in play order: inquiry → attention checks → quiz →
-// case study.
-function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: false }, title = "" }) {
-  const { video, quiz, case_study, inquiry_session, attention_checks } = result;
-  const showInquiryPending = enriching.inquiry && !inquiry_session?.hook_question;
+// collapsed accordion, in play order: attention checks → quiz → case study.
+function ResultPreview({ result, enriching = { attentionChecks: false }, title = "" }) {
+  const { video, quiz, case_study, attention_checks } = result;
   const showAttentionPending =
     enriching.attentionChecks && !(Array.isArray(attention_checks) && attention_checks.length > 0);
   const [revealed, setRevealed] = useState({});
@@ -2338,56 +2228,6 @@ function ResultPreview({ result, enriching = { inquiry: false, attentionChecks: 
           </p>
         )}
       </div>
-
-      {showInquiryPending && (
-        <div className="p-6 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-            <h3 className="text-lg font-semibold text-slate-900">Inquiry hook</h3>
-            <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-              Generating…
-            </span>
-          </div>
-          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
-            <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 animate-pulse" />
-            <div className="space-y-2">
-              <div className="h-5 bg-slate-200 rounded animate-pulse w-3/4" />
-              <div className="h-3 bg-slate-100 rounded animate-pulse w-full" />
-              <div className="h-3 bg-slate-100 rounded animate-pulse w-5/6" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {inquiry_session?.hook_question && (
-        <details className="p-6 border-b border-slate-100">
-          <summary className="cursor-pointer text-lg font-semibold text-slate-900">
-            Inquiry hook
-          </summary>
-          <div className="mt-4 grid md:grid-cols-2 gap-5 items-start">
-            {inquiry_session.hook_image_url ? (
-              <img
-                src={inquiry_session.hook_image_url}
-                alt="Inquiry hook"
-                className="w-full rounded-xl border border-slate-200"
-              />
-            ) : (
-              <div className="aspect-video bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-slate-200 flex items-center justify-center text-xs text-slate-500 text-center px-4">
-                {inquiry_session.hook_image_prompt ? "Image generating…" : "No hook image"}
-              </div>
-            )}
-            <div>
-              <h3 className="text-base font-bold text-slate-900 mb-2">
-                {inquiry_session.hook_question}
-              </h3>
-              <p className="text-sm text-slate-600 italic leading-relaxed">
-                Panda's opening:&nbsp;
-                <span className="not-italic">{inquiry_session.tutor_first_message}</span>
-              </p>
-            </div>
-          </div>
-        </details>
-      )}
 
       {showAttentionPending && (
         <div className="p-6 border-b border-slate-100">
