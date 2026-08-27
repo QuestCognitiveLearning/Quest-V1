@@ -74,6 +74,20 @@ export default function StudentSessionPlay() {
     // Self-study sessions skip the inquiry hook / Socratic warm-up — students
     // go straight into the material. (Older saved payloads may still carry an
     // inquiry_session; null it so the phase never renders.)
+    // Review runs (entered from the LearningHub queue) are quiz-only: no
+    // video/reading rewatch, no case study — just the multiple-choice
+    // questions to prove retention. Replaying from the library keeps the
+    // full session.
+    if (isReviewRun) {
+      return {
+        ...c,
+        inquiry: null,
+        videoId: null,
+        attentionChecks: [],
+        readingSections: [],
+        caseStudy: null,
+      };
+    }
     return { ...c, inquiry: null };
   }, [handout, isReviewRun]);
 
@@ -82,8 +96,10 @@ export default function StudentSessionPlay() {
   // review count + learn/review flag, so finishing a run (which bumps
   // review_count / sets completed_at) naturally orphans the old key and the
   // next run starts fresh.
+  // Quiz-only review runs get their own key so a saved full-session snapshot
+  // never bleeds into a review (and vice versa).
   const progressKey = handout
-    ? `qs_self_progress_${handout.id}_${handout.review_count ?? 0}_${handout.completed_at ? "r" : "l"}`
+    ? `qs_self_progress_${handout.id}_${handout.review_count ?? 0}_${handout.completed_at ? "r" : "l"}${isReviewRun ? "_q" : ""}`
     : null;
 
   const initialProgress = useMemo(() => {
