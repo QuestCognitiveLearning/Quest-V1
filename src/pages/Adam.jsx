@@ -3,14 +3,18 @@
  * at /adam. Public route (no auth, no app chrome) so it works as a shareable
  * bio link. Intentionally not linked anywhere in the app.
  *
- * Design: personality-forward take on the Quest Learning visual language.
- * Two fixed background layers frame the 900px content column:
- *   - right gutter: a canvas double helix that twists as the page scrolls
- *     (computational biology)
- *   - left edge (xl+ only): a climbing wall with colored holds and a little
- *     climber who ascends with scroll progress (rock climbing)
- * Space Grotesk for display type, Inter for body. Each section gets an
- * accent color + icon + hand-drawn squiggle underline.
+ * Design: dark editorial-poster look (inspired by wodniack.dev's duotone
+ * poster typography + generative line art, logartis.info's atmosphere, and
+ * animejs.com's charcoal/monospace/scroll-motion language), tailored with
+ * Adam's own motifs:
+ *   - hero: full-width opaque block — giant Anton display type with a
+ *     letter-stagger reveal, topographic line art, and a DNA-codon marquee
+ *     ticker instead of a binary one. The fixed background layers never
+ *     overlap it (per Adam's request the climbing wall starts below).
+ *   - right gutter: canvas double helix that twists with scroll
+ *   - left edge (xl+): climbing wall; the climber ascends with scroll
+ * Sections are numbered editorially (01 / WORK...), panels are charcoal,
+ * accents pop per section. Scroll-in reveals via IntersectionObserver.
  *
  * Photo: `public/adam-photo.jpg` (falls back to "AR" monogram if missing).
  */
@@ -22,40 +26,36 @@ import {
   ExternalLink,
   Linkedin,
   ArrowUpRight,
-  Briefcase,
   Brain,
   Bug,
   Crown,
   Dna,
   Dumbbell,
-  Globe,
-  GraduationCap,
-  HeartHandshake,
-  Languages,
   Medal,
   Mountain,
   PiggyBank,
   Pizza,
   Plane,
   Puzzle,
-  TrendingUp,
-  Trophy,
   Wrench,
 } from "lucide-react";
 
-const BLUE = "#2563EB";
-const BLUE_HOVER = "#1D4ED8";
-const INK = "#0F172A";
-const BODY = "#475569";
-const MUTED = "#64748B";
-const BORDER = "#E2E8F0";
-const AMBER = "#D97706";
-const EMERALD = "#059669";
-const ROSE = "#E11D48";
-const TEAL = "#0D9488";
-const SKY = "#0284C7";
+// Dark palette
+const BG = "#131416";
+const PANEL = "#1B1D20";
+const LINE = "#2A2D31";
+const TEXT = "#E8E6E1";
+const SUB = "#A6ABB2";
+const MUT = "#787E86";
+const LIME = "#4ADE80";
+const ROSE = "#F43F5E";
+const AMBER = "#F59E0B";
+const SKY = "#38BDF8";
+const TEAL = "#2DD4BF";
 
-const DISPLAY = '"Space Grotesk", "Inter", system-ui, sans-serif';
+const DISPLAY = '"Anton", "Arial Narrow", "Inter", sans-serif';
+const MONO =
+  '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 
 // -----------------------------------------------------------------------------
 // Content
@@ -67,7 +67,7 @@ const WORK = [
     org: "Quest Learning",
     period: "Jul 2024 – Present",
     icon: Brain,
-    accent: BLUE,
+    accent: SKY,
     body: [
       "Started Quest with a co-founder to turn state standards into complete, ready-to-teach lessons: hooks, videos, adaptive quizzes, AP-style case studies, each built around spaced repetition and scaffolding so the material sticks.",
       "I lead product and engineering. We've grown a 15-person team, shipped 100+ learning resources, passed 110,000 views, and we're in conversations with Williamson County Schools about bringing Quest to their 42,000+ students.",
@@ -108,7 +108,7 @@ const WORK = [
     org: "Wealth Education Initiative",
     period: "Dec 2023 – Present",
     icon: PiggyBank,
-    accent: EMERALD,
+    accent: LIME,
     body: [
       "A 501(c)(3) that teaches practical financial literacy. We grew two chapters past 100 members and put an eBook into six high schools, and I sat on the county committee that shaped financial-education policy for 20,000+ students.",
     ],
@@ -155,18 +155,18 @@ const SERVICE = [
 
 const LANGUAGES = ["English", "Russian", "Arabic", "Uzbek"];
 
-const FUN_FACTS = [
-  { icon: Languages, value: "4", label: "languages spoken", color: SKY, tilt: -1.5 },
-  { icon: Plane, value: "3", label: "countries grown up in", color: EMERALD, tilt: 1 },
-  { icon: TrendingUp, value: "40M+", label: "views produced", color: ROSE, tilt: -1 },
-  { icon: Pizza, value: "1", label: "family pizza shop", color: AMBER, tilt: 1.5 },
+const STATS = [
+  { value: "04", label: "languages spoken", color: SKY },
+  { value: "03", label: "countries grown up in", color: LIME },
+  { value: "40M+", label: "views produced", color: ROSE },
+  { value: "01", label: "family pizza shop", color: AMBER },
 ];
 
 const INTERESTS = [
   { icon: Mountain, label: "Rock climbing", color: TEAL },
   { icon: Dumbbell, label: "Wrestling & calisthenics", color: ROSE },
   { icon: Puzzle, label: "Rubik's cubes", color: AMBER },
-  { icon: Crown, label: "Chess", color: "#4B5563" },
+  { icon: Crown, label: "Chess", color: SUB },
   { icon: Plane, label: "Traveling", color: SKY },
 ];
 
@@ -223,16 +223,78 @@ const EDUCATION = [
   },
 ];
 
+const CODONS =
+  "ATG GAT TCC AAG CTG TTC GGA CAT CCA TGA ACG TTA GCC AAT GTC TAG GCA TTC AGA CCT GGT AAC TGC ATA GCT CAG TTG ACC GTA TGC";
+
+// -----------------------------------------------------------------------------
+// Reveal-on-scroll
+// -----------------------------------------------------------------------------
+
+function Reveal({ children, delay = 0, className = "" }) {
+  const ref = useRef(null);
+  const [vis, setVis] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setVis(true);
+      return;
+    }
+    // Scroll-driven check instead of IntersectionObserver: an anchor jump or
+    // scrollbar drag can skip right past an element between two frames, and
+    // the observer never reports it — this reveals anything at or above the
+    // 92%-viewport line on every scroll tick, then detaches.
+    let raf = 0;
+    let done = false;
+    const cleanup = () => {
+      done = true;
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+    const check = () => {
+      if (done) return;
+      if (el.getBoundingClientRect().top < window.innerHeight * 0.92) {
+        setVis(true);
+        cleanup();
+      }
+    };
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        check();
+      });
+    };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return cleanup;
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: vis ? 1 : 0,
+        transform: vis ? "none" : "translateY(24px)",
+        transition: `opacity 0.7s ease ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 // -----------------------------------------------------------------------------
 // DNA background
 // -----------------------------------------------------------------------------
 
 /**
  * Full-viewport fixed canvas drawing a double helix whose twist phase is
- * driven by window.scrollY, so the strands rotate as the reader scrolls.
- * Sits at z-0 behind the content (which is position:relative, z-1); white
- * cards cover it, so it reads as a margin/backdrop texture, not a layer
- * over text. Honors prefers-reduced-motion by rendering a static helix.
+ * driven by window.scrollY. Sits at z-0; the opaque hero (z-2) and the
+ * charcoal panels cover it, so it lives in the page's right gutter.
+ * Honors prefers-reduced-motion by rendering a static helix.
  */
 function DnaBackground() {
   const canvasRef = useRef(null);
@@ -252,22 +314,18 @@ function DnaBackground() {
       const phase = reduceMotion ? 0 : window.scrollY * 0.0038;
       ctx.clearRect(0, 0, width, height);
 
-      // Desktop: helix lives in the right gutter beside the 900px column.
-      // Narrow screens: centered, wider, mostly peeking around the cards.
       const wide = width >= 1024;
-      const cx = wide ? Math.min(width / 2 + 590, width - 120) : width / 2;
-      const amp = wide ? 90 : Math.min(width * 0.4, 150);
-      const wavelength = 480; // px of height per full twist
+      const cx = wide ? Math.min(width / 2 + 620, width - 110) : width / 2;
+      const amp = wide ? 88 : Math.min(width * 0.4, 150);
+      const wavelength = 480;
       const k = (Math.PI * 2) / wavelength;
       const step = 7;
 
-      // Base-pair rungs. The two strands are half a turn apart, so the rung
-      // width collapses naturally where they cross.
       for (let y = -40; y <= height + 40; y += 26) {
         const a = k * y + phase;
         const x1 = cx + amp * Math.sin(a);
         const x2 = cx + amp * Math.sin(a + Math.PI);
-        ctx.strokeStyle = "rgba(148,163,184,0.28)";
+        ctx.strokeStyle = "rgba(120,126,134,0.28)";
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(x1, y);
@@ -275,20 +333,18 @@ function DnaBackground() {
         ctx.stroke();
       }
 
-      // Strands, drawn as short segments so opacity and width can follow
-      // depth: cos(angle) > 0 means the strand is on the near side.
       const strands = [
-        { offset: 0, rgb: "37,99,235" }, // blue
-        { offset: Math.PI, rgb: "5,150,105" }, // emerald
+        { offset: 0, rgb: "74,222,128" }, // lime
+        { offset: Math.PI, rgb: "232,230,225" }, // off-white
       ];
       for (const strand of strands) {
         for (let y = -40; y <= height + 40; y += step) {
           const a1 = k * y + strand.offset + phase;
           const a2 = k * (y + step) + strand.offset + phase;
-          const depth = (Math.cos(a1) + 1) / 2; // 0 = far, 1 = near
+          const depth = (Math.cos(a1) + 1) / 2;
           ctx.strokeStyle = `rgba(${strand.rgb},${(
-            0.09 +
-            0.22 * depth
+            0.08 +
+            0.24 * depth
           ).toFixed(3)})`;
           ctx.lineWidth = 1.6 + 1.8 * depth;
           ctx.beginPath();
@@ -343,17 +399,17 @@ function DnaBackground() {
 // Climbing wall
 // -----------------------------------------------------------------------------
 
-const HOLD_COLORS = ["#F97316", "#14B8A6", "#3B82F6", "#F43F5E", "#84CC16", "#F59E0B"];
+const HOLD_COLORS = ["#F97316", "#2DD4BF", "#38BDF8", "#F43F5E", "#A3E635", "#F59E0B"];
 const WALL_W = 120;
 
 const routeX = (p) => 60 + Math.sin(p * Math.PI * 3) * 22;
 const routeY = (p, vh) => vh - 70 - p * (vh - 150);
 
 /**
- * Fixed 120px strip on the left edge (xl+ only): a climbing wall with
- * scattered resin holds, a dashed route line, a summit flag, and a little
- * climber whose height tracks scroll progress — reach the footer and they
- * top out. Purely decorative (aria-hidden, pointer-events none).
+ * Fixed 120px strip on the left edge (xl+ only): charcoal climbing wall with
+ * neon holds, a dashed route, a summit flag, and a climber whose height
+ * tracks scroll progress. z-0, so the opaque hero covers it — it only shows
+ * once you scroll into the content, per Adam's request. Decorative only.
  */
 function ClimbingWall() {
   const climberRef = useRef(null);
@@ -379,7 +435,6 @@ function ClimbingWall() {
         rot: (i * 53) % 180,
       });
     }
-    // off-route holds so the wall doesn't read as a single line
     const SCATTER = [
       [18, 0.08],
       [98, 0.16],
@@ -449,9 +504,9 @@ function ClimbingWall() {
       <div
         className="absolute inset-0"
         style={{
-          backgroundColor: "#EDF1F7",
-          borderRight: `1px solid ${BORDER}`,
-          boxShadow: "inset -10px 0 18px -14px rgb(15 23 42 / 0.2)",
+          backgroundColor: "#17181B",
+          borderRight: `1px solid ${LINE}`,
+          boxShadow: "inset -10px 0 18px -14px rgb(0 0 0 / 0.6)",
         }}
       />
       <svg
@@ -460,7 +515,6 @@ function ClimbingWall() {
         viewBox={`0 0 ${WALL_W} ${vh}`}
         className="absolute inset-0"
       >
-        {/* plywood panel seams */}
         {[0.25, 0.5, 0.75].map((f) => (
           <line
             key={f}
@@ -468,57 +522,53 @@ function ClimbingWall() {
             x2={WALL_W}
             y1={f * vh}
             y2={f * vh}
-            stroke="#DCE3EC"
+            stroke="#212429"
             strokeWidth="2"
           />
         ))}
-        {/* dashed route */}
         <polyline
           points={Array.from({ length: 25 }, (_, i) => {
             const p = i / 24;
             return `${routeX(p).toFixed(1)},${routeY(p, vh).toFixed(1)}`;
           }).join(" ")}
           fill="none"
-          stroke="#94A3B8"
+          stroke="#4A4F55"
           strokeWidth="1.5"
           strokeDasharray="2 6"
           strokeLinecap="round"
-          opacity="0.5"
+          opacity="0.6"
         />
-        {/* holds, each with a bolt dot */}
         {holds.map((h, i) => (
           <g key={i} transform={`translate(${h.x} ${h.y}) rotate(${h.rot})`}>
-            <ellipse rx={h.r} ry={h.r * 0.78} fill={h.color} opacity="0.9" />
-            <circle r="1.4" fill="rgba(15,23,42,0.35)" />
+            <ellipse rx={h.r} ry={h.r * 0.78} fill={h.color} opacity="0.92" />
+            <circle r="1.4" fill="rgba(0,0,0,0.45)" />
           </g>
         ))}
-        {/* summit flag */}
         <g transform="translate(60 34)">
           <line
             x1="0"
             y1="0"
             x2="0"
             y2="-22"
-            stroke={INK}
+            stroke={TEXT}
             strokeWidth="2"
             strokeLinecap="round"
           />
-          <path d="M0,-22 L20,-17 L0,-12 Z" fill="#F59E0B" />
+          <path d="M0,-22 L20,-17 L0,-12 Z" fill={AMBER} />
         </g>
-        {/* climber (position driven by scroll) */}
         <g ref={climberRef} transform={`translate(60 ${vh - 70})`}>
-          <circle cx="0" cy="-15" r="4.6" fill={INK} />
+          <circle cx="0" cy="-15" r="4.6" fill={TEXT} />
           <path
             d="M0,-10 L0,4"
-            stroke={BLUE}
+            stroke={LIME}
             strokeWidth="4.5"
             strokeLinecap="round"
           />
-          <path d="M0,-8 L9,-17" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M0,-6 L-8,-1" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M0,4 L-7,12" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M0,4 L6,11" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
-          <circle cx="3" cy="6" r="2.6" fill="#F59E0B" />
+          <path d="M0,-8 L9,-17" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M0,-6 L-8,-1" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M0,4 L-7,12" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M0,4 L6,11" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+          <circle cx="3" cy="6" r="2.6" fill={AMBER} />
         </g>
       </svg>
     </div>
@@ -529,56 +579,51 @@ function ClimbingWall() {
 // Primitives
 // -----------------------------------------------------------------------------
 
-function Squiggle({ color, width = 86, className = "" }) {
+function StaggerTitle({ text, delayBase = 0 }) {
   return (
-    <svg
-      className={className}
-      width={width}
-      height="8"
-      viewBox="0 0 86 8"
-      fill="none"
-      aria-hidden="true"
-      preserveAspectRatio="none"
-    >
-      <path
-        d="M2 5 Q 12 1 22 5 T 42 5 T 62 5 T 82 5"
-        stroke={color}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        opacity="0.55"
-      />
-    </svg>
+    <span className="block overflow-hidden">
+      {text.split("").map((ch, i) => (
+        <span
+          key={i}
+          className="inline-block adam-letter"
+          style={{ animationDelay: `${delayBase + i * 45}ms` }}
+        >
+          {ch === " " ? " " : ch}
+        </span>
+      ))}
+    </span>
   );
 }
 
-function SectionHeader({ icon: Icon, accent, title, description }) {
+function SectionHeader({ index, accent, title, description }) {
   return (
-    <div className="mb-7">
+    <div className="mb-8">
       <div className="flex items-center gap-3">
         <span
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ backgroundColor: `${accent}1A`, color: accent }}
+          className="text-[12px] font-medium tracking-[0.2em]"
+          style={{ fontFamily: MONO, color: accent }}
         >
-          <Icon className="w-[18px] h-[18px]" />
+          {index}
         </span>
-        <h2
-          style={{
-            fontFamily: DISPLAY,
-            color: INK,
-            fontSize: "clamp(22px, 2.5vw, 28px)",
-            fontWeight: 700,
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-          }}
-        >
-          {title}
-        </h2>
+        <span className="h-px flex-1" style={{ backgroundColor: LINE }} />
       </div>
-      <Squiggle color={accent} className="mt-1.5 ml-12" />
+      <h2
+        className="mt-3 uppercase"
+        style={{
+          fontFamily: DISPLAY,
+          color: TEXT,
+          fontSize: "clamp(30px, 4.2vw, 46px)",
+          fontWeight: 400,
+          letterSpacing: "0.015em",
+          lineHeight: 1.05,
+        }}
+      >
+        {title}
+      </h2>
       {description && (
         <p
-          className="mt-2 ml-12 text-[14.5px] leading-relaxed"
-          style={{ color: BODY }}
+          className="mt-2 text-[14px] leading-relaxed"
+          style={{ color: SUB }}
         >
           {description}
         </p>
@@ -587,11 +632,21 @@ function SectionHeader({ icon: Icon, accent, title, description }) {
   );
 }
 
-function Card({ children, className = "" }) {
+function Panel({ children, className = "", accent }) {
+  const [hover, setHover] = useState(false);
   return (
     <div
-      className={`bg-white rounded-2xl border p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${className}`}
-      style={{ borderColor: BORDER, boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.04)" }}
+      className={`rounded-xl border p-6 transition-all duration-200 ${className}`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        backgroundColor: PANEL,
+        borderColor: hover && accent ? `${accent}66` : LINE,
+        transform: hover ? "translateY(-3px)" : "none",
+        boxShadow: hover
+          ? "0 14px 30px -18px rgb(0 0 0 / 0.8)"
+          : "0 1px 2px 0 rgb(0 0 0 / 0.3)",
+      }}
     >
       {children}
     </div>
@@ -601,23 +656,14 @@ function Card({ children, className = "" }) {
 function Avatar() {
   const [failed, setFailed] = useState(false);
   return (
-    <div className="relative shrink-0" style={{ transform: "rotate(-3deg)" }}>
-      {/* tape */}
-      <span
-        className="absolute -top-2.5 left-7 w-14 h-4 rounded-sm"
-        style={{
-          backgroundColor: "rgba(245,158,11,0.4)",
-          transform: "rotate(-8deg)",
-          zIndex: 2,
-        }}
-      />
+    <div
+      className="relative shrink-0"
+      style={{ transform: "rotate(-2deg)" }}
+    >
       {failed ? (
         <div
-          className="w-32 h-32 rounded-xl flex items-center justify-center text-3xl font-extrabold text-white"
-          style={{
-            backgroundColor: BLUE,
-            boxShadow: "0 12px 28px -10px rgb(15 23 42 / 0.3)",
-          }}
+          className="w-36 h-36 sm:w-44 sm:h-44 rounded-lg flex items-center justify-center text-4xl text-black"
+          style={{ backgroundColor: LIME, fontFamily: DISPLAY }}
         >
           AR
         </div>
@@ -626,13 +672,20 @@ function Avatar() {
           src="/adam-photo.jpg"
           alt="Adam Rakhmanov"
           onError={() => setFailed(true)}
-          className="w-32 h-32 rounded-xl object-cover"
+          className="w-36 h-36 sm:w-44 sm:h-44 rounded-lg object-cover"
           style={{
-            border: "4px solid white",
-            boxShadow: "0 12px 28px -10px rgb(15 23 42 / 0.3)",
+            border: `1px solid ${LINE}`,
+            filter: "saturate(0.85) contrast(1.05)",
+            boxShadow: "0 18px 40px -18px rgb(0 0 0 / 0.9)",
           }}
         />
       )}
+      <div
+        className="mt-2 text-[10px] tracking-[0.2em] uppercase"
+        style={{ fontFamily: MONO, color: MUT }}
+      >
+        fig. 01 — me
+      </div>
     </div>
   );
 }
@@ -640,11 +693,12 @@ function Avatar() {
 function StackChip({ children }) {
   return (
     <span
-      className="inline-flex text-[11.5px] font-medium rounded-full px-2.5 py-1 border"
+      className="inline-flex text-[11px] rounded px-2 py-1 border"
       style={{
-        color: BLUE,
-        backgroundColor: "#EFF6FF",
-        borderColor: "#DBEAFE",
+        fontFamily: MONO,
+        color: LIME,
+        backgroundColor: "rgba(74,222,128,0.07)",
+        borderColor: "rgba(74,222,128,0.25)",
       }}
     >
       {children}
@@ -669,61 +723,130 @@ export default function Adam() {
     <div
       className="min-h-screen"
       style={{
-        backgroundColor: "#F8FAFC",
-        color: INK,
+        backgroundColor: BG,
+        color: TEXT,
         fontFamily:
           '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;500;600&display=swap');
+        @keyframes adam-rise {
+          from { transform: translateY(110%); opacity: 0; }
+          to { transform: none; opacity: 1; }
+        }
+        .adam-letter {
+          transform: translateY(110%);
+          opacity: 0;
+          animation: adam-rise 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
+        }
+        @keyframes adam-marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        .adam-ticker { animation: adam-marquee 48s linear infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .adam-letter { animation: none; transform: none; opacity: 1; }
+          .adam-ticker { animation: none; }
+        }
+        .adam-tickstrip {
+          background-image: repeating-linear-gradient(
+            to right, ${LINE} 0, ${LINE} 1px, transparent 1px, transparent 9px
+          );
+        }
+      `}</style>
 
       <DnaBackground />
       <ClimbingWall />
 
       {/* ================================================================= */}
-      {/* Hero band                                                          */}
+      {/* Hero — full-width opaque block; background layers never touch it   */}
       {/* ================================================================= */}
       <header
         className="relative"
         style={{
-          backgroundColor: "rgba(238,243,251,0.88)",
-          borderBottom: `1px solid ${BORDER}`,
-          zIndex: 1,
+          backgroundColor: BG,
+          borderBottom: `1px solid ${LINE}`,
+          zIndex: 2,
         }}
       >
-        <div className="max-w-[900px] mx-auto px-6 pt-16 pb-16">
-          <div className="flex flex-col sm:flex-row items-start gap-8">
-            <Avatar />
+        {/* top mono bar */}
+        <div
+          className="border-b"
+          style={{ borderColor: LINE }}
+        >
+          <div className="max-w-[1060px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <span
+              className="text-[11px] tracking-[0.22em] uppercase"
+              style={{ fontFamily: MONO, color: SUB }}
+            >
+              Adam Rakhmanov — Personal Site
+            </span>
+            <span
+              className="text-[11px] tracking-[0.22em] uppercase hidden sm:block"
+              style={{ fontFamily: MONO, color: MUT }}
+            >
+              Durham, NC · Duke '30
+            </span>
+          </div>
+        </div>
+
+        {/* topographic line art */}
+        <svg
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-10 w-full pointer-events-none"
+          height="300"
+          viewBox="0 0 1440 300"
+          preserveAspectRatio="none"
+        >
+          {Array.from({ length: 12 }, (_, i) => {
+            const yb = 30 + i * 24;
+            const lift = 26 + i * 3;
+            return (
+              <path
+                key={i}
+                d={`M0 ${yb} Q 180 ${yb - lift} 360 ${yb} T 720 ${yb} T 1080 ${yb} T 1440 ${yb}`}
+                stroke={i % 3 === 0 ? LIME : SUB}
+                strokeOpacity={i % 3 === 0 ? 0.1 : 0.06}
+                strokeWidth="1"
+                fill="none"
+              />
+            );
+          })}
+        </svg>
+
+        <div className="relative max-w-[1060px] mx-auto px-6 pt-14 pb-12">
+          <div className="flex flex-col md:flex-row md:items-end gap-10">
             <div className="min-w-0 flex-1">
               <div
-                className="text-[12px] font-bold tracking-[0.18em] uppercase"
-                style={{ color: AMBER, fontFamily: DISPLAY }}
+                className="text-[12px] tracking-[0.3em] uppercase"
+                style={{ fontFamily: MONO, color: AMBER }}
               >
                 Hey — I'm
               </div>
               <h1
-                className="mt-1"
+                className="mt-3 uppercase"
                 style={{
                   fontFamily: DISPLAY,
-                  color: INK,
-                  fontSize: "clamp(36px, 4.8vw, 52px)",
-                  fontWeight: 700,
-                  letterSpacing: "-0.03em",
-                  lineHeight: 1.02,
+                  fontWeight: 400,
+                  color: TEXT,
+                  fontSize: "clamp(56px, 9.5vw, 128px)",
+                  letterSpacing: "0.01em",
+                  lineHeight: 0.96,
                 }}
               >
-                Adam Rakhmanov
+                <StaggerTitle text="Adam" delayBase={100} />
+                <StaggerTitle text="Rakhmanov" delayBase={350} />
               </h1>
-              <Squiggle color={AMBER} width={170} className="mt-2" />
               <p
-                className="mt-3 text-[15.5px] font-medium"
-                style={{ color: BLUE }}
+                className="mt-5 text-[13px] tracking-[0.14em] uppercase"
+                style={{ fontFamily: MONO, color: LIME }}
               >
-                Co-Founder of Quest Learning · Neuroscience &amp; CS at Duke
+                Neuroscience + CS @ Duke → Computational Biology
               </p>
               <p
-                className="mt-4 text-[15px] leading-relaxed max-w-[580px]"
-                style={{ color: BODY }}
+                className="mt-5 text-[15px] leading-relaxed max-w-[560px]"
+                style={{ color: SUB }}
               >
                 I'm a first-year at Duke studying neuroscience and computer
                 science, headed toward computational biology — I want to
@@ -732,7 +855,7 @@ export default function Adam() {
                 to my family's pizza shop when I'm home in Nashville.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-2 text-[13px]">
+              <div className="mt-7 flex flex-wrap gap-2">
                 <ContactPill
                   href="mailto:adamrakhmanovit@gmail.com"
                   icon={Mail}
@@ -752,45 +875,64 @@ export default function Adam() {
                 />
               </div>
             </div>
+            <Avatar />
+          </div>
+        </div>
+
+        {/* DNA codon ticker */}
+        <div
+          className="overflow-hidden border-t py-2"
+          style={{ borderColor: LINE }}
+          aria-hidden="true"
+        >
+          <div className="adam-ticker flex w-max whitespace-nowrap">
+            {[0, 1].map((n) => (
+              <span
+                key={n}
+                className="text-[11px] tracking-[0.18em] pr-8"
+                style={{ fontFamily: MONO, color: MUT }}
+              >
+                {`5' ▸ ${CODONS} ▸ ${CODONS} ▸ 3' /// `}
+              </span>
+            ))}
           </div>
         </div>
       </header>
 
       {/* ================================================================= */}
-      {/* Fun facts                                                          */}
+      {/* Stats strip                                                        */}
       {/* ================================================================= */}
-      <div className="relative max-w-[900px] mx-auto px-6 -mt-7" style={{ zIndex: 1 }}>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {FUN_FACTS.map((f) => (
+      <div className="relative" style={{ zIndex: 1 }}>
+        <div className="max-w-[1060px] mx-auto px-6 mt-10">
+          <Reveal>
             <div
-              key={f.label}
-              className="bg-white rounded-xl border p-4 transition-transform duration-200 hover:rotate-0"
-              style={{
-                borderColor: BORDER,
-                boxShadow: "0 4px 12px -6px rgb(15 23 42 / 0.12)",
-                transform: `rotate(${f.tilt}deg)`,
-              }}
+              className="grid grid-cols-2 sm:grid-cols-4 rounded-xl border overflow-hidden"
+              style={{ borderColor: LINE, backgroundColor: PANEL }}
             >
-              <span
-                className="w-7 h-7 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: `${f.color}1A`, color: f.color }}
-              >
-                <f.icon className="w-4 h-4" />
-              </span>
-              <div
-                className="mt-2 text-[20px] font-bold"
-                style={{ color: INK, fontFamily: DISPLAY, letterSpacing: "-0.02em" }}
-              >
-                {f.value}
-              </div>
-              <div
-                className="text-[11.5px] font-medium leading-tight"
-                style={{ color: MUTED }}
-              >
-                {f.label}
-              </div>
+              {STATS.map((s, i) => (
+                <div
+                  key={s.label}
+                  className="p-5"
+                  style={{
+                    borderLeft: i ? `1px solid ${LINE}` : "none",
+                  }}
+                >
+                  <div
+                    className="text-[24px]"
+                    style={{ fontFamily: DISPLAY, color: s.color }}
+                  >
+                    {s.value}
+                  </div>
+                  <div
+                    className="mt-1 text-[10.5px] tracking-[0.16em] uppercase leading-tight"
+                    style={{ fontFamily: MONO, color: MUT }}
+                  >
+                    {s.label}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </Reveal>
         </div>
       </div>
 
@@ -798,233 +940,251 @@ export default function Adam() {
       {/* Main                                                               */}
       {/* ================================================================= */}
       <main
-        className="relative max-w-[900px] mx-auto px-6 py-16 space-y-16"
+        className="relative max-w-[1060px] mx-auto px-6 py-16 space-y-20"
         style={{ zIndex: 1 }}
       >
         {/* Work */}
         <section>
-          <SectionHeader icon={Briefcase} accent={BLUE} title="Work" />
-          <div className="relative">
-            <span
-              className="absolute left-[7px] top-3 bottom-3 w-[2px] rounded"
-              style={{ backgroundColor: "#DBEAFE" }}
-            />
-            <div className="space-y-3">
-              {WORK.map((e) => (
-                <div key={e.org} className="relative pl-8">
-                  <span
-                    className="absolute left-[2px] top-7 w-3 h-3 rounded-full border-2 bg-white"
-                    style={{ borderColor: e.accent }}
+          <SectionHeader index="01 / WORK" accent={SKY} title="Work" />
+          <div className="space-y-3">
+            {WORK.map((e, i) => (
+              <Reveal key={e.org} delay={i * 60}>
+                <Panel accent={e.accent} className="relative">
+                  <e.icon
+                    className="absolute right-5 top-5 w-5 h-5"
+                    style={{ color: e.accent, opacity: 0.6 }}
                   />
-                  <Card className="relative">
-                    <e.icon
-                      className="absolute right-5 top-5 w-5 h-5"
-                      style={{ color: e.accent, opacity: 0.55 }}
-                    />
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pr-8">
-                      <h3
-                        className="font-bold text-[15.5px]"
-                        style={{ color: INK }}
-                      >
-                        {e.role}
-                      </h3>
-                      <span
-                        className="text-[12px] font-medium"
-                        style={{ color: MUTED }}
-                      >
-                        {e.period}
-                      </span>
-                    </div>
-                    <p
-                      className="mt-0.5 text-[13.5px] font-semibold"
-                      style={{ color: e.accent }}
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pr-8">
+                    <span
+                      className="text-[11px]"
+                      style={{ fontFamily: MONO, color: MUT }}
                     >
-                      {e.org}
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <h3
+                      className="font-bold text-[16px]"
+                      style={{ color: TEXT }}
+                    >
+                      {e.role}
+                    </h3>
+                    <span
+                      className="ml-auto text-[11px] tracking-[0.08em]"
+                      style={{ fontFamily: MONO, color: MUT }}
+                    >
+                      {e.period}
+                    </span>
+                  </div>
+                  <p
+                    className="mt-0.5 text-[13.5px] font-semibold"
+                    style={{ color: e.accent }}
+                  >
+                    {e.org}
+                  </p>
+                  {e.body.map((para, j) => (
+                    <p
+                      key={j}
+                      className="mt-3 text-[14px] leading-relaxed"
+                      style={{ color: SUB }}
+                    >
+                      {para}
                     </p>
-                    {e.body.map((para, i) => (
-                      <p
-                        key={i}
-                        className="mt-3 text-[14px] leading-relaxed"
-                        style={{ color: BODY }}
-                      >
-                        {para}
-                      </p>
-                    ))}
-                  </Card>
-                </div>
-              ))}
-            </div>
+                  ))}
+                </Panel>
+              </Reveal>
+            ))}
           </div>
         </section>
 
         {/* Research */}
         <section>
-          <SectionHeader icon={Dna} accent={EMERALD} title="Research" />
-          <Card
-            className="relative overflow-hidden"
-          >
-            <Dna
-              className="absolute -right-4 -bottom-4 w-28 h-28"
-              style={{ color: EMERALD, opacity: 0.07 }}
-            />
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
-                {RESEARCH.title}
-              </h3>
-              <span
-                className="text-[12px] font-medium"
-                style={{ color: MUTED }}
-              >
-                {RESEARCH.period}
-              </span>
-            </div>
-            {RESEARCH.body.map((para, i) => (
-              <p
-                key={i}
-                className="mt-3 text-[14px] leading-relaxed"
-                style={{ color: BODY }}
-              >
-                {para}
-              </p>
-            ))}
-          </Card>
+          <SectionHeader index="02 / RESEARCH" accent={LIME} title="Research" />
+          <Reveal>
+            <Panel accent={LIME} className="relative overflow-hidden">
+              <Dna
+                className="absolute -right-4 -bottom-4 w-32 h-32"
+                style={{ color: LIME, opacity: 0.06 }}
+              />
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="font-bold text-[16px]" style={{ color: TEXT }}>
+                  {RESEARCH.title}
+                </h3>
+                <span
+                  className="text-[11px] tracking-[0.08em]"
+                  style={{ fontFamily: MONO, color: MUT }}
+                >
+                  {RESEARCH.period}
+                </span>
+              </div>
+              {RESEARCH.body.map((para, i) => (
+                <p
+                  key={i}
+                  className="mt-3 text-[14px] leading-relaxed"
+                  style={{ color: SUB }}
+                >
+                  {para}
+                </p>
+              ))}
+            </Panel>
+          </Reveal>
         </section>
 
         {/* Projects */}
         <section>
           <SectionHeader
-            icon={Wrench}
+            index="03 / PROJECTS"
             accent={AMBER}
             title="Projects"
             description="Side projects — most started as fixes for problems I ran into."
           />
           <div className="grid sm:grid-cols-2 gap-3">
             {PROJECTS.map((p, i) => (
-              <Card
-                key={p.name}
-                className={
-                  i % 2
-                    ? "hover:rotate-[0.4deg]"
-                    : "hover:rotate-[-0.4deg]"
-                }
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
-                    {p.name}
-                  </h3>
-                  {p.link && (
-                    <a
-                      href={p.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[12.5px] font-semibold shrink-0"
-                      style={{ color: BLUE }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = BLUE_HOVER)
-                      }
-                      onMouseLeave={(e) => (e.currentTarget.style.color = BLUE)}
+              <Reveal key={p.name} delay={(i % 2) * 80}>
+                <Panel accent={AMBER} className="h-full">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3
+                      className="font-bold text-[15.5px]"
+                      style={{ color: TEXT }}
                     >
-                      Visit <ArrowUpRight className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                </div>
-                <p
-                  className="mt-2 text-[13.5px] leading-relaxed"
-                  style={{ color: BODY }}
-                >
-                  {p.detail}
-                </p>
-                {p.stack && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {p.stack.map((s) => (
-                      <StackChip key={s}>{s}</StackChip>
-                    ))}
+                      {p.name}
+                    </h3>
+                    {p.link && (
+                      <a
+                        href={p.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] tracking-[0.14em] uppercase shrink-0"
+                        style={{ fontFamily: MONO, color: AMBER }}
+                      >
+                        Visit <ArrowUpRight className="w-3.5 h-3.5" />
+                      </a>
+                    )}
                   </div>
-                )}
-              </Card>
+                  <p
+                    className="mt-2 text-[13.5px] leading-relaxed"
+                    style={{ color: SUB }}
+                  >
+                    {p.detail}
+                  </p>
+                  {p.stack && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {p.stack.map((s) => (
+                        <StackChip key={s}>{s}</StackChip>
+                      ))}
+                    </div>
+                  )}
+                </Panel>
+              </Reveal>
             ))}
           </div>
         </section>
 
-        {/* Awards */}
+        {/* Awards — editorial rows */}
         <section>
-          <SectionHeader icon={Trophy} accent={ROSE} title="Selected awards" />
-          <Card>
-            <ul className="space-y-3">
-              {AWARDS.map((a, i) => (
-                <li
-                  key={i}
-                  className="text-[13.5px] leading-relaxed flex gap-3"
-                  style={{ color: BODY }}
+          <SectionHeader
+            index="04 / AWARDS"
+            accent={ROSE}
+            title="Selected awards"
+          />
+          <div
+            className="border-t"
+            style={{ borderColor: LINE }}
+          >
+            {AWARDS.map((a, i) => (
+              <Reveal key={i} delay={i * 50}>
+                <div
+                  className="flex gap-5 items-start py-4 border-b transition-colors duration-200 hover:bg-[#17181B]"
+                  style={{ borderColor: LINE }}
                 >
+                  <span
+                    className="text-[12px] mt-[2px] shrink-0"
+                    style={{ fontFamily: MONO, color: ROSE }}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span
+                    className="text-[13.5px] leading-relaxed"
+                    style={{ color: SUB }}
+                  >
+                    {a}
+                  </span>
                   <Medal
-                    className="w-4 h-4 mt-[3px] shrink-0"
-                    style={{ color: ROSE, opacity: 0.7 }}
+                    className="w-4 h-4 ml-auto mt-[2px] shrink-0"
+                    style={{ color: ROSE, opacity: 0.5 }}
                   />
-                  <span>{a}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                </div>
+              </Reveal>
+            ))}
+          </div>
         </section>
 
         {/* Service & leadership */}
         <section>
           <SectionHeader
-            icon={HeartHandshake}
+            index="05 / SERVICE"
             accent={TEAL}
             title="Service & leadership"
           />
-          <div className="grid sm:grid-cols-2 gap-3">
-            {SERVICE.map((l) => (
-              <Card key={l.org} className="!p-5">
-                <h3
-                  className="font-bold text-[14px] leading-snug"
-                  style={{ color: INK }}
-                >
-                  {l.role}
-                </h3>
-                <p
-                  className="text-[12.5px] font-semibold mt-0.5"
-                  style={{ color: TEAL }}
-                >
-                  {l.org}
-                </p>
-                <p
-                  className="mt-2 text-[13px] leading-relaxed"
-                  style={{ color: BODY }}
-                >
-                  {l.detail}
-                </p>
-              </Card>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {SERVICE.map((l, i) => (
+              <Reveal key={l.org} delay={i * 70}>
+                <Panel accent={TEAL} className="!p-5 h-full">
+                  <h3
+                    className="font-bold text-[14px] leading-snug"
+                    style={{ color: TEXT }}
+                  >
+                    {l.role}
+                  </h3>
+                  <p
+                    className="text-[12px] font-semibold mt-0.5"
+                    style={{ color: TEAL }}
+                  >
+                    {l.org}
+                  </p>
+                  <p
+                    className="mt-2 text-[13px] leading-relaxed"
+                    style={{ color: SUB }}
+                  >
+                    {l.detail}
+                  </p>
+                </Panel>
+              </Reveal>
             ))}
           </div>
         </section>
 
         {/* Education */}
         <section>
-          <SectionHeader icon={GraduationCap} accent={SKY} title="Education" />
+          <SectionHeader
+            index="06 / EDUCATION"
+            accent={SKY}
+            title="Education"
+          />
           <div className="space-y-3">
-            {EDUCATION.map((edu) => (
-              <Card key={edu.school}>
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
-                    {edu.school}
-                  </h3>
-                  <span
-                    className="text-[12px] font-medium"
-                    style={{ color: MUTED }}
+            {EDUCATION.map((edu, i) => (
+              <Reveal key={edu.school} delay={i * 60}>
+                <Panel accent={SKY}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <h3
+                      className="font-bold text-[15.5px]"
+                      style={{ color: TEXT }}
+                    >
+                      {edu.school}
+                    </h3>
+                    <span
+                      className="text-[11px] tracking-[0.08em]"
+                      style={{ fontFamily: MONO, color: MUT }}
+                    >
+                      {edu.period}
+                    </span>
+                  </div>
+                  <p
+                    className="mt-0.5 text-[13.5px] font-semibold"
+                    style={{ color: SKY }}
                   >
-                    {edu.period}
-                  </span>
-                </div>
-                <p
-                  className="mt-0.5 text-[13.5px] font-semibold"
-                  style={{ color: SKY }}
-                >
-                  {edu.location}
-                </p>
-              </Card>
+                    {edu.location}
+                  </p>
+                </Panel>
+              </Reveal>
             ))}
           </div>
         </section>
@@ -1032,62 +1192,70 @@ export default function Adam() {
         {/* Languages & interests */}
         <section>
           <SectionHeader
-            icon={Globe}
+            index="07 / OFFLINE"
             accent={AMBER}
             title="Languages & interests"
           />
           <div className="grid sm:grid-cols-2 gap-3">
-            <Card>
-              <div
-                className="text-[11px] font-semibold tracking-[0.12em] uppercase mb-3"
-                style={{ color: MUTED }}
-              >
-                Languages
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {LANGUAGES.map((l) => (
-                  <span
-                    key={l}
-                    className="inline-flex text-[12.5px] font-medium rounded-full px-3 py-1 border"
-                    style={{
-                      color: INK,
-                      backgroundColor: "#F8FAFC",
-                      borderColor: BORDER,
-                    }}
-                  >
-                    {l}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[12px] mt-3" style={{ color: MUTED }}>
-                I grew up between Tashkent, Cairo, and Nashville — that's
-                where the four come from.
-              </p>
-            </Card>
-            <Card>
-              <div
-                className="text-[11px] font-semibold tracking-[0.12em] uppercase mb-3"
-                style={{ color: MUTED }}
-              >
-                Off the computer
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {INTERESTS.map((it) => (
-                  <span
-                    key={it.label}
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-[12.5px] font-medium"
-                    style={{
-                      color: INK,
-                      backgroundColor: `${it.color}0D`,
-                      borderColor: `${it.color}55`,
-                    }}
-                  >
-                    <it.icon className="w-3.5 h-3.5" style={{ color: it.color }} />
-                    {it.label}
-                  </span>
-                ))}
-              </div>
-            </Card>
+            <Reveal>
+              <Panel accent={AMBER} className="h-full">
+                <div
+                  className="text-[10.5px] tracking-[0.2em] uppercase mb-3"
+                  style={{ fontFamily: MONO, color: MUT }}
+                >
+                  Languages
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {LANGUAGES.map((l) => (
+                    <span
+                      key={l}
+                      className="inline-flex text-[12.5px] rounded px-3 py-1 border"
+                      style={{
+                        fontFamily: MONO,
+                        color: TEXT,
+                        backgroundColor: "#17181B",
+                        borderColor: LINE,
+                      }}
+                    >
+                      {l}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[12px] mt-3" style={{ color: MUT }}>
+                  I grew up between Tashkent, Cairo, and Nashville — that's
+                  where the four come from.
+                </p>
+              </Panel>
+            </Reveal>
+            <Reveal delay={80}>
+              <Panel accent={AMBER} className="h-full">
+                <div
+                  className="text-[10.5px] tracking-[0.2em] uppercase mb-3"
+                  style={{ fontFamily: MONO, color: MUT }}
+                >
+                  Off the computer
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {INTERESTS.map((it) => (
+                    <span
+                      key={it.label}
+                      className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 border text-[12.5px]"
+                      style={{
+                        color: TEXT,
+                        backgroundColor: "#17181B",
+                        borderColor: `${it.color}44`,
+                      }}
+                    >
+                      <it.icon
+                        className="w-3.5 h-3.5"
+                        style={{ color: it.color }}
+                      />
+                      {it.label}
+                    </span>
+                  ))}
+                </div>
+              </Panel>
+            </Reveal>
           </div>
         </section>
       </main>
@@ -1098,13 +1266,17 @@ export default function Adam() {
       <footer
         className="relative"
         style={{
-          backgroundColor: "white",
-          borderTop: `1px solid ${BORDER}`,
+          backgroundColor: BG,
+          borderTop: `1px solid ${LINE}`,
           zIndex: 1,
         }}
       >
-        <div className="max-w-[900px] mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-[13px]">
-          <span style={{ color: MUTED }}>
+        <div className="adam-tickstrip h-6 opacity-60" aria-hidden="true" />
+        <div className="max-w-[1060px] mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-3">
+          <span
+            className="text-[11px] tracking-[0.16em] uppercase"
+            style={{ fontFamily: MONO, color: MUT }}
+          >
             © 2026 Adam Rakhmanov · the helix twists when you scroll
           </span>
           <div className="flex items-center gap-5">
@@ -1135,16 +1307,17 @@ export default function Adam() {
 function ContactPill({ href, icon: Icon, label, external, static: isStatic }) {
   const inner = (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 border transition-colors"
+      className="inline-flex items-center gap-1.5 rounded px-3.5 py-1.5 border transition-colors text-[12px]"
       style={{
-        color: INK,
-        backgroundColor: "white",
-        borderColor: BORDER,
+        fontFamily: MONO,
+        color: TEXT,
+        backgroundColor: PANEL,
+        borderColor: LINE,
       }}
     >
-      <Icon className="w-3.5 h-3.5" style={{ color: BLUE }} />
+      <Icon className="w-3.5 h-3.5" style={{ color: LIME }} />
       {label}
-      {external && <ArrowUpRight className="w-3 h-3" style={{ color: MUTED }} />}
+      {external && <ArrowUpRight className="w-3 h-3" style={{ color: MUT }} />}
     </span>
   );
   if (isStatic || !href) return inner;
@@ -1153,7 +1326,7 @@ function ContactPill({ href, icon: Icon, label, external, static: isStatic }) {
       href={href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
-      className="rounded-full"
+      className="rounded"
     >
       {inner}
     </a>
@@ -1166,10 +1339,10 @@ function FooterLink({ href, icon: Icon, external, children }) {
       href={href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
-      className="inline-flex items-center gap-1.5 transition-colors"
-      style={{ color: MUTED }}
-      onMouseEnter={(e) => (e.currentTarget.style.color = INK)}
-      onMouseLeave={(e) => (e.currentTarget.style.color = MUTED)}
+      className="inline-flex items-center gap-1.5 transition-colors text-[12px] tracking-[0.1em] uppercase"
+      style={{ fontFamily: MONO, color: MUT }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = TEXT)}
+      onMouseLeave={(e) => (e.currentTarget.style.color = MUT)}
     >
       <Icon className="w-3.5 h-3.5" />
       {children}
