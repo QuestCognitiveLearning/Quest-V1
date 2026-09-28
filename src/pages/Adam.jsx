@@ -3,17 +3,18 @@
  * at /adam. Public route (no auth, no app chrome) so it works as a shareable
  * bio link. Intentionally not linked anywhere in the app.
  *
- * Visual language matches the Quest Learning landing (blue #2563EB accent,
- * slate text, #EEF3FB header band, white cards on light background — no
- * gradients, no purple).
- *
- * Background: a fixed canvas draws a double helix that twists as the page
- * scrolls (nod to computational biology). Content sits above it on z-1;
- * the hero band is slightly translucent so the helix ghosts through.
+ * Design: personality-forward take on the Quest Learning visual language.
+ * Two fixed background layers frame the 900px content column:
+ *   - right gutter: a canvas double helix that twists as the page scrolls
+ *     (computational biology)
+ *   - left edge (xl+ only): a climbing wall with colored holds and a little
+ *     climber who ascends with scroll progress (rock climbing)
+ * Space Grotesk for display type, Inter for body. Each section gets an
+ * accent color + icon + hand-drawn squiggle underline.
  *
  * Photo: `public/adam-photo.jpg` (falls back to "AR" monogram if missing).
  */
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Mail,
   Phone,
@@ -21,6 +22,25 @@ import {
   ExternalLink,
   Linkedin,
   ArrowUpRight,
+  Briefcase,
+  Brain,
+  Bug,
+  Crown,
+  Dna,
+  Dumbbell,
+  Globe,
+  GraduationCap,
+  HeartHandshake,
+  Languages,
+  Medal,
+  Mountain,
+  PiggyBank,
+  Pizza,
+  Plane,
+  Puzzle,
+  TrendingUp,
+  Trophy,
+  Wrench,
 } from "lucide-react";
 
 const BLUE = "#2563EB";
@@ -29,6 +49,13 @@ const INK = "#0F172A";
 const BODY = "#475569";
 const MUTED = "#64748B";
 const BORDER = "#E2E8F0";
+const AMBER = "#D97706";
+const EMERALD = "#059669";
+const ROSE = "#E11D48";
+const TEAL = "#0D9488";
+const SKY = "#0284C7";
+
+const DISPLAY = '"Space Grotesk", "Inter", system-ui, sans-serif';
 
 // -----------------------------------------------------------------------------
 // Content
@@ -39,6 +66,8 @@ const WORK = [
     role: "Co-Founder",
     org: "Quest Learning",
     period: "Jul 2024 – Present",
+    icon: Brain,
+    accent: BLUE,
     body: [
       "Started Quest with a co-founder to turn state standards into complete, ready-to-teach lessons: hooks, videos, adaptive quizzes, AP-style case studies, each built around spaced repetition and scaffolding so the material sticks.",
       "I lead product and engineering. We've grown a 15-person team, shipped 100+ learning resources, passed 110,000 views, and we're in conversations with Williamson County Schools about bringing Quest to their 42,000+ students.",
@@ -48,6 +77,8 @@ const WORK = [
     role: "State Secretary",
     org: "Tennessee Technology Student Association",
     period: "Jun 2025 – Jun 2026",
+    icon: Wrench,
+    accent: TEAL,
     body: [
       "Served as one of six state officers for Tennessee TSA, which has 3,100 members across 87 chapters. Ran statewide communications that passed 100K views, and built the event-selector tool new members use to pick their competitions.",
     ],
@@ -56,6 +87,8 @@ const WORK = [
     role: "Software Engineer in Test",
     org: "Novalab Tech",
     period: "May 2022 – Jan 2023",
+    icon: Bug,
+    accent: ROSE,
     body: [
       "QA automation for two enterprise products, including datatruck.io. I wrote Selenium (Java) and Cucumber test suites across the front end, back end, and API layers, plus the manual smoke and regression cases the team ran each release.",
     ],
@@ -64,6 +97,8 @@ const WORK = [
     role: "Manager",
     org: "Salvo's Pizza (family-owned)",
     period: "Oct 2020 – Present",
+    icon: Pizza,
+    accent: AMBER,
     body: [
       "My family's restaurant in Nashville. I managed and trained a staff of ten through high school, and I still run our social accounts: 1,000+ posts, 17,000 followers, 40M+ views.",
     ],
@@ -72,6 +107,8 @@ const WORK = [
     role: "Director & Co-Founder",
     org: "Wealth Education Initiative",
     period: "Dec 2023 – Present",
+    icon: PiggyBank,
+    accent: EMERALD,
     body: [
       "A 501(c)(3) that teaches practical financial literacy. We grew two chapters past 100 members and put an eBook into six high schools, and I sat on the county committee that shaped financial-education policy for 20,000+ students.",
     ],
@@ -118,10 +155,19 @@ const SERVICE = [
 
 const LANGUAGES = ["English", "Russian", "Arabic", "Uzbek"];
 
-const HOBBIES = [
-  "Rubik's cubes and chess",
-  "Wrestling, martial arts, calisthenics, rock climbing",
-  "Traveling",
+const FUN_FACTS = [
+  { icon: Languages, value: "4", label: "languages spoken", color: SKY, tilt: -1.5 },
+  { icon: Plane, value: "3", label: "countries grown up in", color: EMERALD, tilt: 1 },
+  { icon: TrendingUp, value: "40M+", label: "views produced", color: ROSE, tilt: -1 },
+  { icon: Pizza, value: "1", label: "family pizza shop", color: AMBER, tilt: 1.5 },
+];
+
+const INTERESTS = [
+  { icon: Mountain, label: "Rock climbing", color: TEAL },
+  { icon: Dumbbell, label: "Wrestling & calisthenics", color: ROSE },
+  { icon: Puzzle, label: "Rubik's cubes", color: AMBER },
+  { icon: Crown, label: "Chess", color: "#4B5563" },
+  { icon: Plane, label: "Traveling", color: SKY },
 ];
 
 const PROJECTS = [
@@ -221,8 +267,8 @@ function DnaBackground() {
         const a = k * y + phase;
         const x1 = cx + amp * Math.sin(a);
         const x2 = cx + amp * Math.sin(a + Math.PI);
-        ctx.strokeStyle = "rgba(148,163,184,0.22)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(148,163,184,0.28)";
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(x1, y);
         ctx.lineTo(x2, y);
@@ -233,18 +279,18 @@ function DnaBackground() {
       // depth: cos(angle) > 0 means the strand is on the near side.
       const strands = [
         { offset: 0, rgb: "37,99,235" }, // blue
-        { offset: Math.PI, rgb: "71,85,105" }, // slate
+        { offset: Math.PI, rgb: "5,150,105" }, // emerald
       ];
       for (const strand of strands) {
         for (let y = -40; y <= height + 40; y += step) {
-          const a1 = k * y + phase + strand.offset;
-          const a2 = k * (y + step) + phase + strand.offset;
+          const a1 = k * y + strand.offset + phase;
+          const a2 = k * (y + step) + strand.offset + phase;
           const depth = (Math.cos(a1) + 1) / 2; // 0 = far, 1 = near
           ctx.strokeStyle = `rgba(${strand.rgb},${(
-            0.07 +
-            0.2 * depth
+            0.09 +
+            0.22 * depth
           ).toFixed(3)})`;
-          ctx.lineWidth = 1.4 + 1.6 * depth;
+          ctx.lineWidth = 1.6 + 1.8 * depth;
           ctx.beginPath();
           ctx.moveTo(cx + amp * Math.sin(a1), y);
           ctx.lineTo(cx + amp * Math.sin(a2), y + step);
@@ -294,25 +340,246 @@ function DnaBackground() {
 }
 
 // -----------------------------------------------------------------------------
+// Climbing wall
+// -----------------------------------------------------------------------------
+
+const HOLD_COLORS = ["#F97316", "#14B8A6", "#3B82F6", "#F43F5E", "#84CC16", "#F59E0B"];
+const WALL_W = 120;
+
+const routeX = (p) => 60 + Math.sin(p * Math.PI * 3) * 22;
+const routeY = (p, vh) => vh - 70 - p * (vh - 150);
+
+/**
+ * Fixed 120px strip on the left edge (xl+ only): a climbing wall with
+ * scattered resin holds, a dashed route line, a summit flag, and a little
+ * climber whose height tracks scroll progress — reach the footer and they
+ * top out. Purely decorative (aria-hidden, pointer-events none).
+ */
+function ClimbingWall() {
+  const climberRef = useRef(null);
+  const [vh, setVh] = useState(900);
+
+  useEffect(() => {
+    const onResize = () => setVh(window.innerHeight);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const holds = useMemo(() => {
+    const JITTER = [5, -7, 3, -4, 8, -2, 6, -8, 2, -5, 7, -3, 4];
+    const list = [];
+    for (let i = 0; i < 13; i++) {
+      const p = i / 12;
+      list.push({
+        x: routeX(p) + JITTER[i],
+        y: routeY(p, vh) + JITTER[(i + 4) % 13] * 0.8,
+        r: 5 + ((i * 7) % 5),
+        color: HOLD_COLORS[i % HOLD_COLORS.length],
+        rot: (i * 53) % 180,
+      });
+    }
+    // off-route holds so the wall doesn't read as a single line
+    const SCATTER = [
+      [18, 0.08],
+      [98, 0.16],
+      [22, 0.3],
+      [102, 0.42],
+      [14, 0.55],
+      [100, 0.66],
+      [20, 0.8],
+      [96, 0.9],
+    ];
+    SCATTER.forEach(([x, f], i) => {
+      list.push({
+        x,
+        y: 60 + f * (vh - 120),
+        r: 4 + (i % 3) * 2,
+        color: HOLD_COLORS[(i + 3) % HOLD_COLORS.length],
+        rot: (i * 77) % 180,
+      });
+    });
+    return list;
+  }, [vh]);
+
+  useEffect(() => {
+    const el = climberRef.current;
+    if (!el) return;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    let raf = 0;
+
+    const update = () => {
+      const doc = document.documentElement;
+      const max = Math.max(1, doc.scrollHeight - window.innerHeight);
+      const p = Math.min(1, Math.max(0, window.scrollY / max));
+      const x = routeX(p);
+      const y = routeY(p, window.innerHeight);
+      const sway = Math.sin(p * Math.PI * 8) * 6;
+      el.setAttribute(
+        "transform",
+        `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${sway.toFixed(1)})`
+      );
+    };
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        update();
+      });
+    };
+
+    update();
+    if (!reduceMotion) {
+      window.addEventListener("scroll", onScroll, { passive: true });
+    }
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [vh]);
+
+  return (
+    <div
+      aria-hidden="true"
+      className="fixed left-0 top-0 bottom-0 hidden xl:block pointer-events-none"
+      style={{ width: WALL_W, zIndex: 0 }}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundColor: "#EDF1F7",
+          borderRight: `1px solid ${BORDER}`,
+          boxShadow: "inset -10px 0 18px -14px rgb(15 23 42 / 0.2)",
+        }}
+      />
+      <svg
+        width={WALL_W}
+        height={vh}
+        viewBox={`0 0 ${WALL_W} ${vh}`}
+        className="absolute inset-0"
+      >
+        {/* plywood panel seams */}
+        {[0.25, 0.5, 0.75].map((f) => (
+          <line
+            key={f}
+            x1="0"
+            x2={WALL_W}
+            y1={f * vh}
+            y2={f * vh}
+            stroke="#DCE3EC"
+            strokeWidth="2"
+          />
+        ))}
+        {/* dashed route */}
+        <polyline
+          points={Array.from({ length: 25 }, (_, i) => {
+            const p = i / 24;
+            return `${routeX(p).toFixed(1)},${routeY(p, vh).toFixed(1)}`;
+          }).join(" ")}
+          fill="none"
+          stroke="#94A3B8"
+          strokeWidth="1.5"
+          strokeDasharray="2 6"
+          strokeLinecap="round"
+          opacity="0.5"
+        />
+        {/* holds, each with a bolt dot */}
+        {holds.map((h, i) => (
+          <g key={i} transform={`translate(${h.x} ${h.y}) rotate(${h.rot})`}>
+            <ellipse rx={h.r} ry={h.r * 0.78} fill={h.color} opacity="0.9" />
+            <circle r="1.4" fill="rgba(15,23,42,0.35)" />
+          </g>
+        ))}
+        {/* summit flag */}
+        <g transform="translate(60 34)">
+          <line
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="-22"
+            stroke={INK}
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path d="M0,-22 L20,-17 L0,-12 Z" fill="#F59E0B" />
+        </g>
+        {/* climber (position driven by scroll) */}
+        <g ref={climberRef} transform={`translate(60 ${vh - 70})`}>
+          <circle cx="0" cy="-15" r="4.6" fill={INK} />
+          <path
+            d="M0,-10 L0,4"
+            stroke={BLUE}
+            strokeWidth="4.5"
+            strokeLinecap="round"
+          />
+          <path d="M0,-8 L9,-17" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M0,-6 L-8,-1" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M0,4 L-7,12" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M0,4 L6,11" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
+          <circle cx="3" cy="6" r="2.6" fill="#F59E0B" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // Primitives
 // -----------------------------------------------------------------------------
 
-function SectionHeader({ title, description }) {
+function Squiggle({ color, width = 86, className = "" }) {
+  return (
+    <svg
+      className={className}
+      width={width}
+      height="8"
+      viewBox="0 0 86 8"
+      fill="none"
+      aria-hidden="true"
+      preserveAspectRatio="none"
+    >
+      <path
+        d="M2 5 Q 12 1 22 5 T 42 5 T 62 5 T 82 5"
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        opacity="0.55"
+      />
+    </svg>
+  );
+}
+
+function SectionHeader({ icon: Icon, accent, title, description }) {
   return (
     <div className="mb-7">
-      <h2
-        className="font-extrabold tracking-tight"
-        style={{
-          color: INK,
-          fontSize: "clamp(21px, 2.4vw, 27px)",
-          letterSpacing: "-0.025em",
-          lineHeight: 1.15,
-        }}
-      >
-        {title}
-      </h2>
+      <div className="flex items-center gap-3">
+        <span
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ backgroundColor: `${accent}1A`, color: accent }}
+        >
+          <Icon className="w-[18px] h-[18px]" />
+        </span>
+        <h2
+          style={{
+            fontFamily: DISPLAY,
+            color: INK,
+            fontSize: "clamp(22px, 2.5vw, 28px)",
+            fontWeight: 700,
+            letterSpacing: "-0.02em",
+            lineHeight: 1.1,
+          }}
+        >
+          {title}
+        </h2>
+      </div>
+      <Squiggle color={accent} className="mt-1.5 ml-12" />
       {description && (
-        <p className="mt-2 text-[14.5px] leading-relaxed" style={{ color: BODY }}>
+        <p
+          className="mt-2 ml-12 text-[14.5px] leading-relaxed"
+          style={{ color: BODY }}
+        >
           {description}
         </p>
       )}
@@ -323,7 +590,7 @@ function SectionHeader({ title, description }) {
 function Card({ children, className = "" }) {
   return (
     <div
-      className={`bg-white rounded-2xl border p-6 ${className}`}
+      className={`bg-white rounded-2xl border p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${className}`}
       style={{ borderColor: BORDER, boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.04)" }}
     >
       {children}
@@ -333,24 +600,40 @@ function Card({ children, className = "" }) {
 
 function Avatar() {
   const [failed, setFailed] = useState(false);
-  if (failed) {
-    return (
-      <div
-        className="w-28 h-28 rounded-2xl flex items-center justify-center text-3xl font-extrabold text-white shrink-0"
-        style={{ backgroundColor: BLUE }}
-      >
-        AR
-      </div>
-    );
-  }
   return (
-    <img
-      src="/adam-photo.jpg"
-      alt="Adam Rakhmanov"
-      onError={() => setFailed(true)}
-      className="w-28 h-28 rounded-2xl object-cover shrink-0 border"
-      style={{ borderColor: BORDER }}
-    />
+    <div className="relative shrink-0" style={{ transform: "rotate(-3deg)" }}>
+      {/* tape */}
+      <span
+        className="absolute -top-2.5 left-7 w-14 h-4 rounded-sm"
+        style={{
+          backgroundColor: "rgba(245,158,11,0.4)",
+          transform: "rotate(-8deg)",
+          zIndex: 2,
+        }}
+      />
+      {failed ? (
+        <div
+          className="w-32 h-32 rounded-xl flex items-center justify-center text-3xl font-extrabold text-white"
+          style={{
+            backgroundColor: BLUE,
+            boxShadow: "0 12px 28px -10px rgb(15 23 42 / 0.3)",
+          }}
+        >
+          AR
+        </div>
+      ) : (
+        <img
+          src="/adam-photo.jpg"
+          alt="Adam Rakhmanov"
+          onError={() => setFailed(true)}
+          className="w-32 h-32 rounded-xl object-cover"
+          style={{
+            border: "4px solid white",
+            boxShadow: "0 12px 28px -10px rgb(15 23 42 / 0.3)",
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -392,7 +675,10 @@ export default function Adam() {
           '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
       }}
     >
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');`}</style>
+
       <DnaBackground />
+      <ClimbingWall />
 
       {/* ================================================================= */}
       {/* Hero band                                                          */}
@@ -405,23 +691,32 @@ export default function Adam() {
           zIndex: 1,
         }}
       >
-        <div className="max-w-[900px] mx-auto px-6 pt-14 pb-14">
-          <div className="flex flex-col sm:flex-row items-start gap-6">
+        <div className="max-w-[900px] mx-auto px-6 pt-16 pb-16">
+          <div className="flex flex-col sm:flex-row items-start gap-8">
             <Avatar />
             <div className="min-w-0 flex-1">
+              <div
+                className="text-[12px] font-bold tracking-[0.18em] uppercase"
+                style={{ color: AMBER, fontFamily: DISPLAY }}
+              >
+                Hey — I'm
+              </div>
               <h1
-                className="font-extrabold tracking-tight"
+                className="mt-1"
                 style={{
+                  fontFamily: DISPLAY,
                   color: INK,
-                  fontSize: "clamp(34px, 4.6vw, 48px)",
-                  letterSpacing: "-0.035em",
+                  fontSize: "clamp(36px, 4.8vw, 52px)",
+                  fontWeight: 700,
+                  letterSpacing: "-0.03em",
                   lineHeight: 1.02,
                 }}
               >
                 Adam Rakhmanov
               </h1>
+              <Squiggle color={AMBER} width={170} className="mt-2" />
               <p
-                className="mt-2 text-[15.5px] font-medium"
+                className="mt-3 text-[15.5px] font-medium"
                 style={{ color: BLUE }}
               >
                 Co-Founder of Quest Learning · Neuroscience &amp; CS at Duke
@@ -462,6 +757,44 @@ export default function Adam() {
       </header>
 
       {/* ================================================================= */}
+      {/* Fun facts                                                          */}
+      {/* ================================================================= */}
+      <div className="relative max-w-[900px] mx-auto px-6 -mt-7" style={{ zIndex: 1 }}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {FUN_FACTS.map((f) => (
+            <div
+              key={f.label}
+              className="bg-white rounded-xl border p-4 transition-transform duration-200 hover:rotate-0"
+              style={{
+                borderColor: BORDER,
+                boxShadow: "0 4px 12px -6px rgb(15 23 42 / 0.12)",
+                transform: `rotate(${f.tilt}deg)`,
+              }}
+            >
+              <span
+                className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: `${f.color}1A`, color: f.color }}
+              >
+                <f.icon className="w-4 h-4" />
+              </span>
+              <div
+                className="mt-2 text-[20px] font-bold"
+                style={{ color: INK, fontFamily: DISPLAY, letterSpacing: "-0.02em" }}
+              >
+                {f.value}
+              </div>
+              <div
+                className="text-[11.5px] font-medium leading-tight"
+                style={{ color: MUTED }}
+              >
+                {f.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ================================================================= */}
       {/* Main                                                               */}
       {/* ================================================================= */}
       <main
@@ -470,48 +803,70 @@ export default function Adam() {
       >
         {/* Work */}
         <section>
-          <SectionHeader title="Work" />
-          <div className="space-y-3">
-            {WORK.map((e) => (
-              <Card key={e.org}>
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h3
-                    className="font-bold text-[15.5px]"
-                    style={{ color: INK }}
-                  >
-                    {e.role}
-                  </h3>
+          <SectionHeader icon={Briefcase} accent={BLUE} title="Work" />
+          <div className="relative">
+            <span
+              className="absolute left-[7px] top-3 bottom-3 w-[2px] rounded"
+              style={{ backgroundColor: "#DBEAFE" }}
+            />
+            <div className="space-y-3">
+              {WORK.map((e) => (
+                <div key={e.org} className="relative pl-8">
                   <span
-                    className="text-[12px] font-medium"
-                    style={{ color: MUTED }}
-                  >
-                    {e.period}
-                  </span>
+                    className="absolute left-[2px] top-7 w-3 h-3 rounded-full border-2 bg-white"
+                    style={{ borderColor: e.accent }}
+                  />
+                  <Card className="relative">
+                    <e.icon
+                      className="absolute right-5 top-5 w-5 h-5"
+                      style={{ color: e.accent, opacity: 0.55 }}
+                    />
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pr-8">
+                      <h3
+                        className="font-bold text-[15.5px]"
+                        style={{ color: INK }}
+                      >
+                        {e.role}
+                      </h3>
+                      <span
+                        className="text-[12px] font-medium"
+                        style={{ color: MUTED }}
+                      >
+                        {e.period}
+                      </span>
+                    </div>
+                    <p
+                      className="mt-0.5 text-[13.5px] font-semibold"
+                      style={{ color: e.accent }}
+                    >
+                      {e.org}
+                    </p>
+                    {e.body.map((para, i) => (
+                      <p
+                        key={i}
+                        className="mt-3 text-[14px] leading-relaxed"
+                        style={{ color: BODY }}
+                      >
+                        {para}
+                      </p>
+                    ))}
+                  </Card>
                 </div>
-                <p
-                  className="mt-0.5 text-[13.5px] font-semibold"
-                  style={{ color: BLUE }}
-                >
-                  {e.org}
-                </p>
-                {e.body.map((para, i) => (
-                  <p
-                    key={i}
-                    className="mt-3 text-[14px] leading-relaxed"
-                    style={{ color: BODY }}
-                  >
-                    {para}
-                  </p>
-                ))}
-              </Card>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
         {/* Research */}
         <section>
-          <SectionHeader title="Research" />
-          <Card>
+          <SectionHeader icon={Dna} accent={EMERALD} title="Research" />
+          <Card
+            className="relative overflow-hidden"
+          >
+            <Dna
+              className="absolute -right-4 -bottom-4 w-28 h-28"
+              style={{ color: EMERALD, opacity: 0.07 }}
+            />
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
                 {RESEARCH.title}
@@ -538,12 +893,21 @@ export default function Adam() {
         {/* Projects */}
         <section>
           <SectionHeader
+            icon={Wrench}
+            accent={AMBER}
             title="Projects"
             description="Side projects — most started as fixes for problems I ran into."
           />
-          <div className="grid gap-3">
-            {PROJECTS.map((p) => (
-              <Card key={p.name}>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {PROJECTS.map((p, i) => (
+              <Card
+                key={p.name}
+                className={
+                  i % 2
+                    ? "hover:rotate-[0.4deg]"
+                    : "hover:rotate-[-0.4deg]"
+                }
+              >
                 <div className="flex items-baseline justify-between gap-3">
                   <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
                     {p.name}
@@ -553,7 +917,7 @@ export default function Adam() {
                       href={p.link}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[12.5px] font-semibold"
+                      className="inline-flex items-center gap-1 text-[12.5px] font-semibold shrink-0"
                       style={{ color: BLUE }}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.color = BLUE_HOVER)
@@ -584,18 +948,18 @@ export default function Adam() {
 
         {/* Awards */}
         <section>
-          <SectionHeader title="Selected awards" />
+          <SectionHeader icon={Trophy} accent={ROSE} title="Selected awards" />
           <Card>
-            <ul className="space-y-2.5">
+            <ul className="space-y-3">
               {AWARDS.map((a, i) => (
                 <li
                   key={i}
-                  className="text-[13.5px] leading-relaxed flex gap-2.5"
+                  className="text-[13.5px] leading-relaxed flex gap-3"
                   style={{ color: BODY }}
                 >
-                  <span
-                    className="mt-[9px] w-1 h-1 rounded-full shrink-0"
-                    style={{ backgroundColor: BLUE }}
+                  <Medal
+                    className="w-4 h-4 mt-[3px] shrink-0"
+                    style={{ color: ROSE, opacity: 0.7 }}
                   />
                   <span>{a}</span>
                 </li>
@@ -606,7 +970,11 @@ export default function Adam() {
 
         {/* Service & leadership */}
         <section>
-          <SectionHeader title="Service & leadership" />
+          <SectionHeader
+            icon={HeartHandshake}
+            accent={TEAL}
+            title="Service & leadership"
+          />
           <div className="grid sm:grid-cols-2 gap-3">
             {SERVICE.map((l) => (
               <Card key={l.org} className="!p-5">
@@ -618,7 +986,7 @@ export default function Adam() {
                 </h3>
                 <p
                   className="text-[12.5px] font-semibold mt-0.5"
-                  style={{ color: BLUE }}
+                  style={{ color: TEAL }}
                 >
                   {l.org}
                 </p>
@@ -635,7 +1003,7 @@ export default function Adam() {
 
         {/* Education */}
         <section>
-          <SectionHeader title="Education" />
+          <SectionHeader icon={GraduationCap} accent={SKY} title="Education" />
           <div className="space-y-3">
             {EDUCATION.map((edu) => (
               <Card key={edu.school}>
@@ -652,7 +1020,7 @@ export default function Adam() {
                 </div>
                 <p
                   className="mt-0.5 text-[13.5px] font-semibold"
-                  style={{ color: BLUE }}
+                  style={{ color: SKY }}
                 >
                   {edu.location}
                 </p>
@@ -663,7 +1031,11 @@ export default function Adam() {
 
         {/* Languages & interests */}
         <section>
-          <SectionHeader title="Languages & interests" />
+          <SectionHeader
+            icon={Globe}
+            accent={AMBER}
+            title="Languages & interests"
+          />
           <div className="grid sm:grid-cols-2 gap-3">
             <Card>
               <div
@@ -699,21 +1071,22 @@ export default function Adam() {
               >
                 Off the computer
               </div>
-              <ul className="space-y-1.5">
-                {HOBBIES.map((h) => (
-                  <li
-                    key={h}
-                    className="text-[13.5px] leading-relaxed flex gap-2.5"
-                    style={{ color: BODY }}
+              <div className="flex flex-wrap gap-2">
+                {INTERESTS.map((it) => (
+                  <span
+                    key={it.label}
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-[12.5px] font-medium"
+                    style={{
+                      color: INK,
+                      backgroundColor: `${it.color}0D`,
+                      borderColor: `${it.color}55`,
+                    }}
                   >
-                    <span
-                      className="mt-[9px] w-1 h-1 rounded-full shrink-0"
-                      style={{ backgroundColor: BORDER }}
-                    />
-                    <span>{h}</span>
-                  </li>
+                    <it.icon className="w-3.5 h-3.5" style={{ color: it.color }} />
+                    {it.label}
+                  </span>
                 ))}
-              </ul>
+              </div>
             </Card>
           </div>
         </section>
@@ -731,7 +1104,9 @@ export default function Adam() {
         }}
       >
         <div className="max-w-[900px] mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-[13px]">
-          <span style={{ color: MUTED }}>© 2026 Adam Rakhmanov</span>
+          <span style={{ color: MUTED }}>
+            © 2026 Adam Rakhmanov · the helix twists when you scroll
+          </span>
           <div className="flex items-center gap-5">
             <FooterLink href="mailto:adamrakhmanovit@gmail.com" icon={Mail}>
               Email
