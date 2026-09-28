@@ -7,9 +7,13 @@
  * slate text, #EEF3FB header band, white cards on light background — no
  * gradients, no purple).
  *
+ * Background: a fixed canvas draws a double helix that twists as the page
+ * scrolls (nod to computational biology). Content sits above it on z-1;
+ * the hero band is slightly translucent so the helix ghosts through.
+ *
  * Photo: `public/adam-photo.jpg` (falls back to "AR" monogram if missing).
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Mail,
   Phone,
@@ -25,301 +29,282 @@ const INK = "#0F172A";
 const BODY = "#475569";
 const MUTED = "#64748B";
 const BORDER = "#E2E8F0";
-const BAND = "#EEF3FB";
 
 // -----------------------------------------------------------------------------
 // Content
 // -----------------------------------------------------------------------------
 
-const STATS = [
-  { value: "35", label: "ACT Composite" },
-  { value: "4.72 / 4.0", label: "Weighted GPA" },
-  { value: "Duke '30", label: "Neuroscience & CS" },
-  { value: "Top 0.5%", label: "National Merit Finalist" },
-];
-
-const EXPERIENCE = [
+const WORK = [
   {
     role: "Co-Founder",
     org: "Quest Learning",
     period: "Jul 2024 – Present",
-    points: [
-      "Co-founded Quest, an education platform that integrates cognitive-science principles — spaced repetition, multimodal learning, and scaffolding — to make learning more intuitive, efficient, and accessible.",
-      "Leveraged AI to streamline curriculum development, generating high-quality instructional materials in seconds instead of hours.",
-      "Led a 15-member team to develop 100+ neuroscience-based learning resources and built a digital presence with 110,000+ views.",
-      "Currently in discussions with Williamson County Schools to bring Quest's tools to 42,000+ students.",
+    body: [
+      "Started Quest with a co-founder to turn state standards into complete, ready-to-teach lessons: hooks, videos, adaptive quizzes, AP-style case studies, each built around spaced repetition and scaffolding so the material sticks.",
+      "I lead product and engineering. We've grown a 15-person team, shipped 100+ learning resources, passed 110,000 views, and we're in conversations with Williamson County Schools about bringing Quest to their 42,000+ students.",
     ],
   },
   {
-    role: "TN TSA State Secretary",
-    org: "Technology Student Association",
-    period: "Jun 2025 – Present",
-    points: [
-      "Led initiatives supporting 3,100 members across 87 chapters; grew chapter membership by 90%.",
-      "Managed communications reaching 100K+ views across the state association.",
-      "Developed an event-selector tool to optimize onboarding for new members.",
-    ],
-  },
-  {
-    role: "Vice President of Roleplay Events (Chapter)",
-    org: "DECA Inc.",
-    period: "Jun 2024 – Present",
-    points: [
-      "Led and mentored 300+ DECA members, guiding them through competitive events, business concepts, and professional development.",
-      "Organized chapter-wide activities and managed student coordination during regional and state competitions.",
-      "Built a comprehensive resource hub and ran monthly skill-focused workshops to optimize member performance and engagement.",
+    role: "State Secretary",
+    org: "Tennessee Technology Student Association",
+    period: "Jun 2025 – Jun 2026",
+    body: [
+      "Served as one of six state officers for Tennessee TSA, which has 3,100 members across 87 chapters. Ran statewide communications that passed 100K views, and built the event-selector tool new members use to pick their competitions.",
     ],
   },
   {
     role: "Software Engineer in Test",
     org: "Novalab Tech",
     period: "May 2022 – Jan 2023",
-    points: [
-      "Built and executed automated test suites across front-end, back-end, and API layers for two enterprise products — including datatruck.io — using Selenium (Java) and the Cucumber framework.",
-      "Wrote smoke and regression tests as part of open-source contributions inside an Agile workflow to support continuous delivery.",
-      "Authored and maintained well-organized, efficient manual test cases used across the QA team.",
+    body: [
+      "QA automation for two enterprise products, including datatruck.io. I wrote Selenium (Java) and Cucumber test suites across the front end, back end, and API layers, plus the manual smoke and regression cases the team ran each release.",
     ],
   },
   {
     role: "Manager",
     org: "Salvo's Pizza (family-owned)",
     period: "Oct 2020 – Present",
-    points: [
-      "Drove 25M+ views and built a community of 17,000 followers while producing 1,000+ content pieces.",
-      "Managed and trained 10+ staff, overseeing quality control, workflow optimization, and day-to-day operations.",
-      "Focused on building meaningful, personal connections with every customer while leading the team to deliver exceptional service.",
+    body: [
+      "My family's restaurant in Nashville. I managed and trained a staff of ten through high school, and I still run our social accounts: 1,000+ posts, 17,000 followers, 40M+ views.",
     ],
   },
   {
-    role: "Director",
+    role: "Director & Co-Founder",
     org: "Wealth Education Initiative",
     period: "Dec 2023 – Present",
-    points: [
-      "Founded and led two chapters with 100+ members, expanding access to practical financial literacy for students.",
-      "As part of the County Financial Committee, advocated to shape district financial-education policy, serving 20,000+ students.",
-      "Authored an educational eBook distributed to 6 high schools and read by 200+ students; built an engaged community of 500+ followers.",
+    body: [
+      "A 501(c)(3) that teaches practical financial literacy. We grew two chapters past 100 members and put an eBook into six high schools, and I sat on the county committee that shaped financial-education policy for 20,000+ students.",
     ],
   },
 ];
 
-const ENTREPRENEURSHIP = {
-  role: "Entrepreneurship & Innovation Center (EIC) · INCubatoredu",
-  detail:
-    "Currently part of my county's Entrepreneurship & Innovation Center, a chapter of the national INCubatoredu program. Mentored by Clay Banks (Shark Tank participant and serial entrepreneur), I was invited to pitch at the Nashville Entrepreneurship Center — where I presented to the adult cohort as an example of effective pitching.",
+const RESEARCH = {
+  title: "Molecular biology & Drosophila research",
+  period: "2023 – 2026",
+  body: [
+    "Three years of bench work through a biomedical research program: DNA extraction, PCR, gene cloning, CRISPR editing. I designed, ran, and presented two independent projects using Drosophila models to study human-health questions.",
+    "That work is what pointed me at computational biology. In every experiment, the bottleneck was analysis, not pipetting.",
+  ],
 };
 
-const LEADERSHIP = [
+const AWARDS = [
+  "2× DECA ICDC International Finalist — top 1% of 25,000+ competitors",
+  "Breakthrough Junior Challenge Finalist — top 15 of 2,500+ submissions worldwide",
+  "TSA Nationals: 6th in Data Science & Analytics, top 12 in Biotechnology Design; three state titles (Biotechnology, Data Science, Geospatial Technologies)",
+  "Biotechnology Aptitude and Competency Credential (BACC) — Biotility, University of Florida, 2026",
+  "EIC (INCubatoredu) final pitch — awarded $2,500 in funding; invited to pitch at the Nashville Entrepreneurship Center",
+];
+
+const SERVICE = [
+  {
+    role: "Volunteer & Tutor",
+    org: "Salahadeen Center",
+    detail:
+      "Tutored twelve students in Arabic weekly, mentored youth, and helped organize prayers and community events.",
+  },
   {
     role: "General Assembly Vice President",
-    org: "YMCA Civic Engagement · Model United Nations",
+    org: "Model United Nations · YMCA Civic Engagement",
     detail:
-      "Coordinated a 700–900-delegate conference; chaired parliamentary debate for a 30-member committee, ensuring equitable participation and balanced speaking.",
+      "Helped coordinate a 700–900-delegate conference and chaired parliamentary debate for a 30-member committee.",
   },
   {
     role: "Communications Director",
     org: "ScienceFinds",
     detail:
-      "Led outreach and speaker coordination for a school STEM club, connecting 75+ students with 200+ Nashville STEM professors as guest speakers.",
+      "Connected 75+ students with Nashville STEM professors as guest speakers for my high school's science club.",
   },
-  {
-    role: "Director",
-    org: "Voice4You Podcast",
-    detail:
-      "Led a team that interviewed 15+ student leaders and generated 30,000+ social media views; built the podcast's website to expand its digital presence.",
-  },
-  {
-    role: "Member",
-    org: "Ravenwood Wrestling Team",
-    detail:
-      "Competed in 25+ matches. Received multiple regional-level awards while building discipline, resilience, and leadership through strenuous training.",
-  },
-  {
-    role: "Member",
-    org: "Science Olympiad",
-    detail:
-      "Competed in team-based STEM events including Dynamic Planet, Tower Building, and Disease Detectors, sharpening problem-solving and STEM expertise.",
-  },
-  {
-    role: "Member",
-    org: "Public Forum Debate",
-    detail:
-      "Partner-based debate on current-event topics. Conducted extensive research, built evidence-based arguments, and delivered persuasive speeches.",
-  },
-  {
-    role: "Community Service · 200 hours",
-    org: "Salahadeen Center",
-    detail:
-      "Tutored 12 students in Arabic weekly; mentored youth and organized prayers and community events for 50+ members. Received an award for contributions.",
-  },
-];
-
-const AWARDS = [
-  "DECA International Career Development Conference (ICDC) — 2× International Finalist (top 1% of 25,000+ competitors)",
-  "Breakthrough Junior Challenge Finalist — top 15 of 2,500+ international submissions in global science communication (2025)",
-  "TSA Nationals — 6th, Data Science & Analytics · Top 12, Biotechnology Design · 3× 1st-Place State Titles (Biotechnology, Data Science, Geospatial Technologies)",
-  "EIC Final Pitch — selected as one of the companies to pitch for the EIC; received $2,500 in funding",
-  "2× Tennessee DECA SCDC Finalist",
-  "2× 1st Place — Virtual Business Challenge (TN DECA)",
-  "2nd Place — System Control Technology 2025 (TSA); Marketing Team Decision Making (TN DECA)",
-  "3rd Place — System Control Technology 2024 (TSA)",
-  "6th Place — Quick Service Restaurant Management (TN DECA)",
-  "Award of Excellence — Local Salahadeen Center (<1%)",
-  "3rd Place — Cookeville Debate Tournament",
-  "4th Place — Tower Building, Science Olympiad",
-  "AP Scholar with Distinction",
-  "2× Model UN Awards — Outstanding Delegate & Outstanding Resolution",
-  "1st Place — Peach Cup Karate Tournament (3-state)",
-  "1st Place — Wilson Central Wrestling; 3rd Place — SBA Wrestling",
 ];
 
 const LANGUAGES = ["English", "Russian", "Arabic", "Uzbek"];
 
 const HOBBIES = [
-  "Rubik's cubes & strategic games (chess)",
-  "Martial arts, calisthenics, rock climbing",
-  "Traveling to new places",
+  "Rubik's cubes and chess",
+  "Wrestling, martial arts, calisthenics, rock climbing",
+  "Traveling",
 ];
 
 const PROJECTS = [
   {
-    name: "Quest Learning",
-    link: "https://questlearning.co/",
+    name: "TN TSA Event Selector",
+    link: "https://tntsaeventselector.com",
     detail:
-      "An ed-tech platform my co-founder and I built that turns state standards into ready-to-teach lessons — hooks, videos, adaptive quizzes, AP-style case studies — in minutes, each engineered around cognitive-science and neuroscience principles like spaced repetition, scaffolding, and multimodal learning so students actually retain what they study. A teacher enters a standard, an Edge Function orchestrates and optimizes the model calls to build a neuroscience-backed lesson, and the Common Standards Project API maps everything back to the correct state standard so content stays aligned.",
-    stack: [
-      "React + Vite",
-      "Supabase (Postgres / Auth / Edge Functions)",
-      "OpenAI",
-      "Stripe",
-      "Common Standards Project API",
-      "Vercel",
-    ],
-  },
-  {
-    name: "Unitywall Internal Profit Analysis Tool",
-    link: "https://unitydashboard.vercel.app/",
-    detail:
-      "An internal business-intelligence platform that decouples client-facing quotes from true cost analysis — tracking labor hours, profit margins, team satisfaction, and client difficulty across every project. Runs multi-variable filters over historical project data to flag where estimated hours diverged from actual, with a lessons-learned system and a competitive pricing analyzer built to optimize rates across freelancer, agency, and enterprise tiers.",
-    stack: ["React", "Next.js", "Node.js", "Vercel"],
+      "A questionnaire-driven matcher that ranks TSA's competitive events against a member's strengths and interests. Built for Tennessee TSA's 3,100 members.",
   },
   {
     name: "ExerciseBud",
     detail:
-      "A cross-platform (iOS + Android) fitness companion app built in React Native and Expo. Syncs native step data from Apple HealthKit and Google Health Connect, generates personalized 4-week workout plans with GPT-4-turbo from a guided intake form, and layers in a social system of friend requests and a step leaderboard, plus an animated guided-breathing meditation. A MongoDB Atlas backend stores users, plans, and activity; a custom AuthContext state machine with on-device secure storage handles sign-in; and an AppState listener tracks presence to power \"online now\" signals on the leaderboard.",
+      "iOS + Android fitness app in React Native and Expo. Syncs steps from Apple HealthKit and Google Health Connect, generates four-week training plans with GPT-4-turbo, and layers on friends, a step leaderboard, and a guided-breathing screen.",
     stack: [
-      "React Native 0.73",
-      "Expo SDK 50",
-      "React Navigation 6",
-      "react-native-health / health-connect",
-      "MongoDB Atlas Data API",
-      "OpenAI (GPT-4-turbo)",
-      "expo-secure-store",
+      "React Native",
+      "Expo",
+      "MongoDB Atlas",
+      "OpenAI",
+      "HealthKit / Health Connect",
     ],
   },
   {
-    name: "TN TSA Event Selector",
-    link: "https://tntsaeventselector.com",
+    name: "Unitywall Profit Analysis Tool",
+    link: "https://unitydashboard.vercel.app/",
     detail:
-      "An event selector that matches TSA members to competitive events based on their strengths and interests — built for the 4,000-member Technology Student Association. Users answer a short questionnaire, and a scoring model ranks the available TSA events against their responses to optimize matching and surface the best-fit events.",
-  },
-  {
-    name: "Wealth Education Initiative Website",
-    link: "https://www.wealthedinitiative.com",
-    detail:
-      "The website for the 501(c)(3) I co-founded — the central hub for our chapters, resources, and eBook. YouTube and Instagram integrations pull our latest content directly into the site, a Google Maps integration plots and showcases our chapters across the district, and interactive UI elements throughout keep students engaged.",
-    stack: [
-      "React",
-      "Vite",
-      "Tailwind CSS",
-      "Google Maps JS API",
-      "YouTube / Instagram embeds",
-      "Vercel",
-    ],
+      "Internal dashboard for a web agency that separates client-facing quotes from true costs: labor hours, margins, client difficulty, and where estimates diverged from actuals across past projects.",
+    stack: ["React", "Next.js", "Node.js", "Vercel"],
   },
   {
     name: "Vanderbilt Professor Scraper",
     detail:
-      "A scraping algorithm I built with Selenium (Java) and Apache POI to find professors at Vanderbilt Medical Center to invite as guest speakers for my school's ScienceFinds club. Selenium drives the browser to crawl faculty directory pages and pull names, departments, and contact details — automating a search that would otherwise take hours — while Apache POI writes the results into a structured Excel sheet. The resulting searchable database of 200+ professors enabled 75+ students to find and connect with guest speakers.",
-    stack: ["Selenium (Java)", "Apache POI", "Google Sheets"],
-  },
-  {
-    name: "Biomedical Research",
-    detail:
-      "Across a three-year biomedical curriculum I ran hands-on molecular work — DNA extraction, PCR, gene cloning, CRISPR editing — and designed, conducted, and presented two independent research projects using Drosophila models to investigate human-health questions.",
+      "A Selenium (Java) crawler that pulled 200+ Vanderbilt Medical Center faculty into a structured sheet so my high school's science club could invite them as guest speakers. 75+ students used the database.",
+    stack: ["Selenium (Java)", "Apache POI"],
   },
   {
     name: "Stylize",
     link: "https://stylize.base44.app",
     detail:
-      "A small personal project that optimizes an outfit for me every morning based on color theory and the weather — because I hated picking clothes. It pulls the day's local forecast from a weather API and applies color-theory rules to my wardrobe to assemble a coordinated outfit.",
+      "Picks my outfit each morning from the local forecast and a few color-theory rules, so I don't have to. I use it more than anything else I've built.",
   },
 ];
 
 const EDUCATION = [
   {
     school: "Duke University",
-    location: "Neuroscience & CS",
-    period: "Fall 2026 – Spring 2030",
+    location: "Neuroscience & Computer Science",
+    period: "Class of 2030",
   },
   {
     school: "Ravenwood High School",
     location: "Brentwood, TN",
     period: "Class of 2026",
-    detail:
-      "4.72 / 4.0 weighted GPA · 35 ACT · 1480 PSAT · 11 AP courses and 6 dual-enrollment courses (including Multivariable Calculus and Linear Algebra).",
-    apScores: [
-      ["AP Precalculus", "5"],
-      ["AP Chemistry", "5"],
-      ["AP Physics 1", "5"],
-      ["AP Lang & Composition", "5"],
-      ["AP Calculus AB", "5"],
-      ["AP Biology", "4"],
-      ["AP World History", "4"],
-      ["AP U.S. History", "4"],
-      ["AP Calculus BC", "4"],
-      ["AP Macroeconomics", "—"],
-      ["AP Government", "—"],
-    ],
-    deCourses: [
-      "Topics in British Literature",
-      "Topics in American Literature",
-      "Art History Survey I",
-      "Art History Survey II",
-      "Multivariable Calculus",
-      "Introduction to Linear Algebra",
-    ],
-  },
-  {
-    school: "Azhar University",
-    location: "Cairo, Egypt",
-    period: "2021 – 2023",
   },
 ];
+
+// -----------------------------------------------------------------------------
+// DNA background
+// -----------------------------------------------------------------------------
+
+/**
+ * Full-viewport fixed canvas drawing a double helix whose twist phase is
+ * driven by window.scrollY, so the strands rotate as the reader scrolls.
+ * Sits at z-0 behind the content (which is position:relative, z-1); white
+ * cards cover it, so it reads as a margin/backdrop texture, not a layer
+ * over text. Honors prefers-reduced-motion by rendering a static helix.
+ */
+function DnaBackground() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    let raf = 0;
+    let width = 0;
+    let height = 0;
+
+    const draw = () => {
+      const phase = reduceMotion ? 0 : window.scrollY * 0.0038;
+      ctx.clearRect(0, 0, width, height);
+
+      // Desktop: helix lives in the right gutter beside the 900px column.
+      // Narrow screens: centered, wider, mostly peeking around the cards.
+      const wide = width >= 1024;
+      const cx = wide ? Math.min(width / 2 + 590, width - 120) : width / 2;
+      const amp = wide ? 90 : Math.min(width * 0.4, 150);
+      const wavelength = 480; // px of height per full twist
+      const k = (Math.PI * 2) / wavelength;
+      const step = 7;
+
+      // Base-pair rungs. The two strands are half a turn apart, so the rung
+      // width collapses naturally where they cross.
+      for (let y = -40; y <= height + 40; y += 26) {
+        const a = k * y + phase;
+        const x1 = cx + amp * Math.sin(a);
+        const x2 = cx + amp * Math.sin(a + Math.PI);
+        ctx.strokeStyle = "rgba(148,163,184,0.22)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+      }
+
+      // Strands, drawn as short segments so opacity and width can follow
+      // depth: cos(angle) > 0 means the strand is on the near side.
+      const strands = [
+        { offset: 0, rgb: "37,99,235" }, // blue
+        { offset: Math.PI, rgb: "71,85,105" }, // slate
+      ];
+      for (const strand of strands) {
+        for (let y = -40; y <= height + 40; y += step) {
+          const a1 = k * y + phase + strand.offset;
+          const a2 = k * (y + step) + phase + strand.offset;
+          const depth = (Math.cos(a1) + 1) / 2; // 0 = far, 1 = near
+          ctx.strokeStyle = `rgba(${strand.rgb},${(
+            0.07 +
+            0.2 * depth
+          ).toFixed(3)})`;
+          ctx.lineWidth = 1.4 + 1.6 * depth;
+          ctx.beginPath();
+          ctx.moveTo(cx + amp * Math.sin(a1), y);
+          ctx.lineTo(cx + amp * Math.sin(a2), y + step);
+          ctx.stroke();
+        }
+      }
+    };
+
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    };
+
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        draw();
+      });
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+    if (!reduceMotion) {
+      window.addEventListener("scroll", onScroll, { passive: true });
+    }
+    return () => {
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="fixed inset-0 pointer-events-none"
+      style={{ zIndex: 0 }}
+    />
+  );
+}
 
 // -----------------------------------------------------------------------------
 // Primitives
 // -----------------------------------------------------------------------------
 
-function Eyebrow({ children }) {
+function SectionHeader({ title, description }) {
   return (
-    <div
-      className="text-[10.5px] font-semibold tracking-[0.14em] uppercase"
-      style={{ color: BLUE }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function SectionHeader({ eyebrow, title, description }) {
-  return (
-    <div className="mb-8">
-      <Eyebrow>{eyebrow}</Eyebrow>
+    <div className="mb-7">
       <h2
-        className="mt-2 font-extrabold tracking-tight"
+        className="font-extrabold tracking-tight"
         style={{
           color: INK,
-          fontSize: "clamp(22px, 2.6vw, 30px)",
+          fontSize: "clamp(21px, 2.4vw, 27px)",
           letterSpacing: "-0.025em",
           lineHeight: 1.15,
         }}
@@ -407,17 +392,25 @@ export default function Adam() {
           '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
       }}
     >
+      <DnaBackground />
+
       {/* ================================================================= */}
       {/* Hero band                                                          */}
       {/* ================================================================= */}
-      <header style={{ backgroundColor: BAND, borderBottom: `1px solid ${BORDER}` }}>
-        <div className="max-w-[900px] mx-auto px-6 pt-14 pb-16">
+      <header
+        className="relative"
+        style={{
+          backgroundColor: "rgba(238,243,251,0.88)",
+          borderBottom: `1px solid ${BORDER}`,
+          zIndex: 1,
+        }}
+      >
+        <div className="max-w-[900px] mx-auto px-6 pt-14 pb-14">
           <div className="flex flex-col sm:flex-row items-start gap-6">
             <Avatar />
             <div className="min-w-0 flex-1">
-              <Eyebrow>Personal Site · Class of 2026</Eyebrow>
               <h1
-                className="mt-2 font-extrabold tracking-tight"
+                className="font-extrabold tracking-tight"
                 style={{
                   color: INK,
                   fontSize: "clamp(34px, 4.6vw, 48px)",
@@ -431,16 +424,17 @@ export default function Adam() {
                 className="mt-2 text-[15.5px] font-medium"
                 style={{ color: BLUE }}
               >
-                Co-Founder of Quest Learning · Duke '30, Neuroscience &amp; CS
+                Co-Founder of Quest Learning · Neuroscience &amp; CS at Duke
               </p>
               <p
-                className="mt-4 text-[15px] leading-relaxed max-w-[560px]"
+                className="mt-4 text-[15px] leading-relaxed max-w-[580px]"
                 style={{ color: BODY }}
               >
-                Builder and operator working across education, technology, and
-                community — from shipping an AI learning platform headed to
-                42,000+ students, to running the operations and social of a
-                family restaurant that's reached tens of millions of viewers.
+                I'm a first-year at Duke studying neuroscience and computer
+                science, headed toward computational biology — I want to
+                work on software that makes sense of biological data. Most
+                of my time right now goes to Quest Learning. The rest goes
+                to my family's pizza shop when I'm home in Nashville.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2 text-[13px]">
@@ -454,7 +448,7 @@ export default function Adam() {
                   icon={Phone}
                   label="(615) 708-8786"
                 />
-                <ContactPill icon={MapPin} label="Brentwood, TN" static />
+                <ContactPill icon={MapPin} label="Durham, NC" static />
                 <ContactPill
                   href="https://www.linkedin.com/in/adamrakhmanov/"
                   icon={Linkedin}
@@ -468,49 +462,17 @@ export default function Adam() {
       </header>
 
       {/* ================================================================= */}
-      {/* Stats row                                                          */}
-      {/* ================================================================= */}
-      <div className="max-w-[900px] mx-auto px-6 -mt-8 relative z-10">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {STATS.map((s) => (
-            <div
-              key={s.label}
-              className="bg-white rounded-xl border p-4 text-center"
-              style={{
-                borderColor: BORDER,
-                boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.04)",
-              }}
-            >
-              <div
-                className="text-[20px] font-extrabold"
-                style={{ color: INK, letterSpacing: "-0.02em" }}
-              >
-                {s.value}
-              </div>
-              <div
-                className="text-[11px] font-medium mt-1 leading-tight"
-                style={{ color: MUTED }}
-              >
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ================================================================= */}
       {/* Main                                                               */}
       {/* ================================================================= */}
-      <main className="max-w-[900px] mx-auto px-6 py-16 space-y-16">
-        {/* Work History */}
+      <main
+        className="relative max-w-[900px] mx-auto px-6 py-16 space-y-16"
+        style={{ zIndex: 1 }}
+      >
+        {/* Work */}
         <section>
-          <SectionHeader
-            eyebrow="Work History"
-            title="Building, leading, operating."
-            description="What I've spent my time on across school, community, and family business."
-          />
+          <SectionHeader title="Work" />
           <div className="space-y-3">
-            {EXPERIENCE.map((e) => (
+            {WORK.map((e) => (
               <Card key={e.org}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h3
@@ -532,105 +494,52 @@ export default function Adam() {
                 >
                   {e.org}
                 </p>
-                <ul className="mt-3 space-y-1.5">
-                  {e.points.map((p, i) => (
-                    <li
-                      key={i}
-                      className="text-[14px] leading-relaxed flex gap-2.5"
-                      style={{ color: BODY }}
-                    >
-                      <span
-                        className="mt-[9px] w-1 h-1 rounded-full shrink-0"
-                        style={{ backgroundColor: BORDER }}
-                      />
-                      <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
+                {e.body.map((para, i) => (
+                  <p
+                    key={i}
+                    className="mt-3 text-[14px] leading-relaxed"
+                    style={{ color: BODY }}
+                  >
+                    {para}
+                  </p>
+                ))}
               </Card>
             ))}
           </div>
         </section>
 
-        {/* Entrepreneurship Programs */}
+        {/* Research */}
         <section>
-          <SectionHeader
-            eyebrow="Entrepreneurship Programs & Clubs"
-            title="Learning to build under real mentors."
-          />
+          <SectionHeader title="Research" />
           <Card>
-            <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
-              {ENTREPRENEURSHIP.role}
-            </h3>
-            <p
-              className="mt-3 text-[14px] leading-relaxed"
-              style={{ color: BODY }}
-            >
-              {ENTREPRENEURSHIP.detail}
-            </p>
-          </Card>
-        </section>
-
-        {/* Leadership & Service */}
-        <section>
-          <SectionHeader
-            eyebrow="Leadership & Service"
-            title="Where else I show up."
-          />
-          <div className="grid sm:grid-cols-2 gap-3">
-            {LEADERSHIP.map((l) => (
-              <Card key={l.org} className="!p-5">
-                <h3
-                  className="font-bold text-[14px] leading-snug"
-                  style={{ color: INK }}
-                >
-                  {l.role}
-                </h3>
-                <p
-                  className="text-[12.5px] font-semibold mt-0.5"
-                  style={{ color: BLUE }}
-                >
-                  {l.org}
-                </p>
-                <p
-                  className="mt-2 text-[13px] leading-relaxed"
-                  style={{ color: BODY }}
-                >
-                  {l.detail}
-                </p>
-              </Card>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 className="font-bold text-[15.5px]" style={{ color: INK }}>
+                {RESEARCH.title}
+              </h3>
+              <span
+                className="text-[12px] font-medium"
+                style={{ color: MUTED }}
+              >
+                {RESEARCH.period}
+              </span>
+            </div>
+            {RESEARCH.body.map((para, i) => (
+              <p
+                key={i}
+                className="mt-3 text-[14px] leading-relaxed"
+                style={{ color: BODY }}
+              >
+                {para}
+              </p>
             ))}
-          </div>
-        </section>
-
-        {/* Honors & Awards */}
-        <section>
-          <SectionHeader eyebrow="Competitions & Awards" title="Recognition." />
-          <Card>
-            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
-              {AWARDS.map((a, i) => (
-                <li
-                  key={i}
-                  className="text-[13.5px] leading-relaxed flex gap-2.5"
-                  style={{ color: BODY }}
-                >
-                  <span
-                    className="mt-[9px] w-1 h-1 rounded-full shrink-0"
-                    style={{ backgroundColor: BLUE }}
-                  />
-                  <span>{a}</span>
-                </li>
-              ))}
-            </ul>
           </Card>
         </section>
 
-        {/* Things I've Built */}
+        {/* Projects */}
         <section>
           <SectionHeader
-            eyebrow="Things I've Built"
-            title="Selected projects."
-            description="Small tools, side projects, and the platform I'm most proud of."
+            title="Projects"
+            description="Side projects — most started as fixes for problems I ran into."
           />
           <div className="grid gap-3">
             {PROJECTS.map((p) => (
@@ -673,12 +582,60 @@ export default function Adam() {
           </div>
         </section>
 
+        {/* Awards */}
+        <section>
+          <SectionHeader title="Selected awards" />
+          <Card>
+            <ul className="space-y-2.5">
+              {AWARDS.map((a, i) => (
+                <li
+                  key={i}
+                  className="text-[13.5px] leading-relaxed flex gap-2.5"
+                  style={{ color: BODY }}
+                >
+                  <span
+                    className="mt-[9px] w-1 h-1 rounded-full shrink-0"
+                    style={{ backgroundColor: BLUE }}
+                  />
+                  <span>{a}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+
+        {/* Service & leadership */}
+        <section>
+          <SectionHeader title="Service & leadership" />
+          <div className="grid sm:grid-cols-2 gap-3">
+            {SERVICE.map((l) => (
+              <Card key={l.org} className="!p-5">
+                <h3
+                  className="font-bold text-[14px] leading-snug"
+                  style={{ color: INK }}
+                >
+                  {l.role}
+                </h3>
+                <p
+                  className="text-[12.5px] font-semibold mt-0.5"
+                  style={{ color: BLUE }}
+                >
+                  {l.org}
+                </p>
+                <p
+                  className="mt-2 text-[13px] leading-relaxed"
+                  style={{ color: BODY }}
+                >
+                  {l.detail}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </section>
+
         {/* Education */}
         <section>
-          <SectionHeader
-            eyebrow="Education"
-            title="Coursework and academics."
-          />
+          <SectionHeader title="Education" />
           <div className="space-y-3">
             {EDUCATION.map((edu) => (
               <Card key={edu.school}>
@@ -699,82 +656,14 @@ export default function Adam() {
                 >
                   {edu.location}
                 </p>
-                {edu.detail && (
-                  <p
-                    className="mt-3 text-[14px] leading-relaxed"
-                    style={{ color: BODY }}
-                  >
-                    {edu.detail}
-                  </p>
-                )}
-                {edu.apScores && (
-                  <div className="mt-5">
-                    <div
-                      className="text-[11px] font-semibold tracking-[0.12em] uppercase mb-2"
-                      style={{ color: MUTED }}
-                    >
-                      AP Scores
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                      {edu.apScores.map(([course, score]) => (
-                        <div
-                          key={course}
-                          className="flex items-center justify-between text-[12.5px] rounded-lg px-2.5 py-1.5 border"
-                          style={{
-                            borderColor: BORDER,
-                            backgroundColor: "#F8FAFC",
-                          }}
-                        >
-                          <span
-                            className="truncate pr-2"
-                            style={{ color: BODY }}
-                          >
-                            {course}
-                          </span>
-                          <span className="font-bold" style={{ color: INK }}>
-                            {score}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {edu.deCourses && (
-                  <div className="mt-5">
-                    <div
-                      className="text-[11px] font-semibold tracking-[0.12em] uppercase mb-2"
-                      style={{ color: MUTED }}
-                    >
-                      Dual-Enrollment
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {edu.deCourses.map((c) => (
-                        <span
-                          key={c}
-                          className="inline-flex text-[11.5px] font-medium rounded-full px-2.5 py-1 border"
-                          style={{
-                            color: BLUE,
-                            backgroundColor: "#EFF6FF",
-                            borderColor: "#DBEAFE",
-                          }}
-                        >
-                          {c}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </Card>
             ))}
           </div>
         </section>
 
-        {/* Languages & Interests */}
+        {/* Languages & interests */}
         <section>
-          <SectionHeader
-            eyebrow="Languages & Interests"
-            title="Outside the resume."
-          />
+          <SectionHeader title="Languages & interests" />
           <div className="grid sm:grid-cols-2 gap-3">
             <Card>
               <div
@@ -799,7 +688,8 @@ export default function Adam() {
                 ))}
               </div>
               <p className="text-[12px] mt-3" style={{ color: MUTED }}>
-                Fluent and articulate in all four.
+                I grew up between Tashkent, Cairo, and Nashville — that's
+                where the four come from.
               </p>
             </Card>
             <Card>
@@ -807,7 +697,7 @@ export default function Adam() {
                 className="text-[11px] font-semibold tracking-[0.12em] uppercase mb-3"
                 style={{ color: MUTED }}
               >
-                Hobbies & Skills
+                Off the computer
               </div>
               <ul className="space-y-1.5">
                 {HOBBIES.map((h) => (
@@ -833,7 +723,12 @@ export default function Adam() {
       {/* Footer                                                             */}
       {/* ================================================================= */}
       <footer
-        style={{ backgroundColor: "white", borderTop: `1px solid ${BORDER}` }}
+        className="relative"
+        style={{
+          backgroundColor: "white",
+          borderTop: `1px solid ${BORDER}`,
+          zIndex: 1,
+        }}
       >
         <div className="max-w-[900px] mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-[13px]">
           <span style={{ color: MUTED }}>© 2026 Adam Rakhmanov</span>
@@ -883,7 +778,7 @@ function ContactPill({ href, icon: Icon, label, external, static: isStatic }) {
       href={href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
-      className="focus:outline-none"
+      className="rounded-full"
     >
       {inner}
     </a>
