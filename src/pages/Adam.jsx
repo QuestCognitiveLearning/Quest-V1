@@ -3,18 +3,19 @@
  * at /adam. Public route (no auth, no app chrome) so it works as a shareable
  * bio link. Intentionally not linked anywhere in the app.
  *
- * Design: dark editorial-poster look (inspired by wodniack.dev's duotone
- * poster typography + generative line art, logartis.info's atmosphere, and
- * animejs.com's charcoal/monospace/scroll-motion language), tailored with
- * Adam's own motifs:
- *   - hero: full-width opaque block — giant Anton display type with a
- *     letter-stagger reveal, topographic line art, and a DNA-codon marquee
- *     ticker instead of a binary one. The fixed background layers never
- *     overlap it (per Adam's request the climbing wall starts below).
+ * Design: dark editorial-poster look (wodniack.dev's poster typography +
+ * generative line art, logartis.info's atmosphere, animejs.com's charcoal/
+ * monospace/scroll-motion language), tailored with Adam's own motifs:
+ *   - "beta level" selector graded like boulder problems: V0 flash read,
+ *     V3 the resume, V6 full send. It gates how much of each section
+ *     renders; a fixed pill (sm+) lets readers regrade mid-scroll.
+ *   - hero: full-width opaque block — giant Anton type with letter-stagger
+ *     reveal, topographic line art, DNA-codon marquee ticker. The fixed
+ *     background layers never overlap it.
  *   - right gutter: canvas double helix that twists with scroll
- *   - left edge (xl+): climbing wall; the climber ascends with scroll
- * Sections are numbered editorially (01 / WORK...), panels are charcoal,
- * accents pop per section. Scroll-in reveals via IntersectionObserver.
+ *   - left edge (xl+): climbing wall — varied hold shapes, V-grade route
+ *     tags, crash pad — with a climber who ascends (and switches poses) as
+ *     scroll progress climbs from V0 at the pad to V6 at the flag.
  *
  * Photo: `public/adam-photo.jpg` (falls back to "AR" monogram if missing).
  */
@@ -223,8 +224,21 @@ const EDUCATION = [
   },
 ];
 
+const TLDR = [
+  "Duke '30 — neuroscience + CS, aiming at computational biology.",
+  "Co-founded Quest Learning; 42,000-student district in talks.",
+  "Family pizza shop social: 40M+ views.",
+  "Climbs, wrestles, cubes, speaks four languages.",
+];
+
 const CODONS =
   "ATG GAT TCC AAG CTG TTC GGA CAT CCA TGA ACG TTA GCC AAT GTC TAG GCA TTC AGA CCT GGT AAC TGC ATA GCT CAG TTG ACC GTA TGC";
+
+const GRADES = [
+  { v: 0, tag: "V0", name: "Flash", desc: "10-second read", color: TEAL },
+  { v: 3, tag: "V3", name: "Project", desc: "the resume", color: AMBER },
+  { v: 6, tag: "V6", name: "Full send", desc: "everything", color: ROSE },
+];
 
 // -----------------------------------------------------------------------------
 // Reveal-on-scroll
@@ -403,16 +417,51 @@ const HOLD_COLORS = ["#F97316", "#2DD4BF", "#38BDF8", "#F43F5E", "#A3E635", "#F5
 const WALL_W = 120;
 
 const routeX = (p) => 60 + Math.sin(p * Math.PI * 3) * 22;
-const routeY = (p, vh) => vh - 70 - p * (vh - 150);
+const routeY = (p, vh) => vh - 84 - p * (vh - 164);
+
+// Real hold-shape variety: jugs, crimps, slopers, pinches.
+function Hold({ h }) {
+  switch (h.shape) {
+    case "crimp":
+      return (
+        <rect
+          x={-h.r}
+          y={-h.r * 0.35}
+          width={h.r * 2}
+          height={h.r * 0.7}
+          rx="2"
+          fill={h.color}
+          opacity="0.92"
+        />
+      );
+    case "sloper":
+      return (
+        <path
+          d={`M ${-h.r},1 A ${h.r} ${h.r} 0 0 1 ${h.r},1 Z`}
+          fill={h.color}
+          opacity="0.92"
+        />
+      );
+    case "pinch":
+      return (
+        <ellipse rx={h.r * 0.5} ry={h.r} fill={h.color} opacity="0.92" />
+      );
+    default:
+      return <ellipse rx={h.r} ry={h.r * 0.78} fill={h.color} opacity="0.92" />;
+  }
+}
 
 /**
  * Fixed 120px strip on the left edge (xl+ only): charcoal climbing wall with
- * neon holds, a dashed route, a summit flag, and a climber whose height
- * tracks scroll progress. z-0, so the opaque hero covers it — it only shows
- * once you scroll into the content, per Adam's request. Decorative only.
+ * varied holds, V-grade route tags (V0 at the crash pad up to V6 at the
+ * flag), and a climber who ascends and switches poses with scroll progress.
+ * z-0, so the opaque hero covers it — it only shows once you scroll into
+ * the content. Decorative only.
  */
 function ClimbingWall() {
   const climberRef = useRef(null);
+  const poseARef = useRef(null);
+  const poseBRef = useRef(null);
   const [vh, setVh] = useState(900);
 
   useEffect(() => {
@@ -424,6 +473,7 @@ function ClimbingWall() {
 
   const holds = useMemo(() => {
     const JITTER = [5, -7, 3, -4, 8, -2, 6, -8, 2, -5, 7, -3, 4];
+    const SHAPES = ["jug", "crimp", "sloper", "pinch"];
     const list = [];
     for (let i = 0; i < 13; i++) {
       const p = i / 12;
@@ -433,6 +483,7 @@ function ClimbingWall() {
         r: 5 + ((i * 7) % 5),
         color: HOLD_COLORS[i % HOLD_COLORS.length],
         rot: (i * 53) % 180,
+        shape: SHAPES[i % SHAPES.length],
       });
     }
     const SCATTER = [
@@ -448,10 +499,11 @@ function ClimbingWall() {
     SCATTER.forEach(([x, f], i) => {
       list.push({
         x,
-        y: 60 + f * (vh - 120),
+        y: 60 + f * (vh - 140),
         r: 4 + (i % 3) * 2,
         color: HOLD_COLORS[(i + 3) % HOLD_COLORS.length],
         rot: (i * 77) % 180,
+        shape: SHAPES[(i + 2) % SHAPES.length],
       });
     });
     return list;
@@ -476,6 +528,12 @@ function ClimbingWall() {
         "transform",
         `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${sway.toFixed(1)})`
       );
+      // alternate reach pose every "move"
+      const stepParity = Math.floor(p * 14) % 2;
+      if (poseARef.current && poseBRef.current) {
+        poseARef.current.style.opacity = stepParity ? "0" : "1";
+        poseBRef.current.style.opacity = stepParity ? "1" : "0";
+      }
     };
     const onScroll = () => {
       if (raf) return;
@@ -494,6 +552,13 @@ function ClimbingWall() {
       if (raf) cancelAnimationFrame(raf);
     };
   }, [vh]);
+
+  const gradeTags = [
+    ["V0", 0.02],
+    ["V2", 0.34],
+    ["V4", 0.66],
+    ["V6", 0.97],
+  ];
 
   return (
     <div
@@ -540,10 +605,39 @@ function ClimbingWall() {
         />
         {holds.map((h, i) => (
           <g key={i} transform={`translate(${h.x} ${h.y}) rotate(${h.rot})`}>
-            <ellipse rx={h.r} ry={h.r * 0.78} fill={h.color} opacity="0.92" />
+            <Hold h={h} />
             <circle r="1.4" fill="rgba(0,0,0,0.45)" />
           </g>
         ))}
+        {/* V-grade route tags */}
+        {gradeTags.map(([tag, p]) => (
+          <g
+            key={tag}
+            transform={`translate(88 ${routeY(p, vh).toFixed(1)})`}
+          >
+            <rect
+              x="-2"
+              y="-8"
+              width="26"
+              height="15"
+              rx="3"
+              fill="#202329"
+              stroke={LINE}
+              strokeWidth="1"
+            />
+            <text
+              x="11"
+              y="3.5"
+              textAnchor="middle"
+              fontSize="8.5"
+              fontFamily="JetBrains Mono, monospace"
+              fill={tag === "V6" ? ROSE : SUB}
+            >
+              {tag}
+            </text>
+          </g>
+        ))}
+        {/* summit flag */}
         <g transform="translate(60 34)">
           <line
             x1="0"
@@ -556,7 +650,15 @@ function ClimbingWall() {
           />
           <path d="M0,-22 L20,-17 L0,-12 Z" fill={AMBER} />
         </g>
-        <g ref={climberRef} transform={`translate(60 ${vh - 70})`}>
+        {/* crash pad */}
+        <g transform={`translate(0 ${vh - 30})`}>
+          <rect x="8" y="0" width="104" height="18" rx="5" fill="#26221C" />
+          <rect x="8" y="0" width="104" height="6" rx="3" fill="#2E2820" />
+          <line x1="42" y1="0" x2="42" y2="18" stroke="#1B1815" strokeWidth="2" />
+          <line x1="78" y1="0" x2="78" y2="18" stroke="#1B1815" strokeWidth="2" />
+        </g>
+        {/* climber — two alternating reach poses */}
+        <g ref={climberRef} transform={`translate(60 ${routeY(0, vh)})`}>
           <circle cx="0" cy="-15" r="4.6" fill={TEXT} />
           <path
             d="M0,-10 L0,4"
@@ -564,14 +666,152 @@ function ClimbingWall() {
             strokeWidth="4.5"
             strokeLinecap="round"
           />
-          <path d="M0,-8 L9,-17" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M0,-6 L-8,-1" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M0,4 L-7,12" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M0,4 L6,11" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+          <g ref={poseARef} style={{ transition: "opacity 0.15s" }}>
+            <path d="M0,-8 L9,-17" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+            <path d="M0,-6 L-8,-1" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+            <path d="M0,4 L-7,12" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+            <path d="M0,4 L6,11" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+          </g>
+          <g ref={poseBRef} style={{ opacity: 0, transition: "opacity 0.15s" }}>
+            <path d="M0,-8 L-9,-17" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+            <path d="M0,-6 L8,-1" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+            <path d="M0,4 L7,12" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+            <path d="M0,4 L-6,11" stroke={TEXT} strokeWidth="2.6" strokeLinecap="round" />
+          </g>
           <circle cx="3" cy="6" r="2.6" fill={AMBER} />
         </g>
       </svg>
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Grade selector
+// -----------------------------------------------------------------------------
+
+function GradeSelector({ grade, setGrade }) {
+  return (
+    <div
+      className="rounded-xl border overflow-hidden"
+      style={{ borderColor: LINE, backgroundColor: PANEL }}
+    >
+      <div
+        className="px-5 py-3 border-b text-[11px] tracking-[0.22em] uppercase"
+        style={{ borderColor: LINE, fontFamily: MONO, color: MUT }}
+      >
+        Beta level — how deep do you want to go?
+      </div>
+      <div className="grid grid-cols-3">
+        {GRADES.map((g, i) => {
+          const active = grade === g.v;
+          return (
+            <button
+              key={g.v}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setGrade(g.v)}
+              className="px-4 py-4 text-left transition-colors duration-150"
+              style={{
+                borderLeft: i ? `1px solid ${LINE}` : "none",
+                backgroundColor: active ? `${g.color}14` : "transparent",
+                cursor: "pointer",
+              }}
+            >
+              <span className="flex items-center gap-2">
+                <svg width="14" height="11" viewBox="0 0 14 11" aria-hidden="true">
+                  <path
+                    d="M1,10 A 6.5 6.5 0 0 1 13,10 Z"
+                    fill={active ? g.color : "#3A3E44"}
+                  />
+                </svg>
+                <span
+                  className="text-[15px]"
+                  style={{
+                    fontFamily: DISPLAY,
+                    color: active ? g.color : SUB,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {g.tag}
+                </span>
+              </span>
+              <span
+                className="mt-1 block text-[11px] tracking-[0.14em] uppercase"
+                style={{ fontFamily: MONO, color: active ? TEXT : MUT }}
+              >
+                {g.name}
+              </span>
+              <span
+                className="block text-[10.5px]"
+                style={{ fontFamily: MONO, color: MUT }}
+              >
+                {g.desc}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GradePill({ grade, setGrade }) {
+  return (
+    <div
+      className="fixed bottom-5 right-5 hidden sm:flex items-center gap-1 rounded-full border px-3 py-2"
+      style={{
+        zIndex: 20,
+        backgroundColor: "rgba(27,29,32,0.92)",
+        borderColor: LINE,
+        backdropFilter: "blur(6px)",
+      }}
+    >
+      <span
+        className="text-[10px] tracking-[0.2em] uppercase pr-1"
+        style={{ fontFamily: MONO, color: MUT }}
+      >
+        Grade
+      </span>
+      {GRADES.map((g) => {
+        const active = grade === g.v;
+        return (
+          <button
+            key={g.v}
+            type="button"
+            aria-pressed={active}
+            onClick={() => setGrade(g.v)}
+            className="rounded-full px-2.5 py-1 text-[11px] transition-colors duration-150"
+            style={{
+              fontFamily: MONO,
+              color: active ? "#101112" : SUB,
+              backgroundColor: active ? g.color : "transparent",
+              cursor: "pointer",
+            }}
+          >
+            {g.tag}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MoreAt({ onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-4 inline-flex items-center gap-2 rounded px-3.5 py-2 border text-[11px] tracking-[0.16em] uppercase transition-colors duration-150 hover:bg-[#221C10]"
+      style={{
+        fontFamily: MONO,
+        color: AMBER,
+        borderColor: `${AMBER}55`,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+      <ArrowUpRight className="w-3.5 h-3.5" />
+    </button>
   );
 }
 
@@ -595,7 +835,7 @@ function StaggerTitle({ text, delayBase = 0 }) {
   );
 }
 
-function SectionHeader({ index, accent, title, description }) {
+function SectionHeader({ index, accent, title, description, gradeTag }) {
   return (
     <div className="mb-8">
       <div className="flex items-center gap-3">
@@ -606,6 +846,19 @@ function SectionHeader({ index, accent, title, description }) {
           {index}
         </span>
         <span className="h-px flex-1" style={{ backgroundColor: LINE }} />
+        {gradeTag && (
+          <span
+            className="text-[10px] tracking-[0.16em] rounded px-2 py-0.5 border"
+            style={{
+              fontFamily: MONO,
+              color: MUT,
+              borderColor: LINE,
+              backgroundColor: PANEL,
+            }}
+          >
+            {gradeTag}
+          </span>
+        )}
       </div>
       <h2
         className="mt-3 uppercase"
@@ -711,6 +964,8 @@ function StackChip({ children }) {
 // -----------------------------------------------------------------------------
 
 export default function Adam() {
+  const [grade, setGrade] = useState(3);
+
   useEffect(() => {
     const prev = document.title;
     document.title = "Adam Rakhmanov";
@@ -718,6 +973,13 @@ export default function Adam() {
       document.title = prev;
     };
   }, []);
+
+  const workItems = WORK.map((e) => ({
+    ...e,
+    body: grade >= 6 ? e.body : e.body.slice(0, 1),
+  }));
+  const projects = grade >= 6 ? PROJECTS : PROJECTS.slice(0, 3);
+  const awards = grade >= 6 ? AWARDS : AWARDS.slice(0, 3);
 
   return (
     <div
@@ -745,9 +1007,15 @@ export default function Adam() {
           to { transform: translateX(-50%); }
         }
         .adam-ticker { animation: adam-marquee 48s linear infinite; }
+        @keyframes adam-bob {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(4px); }
+        }
+        .adam-bob { animation: adam-bob 1.8s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
           .adam-letter { animation: none; transform: none; opacity: 1; }
           .adam-ticker { animation: none; }
+          .adam-bob { animation: none; }
         }
         .adam-tickstrip {
           background-image: repeating-linear-gradient(
@@ -758,6 +1026,7 @@ export default function Adam() {
 
       <DnaBackground />
       <ClimbingWall />
+      <GradePill grade={grade} setGrade={setGrade} />
 
       {/* ================================================================= */}
       {/* Hero — full-width opaque block; background layers never touch it   */}
@@ -771,10 +1040,7 @@ export default function Adam() {
         }}
       >
         {/* top mono bar */}
-        <div
-          className="border-b"
-          style={{ borderColor: LINE }}
-        >
+        <div className="border-b" style={{ borderColor: LINE }}>
           <div className="max-w-[1060px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
             <span
               className="text-[11px] tracking-[0.22em] uppercase"
@@ -815,7 +1081,22 @@ export default function Adam() {
           })}
         </svg>
 
-        <div className="relative max-w-[1060px] mx-auto px-6 pt-14 pb-12">
+        <span
+          aria-hidden="true"
+          className="absolute right-8 top-20 text-[22px] hidden md:block"
+          style={{ fontFamily: MONO, color: LINE }}
+        >
+          +
+        </span>
+        <span
+          aria-hidden="true"
+          className="absolute left-8 bottom-24 text-[22px] hidden md:block"
+          style={{ fontFamily: MONO, color: LINE }}
+        >
+          +
+        </span>
+
+        <div className="relative max-w-[1060px] mx-auto px-6 pt-14 pb-10">
           <div className="flex flex-col md:flex-row md:items-end gap-10">
             <div className="min-w-0 flex-1">
               <div
@@ -877,6 +1158,19 @@ export default function Adam() {
             </div>
             <Avatar />
           </div>
+
+          {/* grade selector */}
+          <div className="mt-10 max-w-[640px]">
+            <GradeSelector grade={grade} setGrade={setGrade} />
+          </div>
+
+          <div
+            className="adam-bob mt-8 text-[10.5px] tracking-[0.24em] uppercase w-max"
+            style={{ fontFamily: MONO, color: MUT }}
+            aria-hidden="true"
+          >
+            [ scroll to climb ↓ ]
+          </div>
         </div>
 
         {/* DNA codon ticker */}
@@ -913,9 +1207,7 @@ export default function Adam() {
                 <div
                   key={s.label}
                   className="p-5"
-                  style={{
-                    borderLeft: i ? `1px solid ${LINE}` : "none",
-                  }}
+                  style={{ borderLeft: i ? `1px solid ${LINE}` : "none" }}
                 >
                   <div
                     className="text-[24px]"
@@ -943,321 +1235,401 @@ export default function Adam() {
         className="relative max-w-[1060px] mx-auto px-6 py-16 space-y-20"
         style={{ zIndex: 1 }}
       >
-        {/* Work */}
-        <section>
-          <SectionHeader index="01 / WORK" accent={SKY} title="Work" />
-          <div className="space-y-3">
-            {WORK.map((e, i) => (
-              <Reveal key={e.org} delay={i * 60}>
-                <Panel accent={e.accent} className="relative">
-                  <e.icon
-                    className="absolute right-5 top-5 w-5 h-5"
-                    style={{ color: e.accent, opacity: 0.6 }}
-                  />
-                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pr-8">
-                    <span
-                      className="text-[11px]"
-                      style={{ fontFamily: MONO, color: MUT }}
+        {grade < 3 && (
+          <section>
+            <SectionHeader
+              index="01 / TL;DR"
+              accent={TEAL}
+              title="The flash read"
+              gradeTag="V0"
+            />
+            <Reveal>
+              <Panel accent={TEAL}>
+                <ul className="space-y-3">
+                  {TLDR.map((t, i) => (
+                    <li
+                      key={i}
+                      className="flex gap-4 text-[14px] leading-relaxed"
+                      style={{ color: SUB }}
                     >
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
+                      <span
+                        className="text-[11px] mt-[3px] shrink-0"
+                        style={{ fontFamily: MONO, color: TEAL }}
+                      >
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex flex-wrap gap-3">
+                  <MoreAt onClick={() => setGrade(3)}>
+                    Bump to V3 — the resume
+                  </MoreAt>
+                  <MoreAt onClick={() => setGrade(6)}>
+                    Full send — V6
+                  </MoreAt>
+                </div>
+              </Panel>
+            </Reveal>
+          </section>
+        )}
+
+        {grade >= 3 && (
+          <>
+            {/* Work */}
+            <section>
+              <SectionHeader
+                index="01 / WORK"
+                accent={SKY}
+                title="Work"
+                gradeTag={grade >= 6 ? "V6" : "V3"}
+              />
+              <div className="space-y-3">
+                {workItems.map((e, i) => (
+                  <Reveal key={e.org} delay={i * 60}>
+                    <Panel accent={e.accent} className="relative">
+                      <e.icon
+                        className="absolute right-5 top-5 w-5 h-5"
+                        style={{ color: e.accent, opacity: 0.6 }}
+                      />
+                      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pr-8">
+                        <span
+                          className="text-[11px]"
+                          style={{ fontFamily: MONO, color: MUT }}
+                        >
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <h3
+                          className="font-bold text-[16px]"
+                          style={{ color: TEXT }}
+                        >
+                          {e.role}
+                        </h3>
+                        <span
+                          className="ml-auto text-[11px] tracking-[0.08em]"
+                          style={{ fontFamily: MONO, color: MUT }}
+                        >
+                          {e.period}
+                        </span>
+                      </div>
+                      <p
+                        className="mt-0.5 text-[13.5px] font-semibold"
+                        style={{ color: e.accent }}
+                      >
+                        {e.org}
+                      </p>
+                      {e.body.map((para, j) => (
+                        <p
+                          key={j}
+                          className="mt-3 text-[14px] leading-relaxed"
+                          style={{ color: SUB }}
+                        >
+                          {para}
+                        </p>
+                      ))}
+                    </Panel>
+                  </Reveal>
+                ))}
+              </div>
+              {grade < 6 && (
+                <MoreAt onClick={() => setGrade(6)}>
+                  Full beta at V6
+                </MoreAt>
+              )}
+            </section>
+
+            {/* Research */}
+            <section>
+              <SectionHeader
+                index="02 / RESEARCH"
+                accent={LIME}
+                title="Research"
+                gradeTag={grade >= 6 ? "V6" : "V3"}
+              />
+              <Reveal>
+                <Panel accent={LIME} className="relative overflow-hidden">
+                  <Dna
+                    className="absolute -right-4 -bottom-4 w-32 h-32"
+                    style={{ color: LIME, opacity: 0.06 }}
+                  />
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <h3
                       className="font-bold text-[16px]"
                       style={{ color: TEXT }}
                     >
-                      {e.role}
-                    </h3>
-                    <span
-                      className="ml-auto text-[11px] tracking-[0.08em]"
-                      style={{ fontFamily: MONO, color: MUT }}
-                    >
-                      {e.period}
-                    </span>
-                  </div>
-                  <p
-                    className="mt-0.5 text-[13.5px] font-semibold"
-                    style={{ color: e.accent }}
-                  >
-                    {e.org}
-                  </p>
-                  {e.body.map((para, j) => (
-                    <p
-                      key={j}
-                      className="mt-3 text-[14px] leading-relaxed"
-                      style={{ color: SUB }}
-                    >
-                      {para}
-                    </p>
-                  ))}
-                </Panel>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
-        {/* Research */}
-        <section>
-          <SectionHeader index="02 / RESEARCH" accent={LIME} title="Research" />
-          <Reveal>
-            <Panel accent={LIME} className="relative overflow-hidden">
-              <Dna
-                className="absolute -right-4 -bottom-4 w-32 h-32"
-                style={{ color: LIME, opacity: 0.06 }}
-              />
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h3 className="font-bold text-[16px]" style={{ color: TEXT }}>
-                  {RESEARCH.title}
-                </h3>
-                <span
-                  className="text-[11px] tracking-[0.08em]"
-                  style={{ fontFamily: MONO, color: MUT }}
-                >
-                  {RESEARCH.period}
-                </span>
-              </div>
-              {RESEARCH.body.map((para, i) => (
-                <p
-                  key={i}
-                  className="mt-3 text-[14px] leading-relaxed"
-                  style={{ color: SUB }}
-                >
-                  {para}
-                </p>
-              ))}
-            </Panel>
-          </Reveal>
-        </section>
-
-        {/* Projects */}
-        <section>
-          <SectionHeader
-            index="03 / PROJECTS"
-            accent={AMBER}
-            title="Projects"
-            description="Side projects — most started as fixes for problems I ran into."
-          />
-          <div className="grid sm:grid-cols-2 gap-3">
-            {PROJECTS.map((p, i) => (
-              <Reveal key={p.name} delay={(i % 2) * 80}>
-                <Panel accent={AMBER} className="h-full">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h3
-                      className="font-bold text-[15.5px]"
-                      style={{ color: TEXT }}
-                    >
-                      {p.name}
-                    </h3>
-                    {p.link && (
-                      <a
-                        href={p.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] tracking-[0.14em] uppercase shrink-0"
-                        style={{ fontFamily: MONO, color: AMBER }}
-                      >
-                        Visit <ArrowUpRight className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                  </div>
-                  <p
-                    className="mt-2 text-[13.5px] leading-relaxed"
-                    style={{ color: SUB }}
-                  >
-                    {p.detail}
-                  </p>
-                  {p.stack && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {p.stack.map((s) => (
-                        <StackChip key={s}>{s}</StackChip>
-                      ))}
-                    </div>
-                  )}
-                </Panel>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
-        {/* Awards — editorial rows */}
-        <section>
-          <SectionHeader
-            index="04 / AWARDS"
-            accent={ROSE}
-            title="Selected awards"
-          />
-          <div
-            className="border-t"
-            style={{ borderColor: LINE }}
-          >
-            {AWARDS.map((a, i) => (
-              <Reveal key={i} delay={i * 50}>
-                <div
-                  className="flex gap-5 items-start py-4 border-b transition-colors duration-200 hover:bg-[#17181B]"
-                  style={{ borderColor: LINE }}
-                >
-                  <span
-                    className="text-[12px] mt-[2px] shrink-0"
-                    style={{ fontFamily: MONO, color: ROSE }}
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span
-                    className="text-[13.5px] leading-relaxed"
-                    style={{ color: SUB }}
-                  >
-                    {a}
-                  </span>
-                  <Medal
-                    className="w-4 h-4 ml-auto mt-[2px] shrink-0"
-                    style={{ color: ROSE, opacity: 0.5 }}
-                  />
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
-        {/* Service & leadership */}
-        <section>
-          <SectionHeader
-            index="05 / SERVICE"
-            accent={TEAL}
-            title="Service & leadership"
-          />
-          <div className="grid sm:grid-cols-3 gap-3">
-            {SERVICE.map((l, i) => (
-              <Reveal key={l.org} delay={i * 70}>
-                <Panel accent={TEAL} className="!p-5 h-full">
-                  <h3
-                    className="font-bold text-[14px] leading-snug"
-                    style={{ color: TEXT }}
-                  >
-                    {l.role}
-                  </h3>
-                  <p
-                    className="text-[12px] font-semibold mt-0.5"
-                    style={{ color: TEAL }}
-                  >
-                    {l.org}
-                  </p>
-                  <p
-                    className="mt-2 text-[13px] leading-relaxed"
-                    style={{ color: SUB }}
-                  >
-                    {l.detail}
-                  </p>
-                </Panel>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
-        {/* Education */}
-        <section>
-          <SectionHeader
-            index="06 / EDUCATION"
-            accent={SKY}
-            title="Education"
-          />
-          <div className="space-y-3">
-            {EDUCATION.map((edu, i) => (
-              <Reveal key={edu.school} delay={i * 60}>
-                <Panel accent={SKY}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <h3
-                      className="font-bold text-[15.5px]"
-                      style={{ color: TEXT }}
-                    >
-                      {edu.school}
+                      {RESEARCH.title}
                     </h3>
                     <span
                       className="text-[11px] tracking-[0.08em]"
                       style={{ fontFamily: MONO, color: MUT }}
                     >
-                      {edu.period}
+                      {RESEARCH.period}
                     </span>
                   </div>
-                  <p
-                    className="mt-0.5 text-[13.5px] font-semibold"
-                    style={{ color: SKY }}
-                  >
-                    {edu.location}
-                  </p>
+                  {(grade >= 6 ? RESEARCH.body : RESEARCH.body.slice(0, 1)).map(
+                    (para, i) => (
+                      <p
+                        key={i}
+                        className="mt-3 text-[14px] leading-relaxed"
+                        style={{ color: SUB }}
+                      >
+                        {para}
+                      </p>
+                    )
+                  )}
                 </Panel>
               </Reveal>
-            ))}
-          </div>
-        </section>
+            </section>
 
-        {/* Languages & interests */}
-        <section>
-          <SectionHeader
-            index="07 / OFFLINE"
-            accent={AMBER}
-            title="Languages & interests"
-          />
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Reveal>
-              <Panel accent={AMBER} className="h-full">
-                <div
-                  className="text-[10.5px] tracking-[0.2em] uppercase mb-3"
-                  style={{ fontFamily: MONO, color: MUT }}
-                >
-                  Languages
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {LANGUAGES.map((l) => (
-                    <span
-                      key={l}
-                      className="inline-flex text-[12.5px] rounded px-3 py-1 border"
-                      style={{
-                        fontFamily: MONO,
-                        color: TEXT,
-                        backgroundColor: "#17181B",
-                        borderColor: LINE,
-                      }}
+            {/* Projects */}
+            <section>
+              <SectionHeader
+                index="03 / PROJECTS"
+                accent={AMBER}
+                title="Projects"
+                gradeTag={grade >= 6 ? "V6" : "V3"}
+                description="Side projects — most started as fixes for problems I ran into."
+              />
+              <div className="grid sm:grid-cols-2 gap-3">
+                {projects.map((p, i) => (
+                  <Reveal key={p.name} delay={(i % 2) * 80}>
+                    <Panel accent={AMBER} className="h-full">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <h3
+                          className="font-bold text-[15.5px]"
+                          style={{ color: TEXT }}
+                        >
+                          {p.name}
+                        </h3>
+                        {p.link && (
+                          <a
+                            href={p.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] tracking-[0.14em] uppercase shrink-0"
+                            style={{ fontFamily: MONO, color: AMBER }}
+                          >
+                            Visit <ArrowUpRight className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                      <p
+                        className="mt-2 text-[13.5px] leading-relaxed"
+                        style={{ color: SUB }}
+                      >
+                        {p.detail}
+                      </p>
+                      {p.stack && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {p.stack.map((s) => (
+                            <StackChip key={s}>{s}</StackChip>
+                          ))}
+                        </div>
+                      )}
+                    </Panel>
+                  </Reveal>
+                ))}
+              </div>
+              {grade < 6 && (
+                <MoreAt onClick={() => setGrade(6)}>
+                  +{PROJECTS.length - projects.length} more at V6
+                </MoreAt>
+              )}
+            </section>
+
+            {/* Awards */}
+            <section>
+              <SectionHeader
+                index="04 / AWARDS"
+                accent={ROSE}
+                title="Selected awards"
+                gradeTag={grade >= 6 ? "V6" : "V3"}
+              />
+              <div className="border-t" style={{ borderColor: LINE }}>
+                {awards.map((a, i) => (
+                  <Reveal key={i} delay={i * 50}>
+                    <div
+                      className="flex gap-5 items-start py-4 border-b transition-colors duration-200 hover:bg-[#17181B]"
+                      style={{ borderColor: LINE }}
                     >
-                      {l}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-[12px] mt-3" style={{ color: MUT }}>
-                  I grew up between Tashkent, Cairo, and Nashville — that's
-                  where the four come from.
-                </p>
-              </Panel>
-            </Reveal>
-            <Reveal delay={80}>
-              <Panel accent={AMBER} className="h-full">
-                <div
-                  className="text-[10.5px] tracking-[0.2em] uppercase mb-3"
-                  style={{ fontFamily: MONO, color: MUT }}
-                >
-                  Off the computer
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {INTERESTS.map((it) => (
-                    <span
-                      key={it.label}
-                      className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 border text-[12.5px]"
-                      style={{
-                        color: TEXT,
-                        backgroundColor: "#17181B",
-                        borderColor: `${it.color}44`,
-                      }}
-                    >
-                      <it.icon
-                        className="w-3.5 h-3.5"
-                        style={{ color: it.color }}
+                      <span
+                        className="text-[12px] mt-[2px] shrink-0"
+                        style={{ fontFamily: MONO, color: ROSE }}
+                      >
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span
+                        className="text-[13.5px] leading-relaxed"
+                        style={{ color: SUB }}
+                      >
+                        {a}
+                      </span>
+                      <Medal
+                        className="w-4 h-4 ml-auto mt-[2px] shrink-0"
+                        style={{ color: ROSE, opacity: 0.5 }}
                       />
-                      {it.label}
-                    </span>
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
+              {grade < 6 && (
+                <MoreAt onClick={() => setGrade(6)}>
+                  +{AWARDS.length - awards.length} more at V6
+                </MoreAt>
+              )}
+            </section>
+
+            {/* Service & leadership — V6 only */}
+            {grade >= 6 && (
+              <section>
+                <SectionHeader
+                  index="05 / SERVICE"
+                  accent={TEAL}
+                  title="Service & leadership"
+                  gradeTag="V6"
+                />
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {SERVICE.map((l, i) => (
+                    <Reveal key={l.org} delay={i * 70}>
+                      <Panel accent={TEAL} className="!p-5 h-full">
+                        <h3
+                          className="font-bold text-[14px] leading-snug"
+                          style={{ color: TEXT }}
+                        >
+                          {l.role}
+                        </h3>
+                        <p
+                          className="text-[12px] font-semibold mt-0.5"
+                          style={{ color: TEAL }}
+                        >
+                          {l.org}
+                        </p>
+                        <p
+                          className="mt-2 text-[13px] leading-relaxed"
+                          style={{ color: SUB }}
+                        >
+                          {l.detail}
+                        </p>
+                      </Panel>
+                    </Reveal>
                   ))}
                 </div>
-              </Panel>
-            </Reveal>
-          </div>
-        </section>
+              </section>
+            )}
+
+            {/* Education */}
+            <section>
+              <SectionHeader
+                index={grade >= 6 ? "06 / EDUCATION" : "05 / EDUCATION"}
+                accent={SKY}
+                title="Education"
+                gradeTag="V3"
+              />
+              <div className="space-y-3">
+                {EDUCATION.map((edu, i) => (
+                  <Reveal key={edu.school} delay={i * 60}>
+                    <Panel accent={SKY}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <h3
+                          className="font-bold text-[15.5px]"
+                          style={{ color: TEXT }}
+                        >
+                          {edu.school}
+                        </h3>
+                        <span
+                          className="text-[11px] tracking-[0.08em]"
+                          style={{ fontFamily: MONO, color: MUT }}
+                        >
+                          {edu.period}
+                        </span>
+                      </div>
+                      <p
+                        className="mt-0.5 text-[13.5px] font-semibold"
+                        style={{ color: SKY }}
+                      >
+                        {edu.location}
+                      </p>
+                    </Panel>
+                  </Reveal>
+                ))}
+              </div>
+            </section>
+
+            {/* Languages & interests */}
+            <section>
+              <SectionHeader
+                index={grade >= 6 ? "07 / OFFLINE" : "06 / OFFLINE"}
+                accent={AMBER}
+                title="Languages & interests"
+                gradeTag="V3"
+              />
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Reveal>
+                  <Panel accent={AMBER} className="h-full">
+                    <div
+                      className="text-[10.5px] tracking-[0.2em] uppercase mb-3"
+                      style={{ fontFamily: MONO, color: MUT }}
+                    >
+                      Languages
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LANGUAGES.map((l) => (
+                        <span
+                          key={l}
+                          className="inline-flex text-[12.5px] rounded px-3 py-1 border"
+                          style={{
+                            fontFamily: MONO,
+                            color: TEXT,
+                            backgroundColor: "#17181B",
+                            borderColor: LINE,
+                          }}
+                        >
+                          {l}
+                        </span>
+                      ))}
+                    </div>
+                    {grade >= 6 && (
+                      <p className="text-[12px] mt-3" style={{ color: MUT }}>
+                        I grew up between Tashkent, Cairo, and Nashville —
+                        that's where the four come from.
+                      </p>
+                    )}
+                  </Panel>
+                </Reveal>
+                <Reveal delay={80}>
+                  <Panel accent={AMBER} className="h-full">
+                    <div
+                      className="text-[10.5px] tracking-[0.2em] uppercase mb-3"
+                      style={{ fontFamily: MONO, color: MUT }}
+                    >
+                      Off the computer
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {INTERESTS.map((it) => (
+                        <span
+                          key={it.label}
+                          className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 border text-[12.5px]"
+                          style={{
+                            color: TEXT,
+                            backgroundColor: "#17181B",
+                            borderColor: `${it.color}44`,
+                          }}
+                        >
+                          <it.icon
+                            className="w-3.5 h-3.5"
+                            style={{ color: it.color }}
+                          />
+                          {it.label}
+                        </span>
+                      ))}
+                    </div>
+                  </Panel>
+                </Reveal>
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       {/* ================================================================= */}
@@ -1277,7 +1649,8 @@ export default function Adam() {
             className="text-[11px] tracking-[0.16em] uppercase"
             style={{ fontFamily: MONO, color: MUT }}
           >
-            © 2026 Adam Rakhmanov · the helix twists when you scroll
+            © 2026 Adam Rakhmanov · you topped out — the helix twists on the
+            way down
           </span>
           <div className="flex items-center gap-5">
             <FooterLink href="mailto:adamrakhmanovit@gmail.com" icon={Mail}>
