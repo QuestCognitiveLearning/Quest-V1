@@ -214,19 +214,21 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const ramp = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
 
 // ---------------------------------------------------------------------------
-// The specimen: a 3×3 puzzle cube in CSS 3D. Sweep across a row to turn it,
-// click to scramble. Stickers use the page's base-pair colours. Written from
-// scratch; 26 cubies, each face its own element, so it is editable and cheap.
+// The specimen: a playable 3×3 puzzle cube in CSS 3D. Drag a sticker to turn
+// its layer, drag the paper around it to orbit, click scramble, solve it.
+// Written from scratch; 26 cubies, each face its own element.
 // ---------------------------------------------------------------------------
 
 const STICKER = {
-  px: MAG,       // right
-  nx: "#E0B23A", // left
-  py: "#2E9E6B", // bottom (y is down in CSS)
-  ny: PAPER,     // top
   pz: BLUE,      // front
-  nz: "#8B5CF6", // back
+  nz: "#FF7AB6", // back
+  px: MAG,       // right
+  nx: "#8FB0FF", // left
+  ny: PAPER,     // top (y is down in CSS)
+  py: "#5B6B8C", // bottom
 };
+const FACE_NORMAL = { px: [1, 0, 0], nx: [-1, 0, 0], py: [0, 1, 0], ny: [0, -1, 0], pz: [0, 0, 1], nz: [0, 0, -1] };
+const AXIS_IDX = { x: 0, y: 1, z: 2 };
 
 const FACE_T = (half) => ({
   px: `rotateY(90deg) translateZ(${half}px)`,
@@ -237,11 +239,20 @@ const FACE_T = (half) => ({
   nz: `rotateY(180deg) translateZ(${half}px)`,
 });
 
+// 90° rotations on the grid, matching CSS rotateX/Y/Z handedness
 function rotVec([x, y, z], axis, dir) {
   if (axis === "y") return [z * dir, y, -x * dir];
   if (axis === "x") return [x, -z * dir, y * dir];
   return [-y * dir, x * dir, z];
 }
+// arbitrary-angle rotations, same handedness, for projecting axes to the screen
+function rotDeg([x, y, z], axis, deg) {
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), si = Math.sin(a);
+  if (axis === "x") return [x, y * c - z * si, y * si + z * c];
+  if (axis === "y") return [x * c + z * si, y, -x * si + z * c];
+  return [x * c - y * si, x * si + y * c, z];
+}
+const cross = ([ax, ay, az], [bx, by, bz]) => [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
 
 function makeCubies() {
   const list = [];
@@ -251,28 +262,64 @@ function makeCubies() {
       id: `${x}${y}${z}`,
       pos: [x, y, z],
       orient: "",
+      turns: [], // (axis, dir) history, oldest first, for solved detection
       stickers: { px: x === 1, nx: x === -1, py: y === 1, ny: y === -1, pz: z === 1, nz: z === -1 },
     });
   }
   return list;
 }
 
-function PuzzleCube({ size = 240, style }) {
+function isSolved(cubies) {
+  const seen = {};
+  for (const q of cubies) {
+    for (const f of Object.keys(q.stickers)) {
+      if (!q.stickers[f]) continue;
+      let n = FACE_NORMAL[f];
+      for (const [axis, dir] of q.turns) n = rotVec(n, axis, dir);
+      const key = n.join(",");
+      if (seen[key] && seen[key] !== STICKER[f]) return false;
+      seen[key] = STICKER[f];
+    }
+  }
+  return true;
+}
+
+function PuzzleCube({ size = 240, scrollRot = 0, idle = true, onStatus }) {
   const [cubies, setCubies] = useState(makeCubies);
-  const [anim, setAnim] = useState(null); // { axis, layer, dir, angle }
+  const [anim, setAnim] = useState(null);
+  const [view, setView] = useState({ yaw: -36, pitch: -28 });
+  const [moves, setMoves] = useState(0);
+  const [scrambled, setScrambled] = useState(false);
   const queue = useRef([]);
   const animRef = useRef(null);
-  const sweep = useRef({ x: 0, y: 0, dx: 0, dy: 0, has: false });
+  const drag = useRef(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const c = size / 3;
   const gap = Math.max(3, size * 0.016);
   const half = (c - gap) / 2;
   const faceT = useMemo(() => FACE_T(half), [half]);
+  const solved = useMemo(() => isSolved(cubies), [cubies]);
 
-  const startMove = useCallback((move) => {
-    if (animRef.current) { queue.current.push(move); return; }
+  useEffect(() => { onStatus && onStatus({ moves, solved, scrambled }); }, [moves, solved, scrambled, onStatus]);
+
+  // idle drift when nobody is touching it
+  useEffect(() => {
+    if (!idle) return;
+    let raf = 0;
+    const tick = () => {
+      if (!drag.current) setView((v) => ({ ...v, yaw: v.yaw + 0.06 }));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [idle]);
+
+  const startMove = useCallback((move, countIt) => {
+    if (animRef.current) { queue.current.push([move, countIt]); return; }
     animRef.current = { ...move, angle: 0, t0: 0 };
     setAnim(animRef.current);
-    const dur = 240;
+    const dur = 200;
     const step = (now) => {
       const a = animRef.current;
       if (!a) return;
@@ -282,102 +329,155 @@ function PuzzleCube({ size = 240, style }) {
       a.angle = e * 90 * a.dir;
       setAnim({ ...a });
       if (k < 1) { requestAnimationFrame(step); return; }
-      // commit: rotate positions and prepend the rotation to each orientation
       setCubies((prev) =>
         prev.map((q) => {
-          const idx = { x: 0, y: 1, z: 2 }[a.axis];
-          if (q.pos[idx] !== a.layer) return q;
+          if (q.pos[AXIS_IDX[a.axis]] !== a.layer) return q;
           const rot = `rotate${a.axis.toUpperCase()}(${90 * a.dir}deg)`;
-          return { ...q, pos: rotVec(q.pos, a.axis, a.dir), orient: `${rot} ${q.orient}` };
+          return { ...q, pos: rotVec(q.pos, a.axis, a.dir), orient: `${rot} ${q.orient}`, turns: [...q.turns, [a.axis, a.dir]] };
         })
       );
+      if (countIt) setMoves((m) => m + 1);
       animRef.current = null;
       setAnim(null);
       const next = queue.current.shift();
-      if (next) requestAnimationFrame(() => startMove(next));
+      if (next) requestAnimationFrame(() => startMove(next[0], next[1]));
     };
     requestAnimationFrame(step);
   }, []);
 
   const scramble = () => {
     const axes = ["x", "y", "z"];
-    for (let i = 0; i < 10; i++) {
-      startMove({ axis: axes[Math.floor(Math.random() * 3)], layer: Math.floor(Math.random() * 3) - 1, dir: Math.random() < 0.5 ? 1 : -1 });
+    let last = null;
+    for (let i = 0; i < 16; i++) {
+      let axis = axes[Math.floor(Math.random() * 3)];
+      if (axis === last) axis = axes[(axes.indexOf(axis) + 1) % 3];
+      last = axis;
+      startMove({ axis, layer: Math.floor(Math.random() * 3) - 1, dir: Math.random() < 0.5 ? 1 : -1 }, false);
     }
+    setMoves(0);
+    setScrambled(true);
+  };
+  const reset = () => {
+    queue.current = [];
+    animRef.current = null;
+    setAnim(null);
+    setCubies(makeCubies());
+    setMoves(0);
+    setScrambled(false);
   };
 
-  // sweep across a row (horizontal) turns that y-layer; sweep down a column turns that x-layer
-  const onMove = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const pt = e.touches ? e.touches[0] : e;
-    const x = pt.clientX - r.left, y = pt.clientY - r.top;
-    const S = sweep.current;
-    if (!S.has) { S.x = x; S.y = y; S.dx = 0; S.dy = 0; S.has = true; return; }
-    S.dx += x - S.x; S.dy += y - S.y; S.x = x; S.y = y;
-    const row = clamp(Math.floor((y / r.height) * 3), 0, 2) - 1;
-    const col = clamp(Math.floor((x / r.width) * 3), 0, 2) - 1;
-    const th = r.width * 0.22;
-    if (Math.abs(S.dx) > th && Math.abs(S.dx) > Math.abs(S.dy)) {
-      startMove({ axis: "y", layer: row, dir: S.dx > 0 ? 1 : -1 });
-      S.dx = 0; S.dy = 0;
-    } else if (Math.abs(S.dy) > th) {
-      startMove({ axis: "x", layer: col, dir: S.dy > 0 ? -1 : 1 });
-      S.dx = 0; S.dy = 0;
+  // screen-space direction of a cube axis under the current view (perspective ignored)
+  const project = (e) => {
+    const v = viewRef.current;
+    let p = rotDeg(e, "y", v.yaw);
+    p = rotDeg(p, "x", v.pitch);
+    p = rotDeg(p, "y", scrollRot);
+    return [p[0], p[1]];
+  };
+
+  const onPointerDown = (e) => {
+    const faceEl = e.target.closest ? e.target.closest("[data-face]") : null;
+    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
+    if (faceEl) {
+      drag.current = { kind: "turn", x: e.clientX, y: e.clientY, pos: faceEl.dataset.pos.split(",").map(Number), face: faceEl.dataset.face, done: false };
+    } else {
+      drag.current = { kind: "orbit", x: e.clientX, y: e.clientY };
     }
   };
-  const onLeave = () => { sweep.current.has = false; };
+  const onPointerMove = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (d.kind === "orbit") {
+      setView((v) => ({ yaw: v.yaw + dx * 0.5, pitch: clamp(v.pitch - dy * 0.5, -80, 80) }));
+      d.x = e.clientX; d.y = e.clientY;
+      return;
+    }
+    if (d.done || Math.hypot(dx, dy) < 14) return;
+    d.done = true;
+    // pick the in-face axis whose screen direction best matches the drag
+    const n = FACE_NORMAL[d.face];
+    const candidates = [];
+    ["x", "y", "z"].forEach((ax) => {
+      const e3 = [0, 0, 0]; e3[AXIS_IDX[ax]] = 1;
+      if (Math.abs(n[AXIS_IDX[ax]]) === 1) return;
+      [1, -1].forEach((sgn) => {
+        const m = e3.map((v) => v * sgn);
+        const [sx, sy] = project(m);
+        const len = Math.hypot(sx, sy) || 1;
+        candidates.push({ m, score: (sx * dx + sy * dy) / len });
+      });
+    });
+    candidates.sort((a, b) => b.score - a.score);
+    const m = candidates[0].m;
+    const r = cross(n, m); // rotation axis; +90° about r carries n onto m
+    const axis = ["x", "y", "z"][r.findIndex((v) => Math.abs(v) === 1)];
+    const dir = r[AXIS_IDX[axis]] > 0 ? 1 : -1;
+    startMove({ axis, layer: d.pos[AXIS_IDX[axis]], dir }, true);
+  };
+  const onPointerUp = () => { drag.current = null; };
 
   return (
-    <div
-      role="img"
-      aria-label="interactive puzzle cube"
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      onTouchMove={onMove}
-      onTouchEnd={onLeave}
-      onClick={scramble}
-      style={{ width: size, height: size, position: "relative", cursor: "grab", touchAction: "none", transformStyle: "preserve-3d", ...style }}
-    >
-      <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0, transformStyle: "preserve-3d" }}>
-        {cubies.map((q) => {
-          const idx = { x: 0, y: 1, z: 2 }[anim ? anim.axis : "x"];
-          const inLayer = anim && q.pos[idx] === anim.layer;
-          const layerRot = inLayer ? `rotate${anim.axis.toUpperCase()}(${anim.angle}deg) ` : "";
-          const [x, y, z] = q.pos;
-          return (
-            <div
-              key={q.id}
-              style={{
-                position: "absolute",
-                width: c - gap,
-                height: c - gap,
-                margin: -(c - gap) / 2,
-                transformStyle: "preserve-3d",
-                transform: `${layerRot}translate3d(${x * c}px, ${y * c}px, ${z * c}px) ${q.orient}`,
-              }}
-            >
-              {Object.keys(faceT).map((f) => (
-                <div
-                  key={f}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    transform: faceT[f],
-                    backfaceVisibility: "hidden",
-                    background: "#0B0F1A",
-                    borderRadius: size * 0.03,
-                    boxSizing: "border-box",
-                    padding: size * 0.012,
-                  }}
-                >
-                  {q.stickers[f] && (
-                    <div style={{ width: "100%", height: "100%", borderRadius: size * 0.022, background: STICKER[f], boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12), inset 0 -6px 10px rgba(0,0,0,0.12), inset 0 6px 10px rgba(255,255,255,0.22)" }} />
-                  )}
-                </div>
-              ))}
-            </div>
-          );
-        })}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+      <div
+        role="application"
+        aria-label="puzzle cube: drag a sticker to turn its layer, drag around it to orbit"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onPointerLeave={onPointerUp}
+        style={{ width: size * 1.75, height: size * 1.6, position: "relative", cursor: drag.current ? "grabbing" : "grab", touchAction: "none", transformStyle: "preserve-3d" }}
+      >
+        <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0, transformStyle: "preserve-3d", transform: `rotateY(${scrollRot}deg) rotateX(${view.pitch}deg) rotateY(${view.yaw}deg)` }}>
+          {cubies.map((q) => {
+            const inLayer = anim && q.pos[AXIS_IDX[anim.axis]] === anim.layer;
+            const layerRot = inLayer ? `rotate${anim.axis.toUpperCase()}(${anim.angle}deg) ` : "";
+            const [x, y, z] = q.pos;
+            return (
+              <div
+                key={q.id}
+                style={{
+                  position: "absolute",
+                  width: c - gap,
+                  height: c - gap,
+                  margin: -(c - gap) / 2,
+                  transformStyle: "preserve-3d",
+                  transform: `${layerRot}translate3d(${x * c}px, ${y * c}px, ${z * c}px) ${q.orient}`,
+                }}
+              >
+                {Object.keys(faceT).map((f) => (
+                  <div
+                    key={f}
+                    data-face={q.stickers[f] ? f : undefined}
+                    data-pos={q.stickers[f] ? q.pos.join(",") : undefined}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      transform: faceT[f],
+                      backfaceVisibility: "hidden",
+                      background: "#141B2E",
+                      borderRadius: size * 0.03,
+                      boxSizing: "border-box",
+                      padding: size * 0.012,
+                    }}
+                  >
+                    {q.stickers[f] && (
+                      <div data-face={f} data-pos={q.pos.join(",")} style={{ width: "100%", height: "100%", borderRadius: size * 0.022, background: STICKER[f], boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12), inset 0 -6px 10px rgba(0,0,0,0.12), inset 0 6px 10px rgba(255,255,255,0.22)" }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex items-center gap-2" style={{ fontFamily: MONO, fontSize: 11, position: "relative", zIndex: 5 }}>
+        <span style={{ color: solved && scrambled ? BLUE : MUTED, minWidth: 92 }}>
+          {solved ? (scrambled ? `solved ✓ ${moves} moves` : "solved") : `${moves} moves`}
+        </span>
+        <button type="button" onClick={scramble} className="px-2.5 py-1 rounded" style={{ font: "inherit", border: `1px solid ${INK}`, background: PAPER, color: INK, cursor: "pointer" }}>scramble</button>
+        <button type="button" onClick={reset} className="px-2.5 py-1 rounded" style={{ font: "inherit", border: `1px solid ${RULE}`, background: "transparent", color: MUTED, cursor: "pointer" }}>reset</button>
       </div>
     </div>
   );
@@ -457,7 +557,9 @@ function Pill({ href, children }) {
 // ---------------------------------------------------------------------------
 
 const BASES = "ATGCGTACCGATTAGCATGCCGTAATGCAGTCCGATAGCTTAGCCGATGCATAGGCTAACG";
-const BASE_COLOR = { A: "#2457C5", T: "#E0B23A", G: "#2E9E6B", C: "#8B5CF6" };
+// complementary pairs share a hue family: A/T blue, G/C magenta
+const BASE_COLOR = { A: "#2457C5", T: "#8FB0FF", G: "#C2185B", C: "#FF7AB6" };
+const COMPLEMENT = { A: "T", T: "A", G: "C", C: "G" };
 
 function DnaHelix({ opacity, spin, active, build = 1 }) {
   const canvasRef = useRef(null);
@@ -537,17 +639,18 @@ function DnaHelix({ opacity, spin, active, build = 1 }) {
       ctx.globalAlpha = op;
       for (const it of items) {
         if (it.kind === "rung") {
-          const col = BASE_COLOR[BASES[it.i]];
+          const base = BASES[it.i];
           const mx = (it.a.sx + it.b.sx) / 2, my = (it.a.sy + it.b.sy) / 2;
           const gap = it.u * 0.55;
           ctx.lineWidth = 4.5 * it.a.sc;
           ctx.lineCap = "round";
-          ctx.strokeStyle = col;
           ctx.globalAlpha = op * it.fadeIn * (0.55 + 0.45 * ((it.z + 100) / 200));
+          ctx.strokeStyle = BASE_COLOR[base];
           ctx.beginPath();
           ctx.moveTo(it.a.sx, it.a.sy);
           ctx.lineTo(it.a.sx + (mx - it.a.sx) * (1 - gap), it.a.sy + (my - it.a.sy) * (1 - gap));
           ctx.stroke();
+          ctx.strokeStyle = BASE_COLOR[COMPLEMENT[base]];
           ctx.beginPath();
           ctx.moveTo(it.b.sx, it.b.sy);
           ctx.lineTo(it.b.sx + (mx - it.b.sx) * (1 - gap), it.b.sy + (my - it.b.sy) * (1 - gap));
@@ -640,7 +743,7 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
   const labelFade = reduced ? 1 : 1 - ramp(p, 0.06, 0.2);
   const revealed = reduced ? BIO.length : Math.round((0.42 + 0.58 * ramp(p, 0.02, 0.26)) * BIO.length);
   const { w: vw } = useViewport();
-  const cubeSize = clamp(vw * 0.2, 130, 260);
+  const cubeSize = clamp(vw * 0.17, 120, 230);
   const bp = Math.round(loaded * 2_400_000);
   const steps = [
     [0.0, "reading sequence"],
@@ -692,29 +795,23 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
           </div>
         )}
 
-        {/* the specimen: a puzzle cube. idle turn, scroll spins and zooms it */}
+        {/* the specimen: a playable puzzle cube. scroll spins, zooms and fades it */}
         <div
           className="adam-chr-stage"
           style={{
             position: "absolute",
-            right: "clamp(8px, 9vw, 170px)",
-            top: "clamp(40px, 9vh, 100px)",
-            width: cubeSize,
-            height: cubeSize,
+            right: "clamp(0px, 5vw, 100px)",
+            top: "clamp(56px, 13vh, 140px)",
             opacity: chrOpacity,
             transform: `scale(${scale})`,
+            transformOrigin: "50% 40%",
             willChange: "transform, opacity",
             zIndex: 1,
             pointerEvents: chrOpacity > 0.5 ? "auto" : "none",
           }}
         >
-          {/* scroll rotation lives inside the perspective element so the cube stays solid while it turns */}
-          <div style={{ width: "100%", height: "100%", transformStyle: "preserve-3d", transform: `rotateY(${rot}deg)` }}>
-            <div className={reduced ? "" : "adam-chr-idle"} style={{ width: "100%", height: "100%", transformStyle: "preserve-3d", transform: "rotateX(-28deg) rotateY(-36deg)" }}>
-              <PuzzleCube size={cubeSize} />
-            </div>
-          </div>
-          <Mono className="hidden lg:block" style={{ position: "absolute", left: "50%", top: "calc(100% + 64px)", transform: "translateX(-50%)", whiteSpace: "nowrap", opacity: labelFade }}>sweep a row to turn it · click to scramble</Mono>
+          <PuzzleCube size={cubeSize} scrollRot={rot} idle={!reduced} />
+          <Mono className="hidden lg:block" style={{ display: "block", textAlign: "center", marginTop: 8, whiteSpace: "nowrap", opacity: labelFade }}>drag a sticker to turn · drag around it to orbit</Mono>
         </div>
 
         {/* headline over the object */}
