@@ -42,9 +42,10 @@ import {
 const INK = "#17493B";
 const PAPER = "#F4EFE4";
 const CARD = "#FDFBF5";
-const SOFT = "rgba(23,73,59,0.74)";
-const FAINT = "rgba(23,73,59,0.5)";
+const SOFT = "rgba(23,73,59,0.8)";
+const FAINT = "rgba(23,73,59,0.55)";
 const RULE = "rgba(23,73,59,0.28)";
+const LINE = "rgba(23,73,59,0.5)"; // quiet card edge — the hard ink border is reserved for the hero
 const WASH = "rgba(23,73,59,0.07)";
 
 const SERIF = '"Instrument Serif", Georgia, serif';
@@ -317,9 +318,12 @@ function DnaBackground() {
       const phase = reduceMotion ? 0 : window.scrollY * 0.0038;
       ctx.clearRect(0, 0, width, height);
 
+      // Wide: a full helix in the right gutter. Narrow: a thin, faint strand
+      // hugging the right edge so it never runs through the text column.
       const wide = width >= 1024;
-      const cx = wide ? Math.min(width / 2 + 620, width - 110) : width / 2;
-      const baseAmp = wide ? 86 : Math.min(width * 0.4, 150);
+      const cx = wide ? Math.min(width / 2 + 620, width - 110) : width - 30;
+      const baseAmp = wide ? 86 : 22;
+      const alpha = wide ? 1 : 0.45;
       const wavelength = 470;
       const k = (Math.PI * 2) / wavelength;
       const step = 7;
@@ -330,7 +334,7 @@ function DnaBackground() {
         const a = k * y + phase;
         const x1 = cx + amp(y) * Math.sin(a);
         const x2 = cx + amp(y) * Math.sin(a + Math.PI);
-        ctx.strokeStyle = "rgba(23,73,59,0.16)";
+        ctx.strokeStyle = `rgba(23,73,59,${(0.16 * alpha).toFixed(3)})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(x1, y);
@@ -343,7 +347,7 @@ function DnaBackground() {
           const a1 = k * y + offset + phase;
           const a2 = k * (y + step) + offset + phase;
           const depth = (Math.cos(a1) + 1) / 2;
-          ctx.strokeStyle = `rgba(23,73,59,${(0.08 + 0.2 * depth).toFixed(3)})`;
+          ctx.strokeStyle = `rgba(23,73,59,${((0.08 + 0.2 * depth) * alpha).toFixed(3)})`;
           ctx.lineWidth = 1.2 + 1.4 * depth;
           ctx.beginPath();
           ctx.moveTo(cx + amp(y) * Math.sin(a1), y);
@@ -745,10 +749,10 @@ function RouteCard() {
         </span>
       ) : (
         <span
-          className="absolute right-3 -top-4"
+          className="absolute right-4 -bottom-6"
           style={{ fontFamily: HAND, fontSize: 17, color: SOFT, transform: "rotate(-3deg)" }}
         >
-          click to stamp ↓
+          ↑ click to stamp
         </span>
       )}
     </button>
@@ -905,11 +909,11 @@ function HandNote({ children, className = "", rotate = -2, size = 19 }) {
 
 function SectionHeader({ pitch, title, gradeTag, note }) {
   return (
-    <div className="mb-7">
+    <div className="mb-8">
       <div className="flex items-center gap-3">
         <span
-          className="text-[11px] tracking-[0.2em] uppercase"
-          style={{ fontFamily: MONO, color: SOFT }}
+          className="text-[11px] tracking-[0.12em] lowercase"
+          style={{ fontFamily: MONO, color: FAINT }}
         >
           {pitch}
         </span>
@@ -947,15 +951,71 @@ function SectionHeader({ pitch, title, gradeTag, note }) {
 function Panel({ children, className = "" }) {
   return (
     <div
-      className={`rounded-xl p-6 transition-all duration-150 hover:-translate-y-0.5 ${className}`}
+      className={`rounded-xl p-6 ${className}`}
       style={{
         backgroundColor: CARD,
-        border: `1.5px solid ${INK}`,
-        boxShadow: `4px 4px 0 rgba(23,73,59,0.9)`,
+        border: `1px solid ${LINE}`,
       }}
     >
       {children}
     </div>
+  );
+}
+
+// A guidebook entry: number in the margin, title + date on one line, body
+// below. Used for Work and Education so the page isn't a stack of boxes.
+function Entry({ index, title, meta, icon: Icon, children, last }) {
+  return (
+    <div
+      className="grid gap-x-5 py-6 first:pt-0"
+      style={{
+        gridTemplateColumns: "28px minmax(0, 1fr)",
+        borderBottom: last ? "none" : `1px solid ${RULE}`,
+      }}
+    >
+      <span
+        className="text-[11px] pt-[7px]"
+        style={{ fontFamily: MONO, color: FAINT }}
+      >
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h3
+            className="text-[21px] leading-tight"
+            style={{ fontFamily: SERIF, color: INK }}
+          >
+            {title}
+          </h3>
+          {meta && (
+            <span
+              className="sm:ml-auto text-[11px] lowercase whitespace-nowrap"
+              style={{ fontFamily: MONO, color: FAINT }}
+            >
+              {meta}
+            </span>
+          )}
+          {Icon && (
+            <Icon
+              className="hidden sm:block w-4 h-4 shrink-0 self-center"
+              style={{ color: INK, opacity: 0.45 }}
+            />
+          )}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Body({ children, className = "" }) {
+  return (
+    <p
+      className={`mt-2.5 text-[15px] leading-[1.65] max-w-[66ch] ${className}`}
+      style={{ color: SOFT }}
+    >
+      {children}
+    </p>
   );
 }
 
@@ -965,7 +1025,7 @@ function Avatar() {
     <div className="relative shrink-0" style={{ transform: "rotate(2deg)" }}>
       {failed ? (
         <div
-          className="w-36 h-36 sm:w-44 sm:h-44 rounded-lg flex items-center justify-center text-4xl"
+          className="w-[88px] h-[88px] sm:w-44 sm:h-44 rounded-lg flex items-center justify-center text-4xl"
           style={{
             backgroundColor: WASH,
             border: `1.5px solid ${INK}`,
@@ -981,16 +1041,16 @@ function Avatar() {
           src="/adam-photo.jpg"
           alt="Adam Rakhmanov"
           onError={() => setFailed(true)}
-          className="w-36 h-36 sm:w-44 sm:h-44 rounded-lg object-cover"
+          className="w-[88px] h-[88px] sm:w-44 sm:h-44 rounded-lg object-cover"
           style={{
             border: `1.5px solid ${INK}`,
             boxShadow: `4px 4px 0 ${INK}`,
           }}
         />
       )}
-      <HandNote className="mt-2 block text-center" rotate={-2} size={18}>
-        me, probably thinking about lunch
-      </HandNote>
+      <div className="mt-2 hidden sm:block text-center">
+        <HandNote rotate={-2} size={18}>me, probably thinking about lunch</HandNote>
+      </div>
     </div>
   );
 }
@@ -1100,75 +1160,63 @@ export default function Adam() {
           zIndex: 2,
         }}
       >
-        {/* hand-drawn ridgeline */}
-        <svg
-          aria-hidden="true"
-          className="absolute inset-x-0 bottom-8 w-full pointer-events-none"
-          height="160"
-          viewBox="0 0 1440 160"
-          preserveAspectRatio="none"
-        >
-          <polyline
-            points="0,130 90,112 160,124 260,84 340,116 470,64 560,102 700,52 800,96 930,60 1040,98 1160,74 1280,108 1360,92 1440,104"
-            fill="none"
-            stroke={INK}
-            strokeOpacity="0.22"
-            strokeWidth="1.4"
-            strokeLinejoin="round"
-          />
-          <polyline
-            points="0,150 120,138 230,146 330,118 430,142 560,108 690,134 820,102 950,132 1080,112 1220,138 1340,124 1440,136"
-            fill="none"
-            stroke={INK}
-            strokeOpacity="0.13"
-            strokeWidth="1.2"
-            strokeLinejoin="round"
-          />
-          {/* tiny flag on the high point */}
-          <g transform="translate(700 52)">
-            <line x1="0" y1="0" x2="0" y2="-14" stroke={INK} strokeOpacity="0.5" strokeWidth="1.2" />
-            <path d="M0,-14 L10,-11.5 L0,-9 Z" fill={INK} fillOpacity="0.35" />
-          </g>
-        </svg>
-
-        <div className="relative max-w-[1020px] mx-auto px-6 pt-12 pb-16">
-          <div className="flex flex-col md:flex-row gap-10 md:gap-14">
+        <div className="relative max-w-[1020px] mx-auto px-6 pt-10 sm:pt-14">
+          <div className="flex flex-col md:flex-row gap-8 md:gap-14">
             <div className="min-w-0 flex-1">
-              <h1
-                style={{
-                  fontFamily: SERIF,
-                  fontWeight: 400,
-                  color: INK,
-                  fontSize: "clamp(52px, 8vw, 96px)",
-                  lineHeight: 1.0,
-                }}
-              >
-                <StaggerTitle text="Adam" delayBase={80} />
-                <StaggerTitle text="Rakhmanov." delayBase={280} />
-              </h1>
+              {/* name + photo share a row on phones so the face isn't buried */}
+              <div className="flex items-start justify-between gap-4">
+                <h1
+                  style={{
+                    fontFamily: SERIF,
+                    fontWeight: 400,
+                    color: INK,
+                    fontSize: "clamp(40px, 10.5vw, 96px)",
+                    lineHeight: 0.98,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  <StaggerTitle text="Adam" delayBase={80} />
+                  <StaggerTitle text="Rakhmanov." delayBase={280} />
+                </h1>
+                <div className="md:hidden pt-2 pr-1">
+                  <Avatar />
+                </div>
+              </div>
 
               <p
-                className="mt-4 text-[13px] leading-relaxed max-w-[430px]"
-                style={{ fontFamily: MONO, color: SOFT }}
+                className="mt-6 max-w-[22ch]"
+                style={{
+                  fontFamily: SERIF,
+                  fontStyle: "italic",
+                  fontSize: "clamp(21px, 2.4vw, 26px)",
+                  lineHeight: 1.25,
+                  color: INK,
+                }}
               >
-                "I want to build software that makes sense of living things."
+                “I want to build software that makes sense of living things.”
               </p>
 
-              <div className="mt-6 space-y-1.5">
+              <dl className="mt-7 space-y-2">
                 {[
                   ["@duke", "neuroscience & cs, class of '30"],
                   ["@quest learning", "co-founder — 42,000-student district in talks"],
                   ["@salvo's pizza", "the family shop, 40M+ views"],
                 ].map(([at, what]) => (
-                  <div key={at} className="flex gap-3 text-[12.5px]" style={{ fontFamily: MONO }}>
-                    <span style={{ color: INK, fontWeight: 700 }}>{at}</span>
-                    <span style={{ color: SOFT }}>{what}</span>
+                  <div
+                    key={at}
+                    className="flex flex-col sm:flex-row sm:gap-3 text-[12.5px] leading-snug"
+                    style={{ fontFamily: MONO }}
+                  >
+                    <dt className="shrink-0 sm:w-[140px]" style={{ color: INK, fontWeight: 700 }}>
+                      {at}
+                    </dt>
+                    <dd style={{ color: SOFT }}>{what}</dd>
                   </div>
                 ))}
-              </div>
+              </dl>
 
               <p
-                className="mt-6 text-[15px] leading-relaxed max-w-[540px]"
+                className="mt-7 text-[16px] leading-[1.6] max-w-[52ch]"
                 style={{ color: SOFT }}
               >
                 First-year at Duke headed toward computational biology. Most
@@ -1176,7 +1224,7 @@ export default function Adam() {
                 shop when I'm home in Nashville.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-2">
+              <div className="mt-7 flex flex-wrap gap-2">
                 <ContactPill
                   href="mailto:adamrakhmanovit@gmail.com"
                   icon={Mail}
@@ -1197,11 +1245,13 @@ export default function Adam() {
               </div>
             </div>
 
-            <div className="w-full md:w-[300px] shrink-0 space-y-8">
-              <div className="flex md:justify-end">
+            <div className="w-full md:w-[300px] shrink-0 md:pt-3">
+              <div className="hidden md:flex md:justify-end">
                 <Avatar />
               </div>
-              <RouteCard />
+              <div className="mt-2 md:mt-10">
+                <RouteCard />
+              </div>
             </div>
           </div>
 
@@ -1209,6 +1259,36 @@ export default function Adam() {
             <GradeSelector grade={grade} setGrade={setGrade} />
           </div>
         </div>
+
+        {/* hand-drawn ridgeline — its own band, nothing sits on top of it */}
+        <svg
+          aria-hidden="true"
+          className="block w-full pointer-events-none mt-6"
+          height="110"
+          viewBox="0 0 1440 110"
+          preserveAspectRatio="none"
+        >
+          <polyline
+            points="0,88 90,74 160,82 260,54 340,76 470,40 560,66 700,30 800,62 930,38 1040,64 1160,48 1280,72 1360,60 1440,68"
+            fill="none"
+            stroke={INK}
+            strokeOpacity="0.26"
+            strokeWidth="1.4"
+            strokeLinejoin="round"
+          />
+          <polyline
+            points="0,104 120,96 230,102 330,82 430,98 560,74 690,92 820,70 950,90 1080,76 1220,96 1340,86 1440,94"
+            fill="none"
+            stroke={INK}
+            strokeOpacity="0.14"
+            strokeWidth="1.2"
+            strokeLinejoin="round"
+          />
+          <g transform="translate(700 30)">
+            <line x1="0" y1="0" x2="0" y2="-14" stroke={INK} strokeOpacity="0.55" strokeWidth="1.2" />
+            <path d="M0,-14 L10,-11.5 L0,-9 Z" fill={INK} fillOpacity="0.4" />
+          </g>
+        </svg>
 
         {/* DNA codon ticker */}
         <div
@@ -1238,7 +1318,7 @@ export default function Adam() {
           <Reveal>
             <div
               className="grid grid-cols-2 sm:grid-cols-4 rounded-xl overflow-hidden"
-              style={{ border: `1.5px solid ${INK}`, backgroundColor: CARD }}
+              style={{ border: `1px solid ${LINE}`, backgroundColor: CARD }}
             >
               {STATS.map((s, i) => (
                 <div
@@ -1291,7 +1371,7 @@ export default function Adam() {
                   {TLDR.map((t, i) => (
                     <li
                       key={i}
-                      className="flex gap-4 text-[14.5px] leading-relaxed"
+                      className="flex gap-4 text-[16px] leading-[1.6]"
                       style={{ color: SOFT }}
                     >
                       <span
@@ -1323,47 +1403,30 @@ export default function Adam() {
                 gradeTag={grade >= 6 ? "V6" : "V3"}
                 note="the pizza shop taught me the most, honestly"
               />
-              <div className="space-y-4">
-                {workItems.map((e, i) => (
-                  <Reveal key={e.org} delay={i * 60}>
-                    <Panel className="relative">
-                      <e.icon
-                        className="absolute right-5 top-5 w-5 h-5"
-                        style={{ color: INK, opacity: 0.4 }}
-                      />
-                      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pr-8">
-                        <span
-                          className="text-[11px]"
-                          style={{ fontFamily: MONO, color: FAINT }}
-                        >
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <h3
-                          className="text-[19px]"
-                          style={{ fontFamily: SERIF, color: INK }}
-                        >
-                          {e.role} · {e.org}
-                        </h3>
-                        <span
-                          className="ml-auto text-[11px] lowercase"
-                          style={{ fontFamily: MONO, color: FAINT }}
-                        >
-                          {e.period}
-                        </span>
-                      </div>
+              <Reveal>
+                <div>
+                  {workItems.map((e, i) => (
+                    <Entry
+                      key={e.org}
+                      index={i}
+                      title={
+                        <>
+                          {e.role}
+                          <span style={{ color: FAINT }}> at </span>
+                          {e.org}
+                        </>
+                      }
+                      meta={e.period}
+                      icon={e.icon}
+                      last={i === workItems.length - 1}
+                    >
                       {e.body.map((para, j) => (
-                        <p
-                          key={j}
-                          className="mt-3 text-[14px] leading-relaxed"
-                          style={{ color: SOFT }}
-                        >
-                          {para}
-                        </p>
+                        <Body key={j}>{para}</Body>
                       ))}
-                    </Panel>
-                  </Reveal>
-                ))}
-              </div>
+                    </Entry>
+                  ))}
+                </div>
+              </Reveal>
               {grade < 6 && (
                 <MoreAt onClick={() => setGrade(6)}>full beta at v6</MoreAt>
               )}
@@ -1399,13 +1462,7 @@ export default function Adam() {
                   </div>
                   {(grade >= 6 ? RESEARCH.body : RESEARCH.body.slice(0, 1)).map(
                     (para, i) => (
-                      <p
-                        key={i}
-                        className="mt-3 text-[14px] leading-relaxed"
-                        style={{ color: SOFT }}
-                      >
-                        {para}
-                      </p>
+                      <Body key={i}>{para}</Body>
                     )
                   )}
                 </Panel>
@@ -1443,12 +1500,7 @@ export default function Adam() {
                           </a>
                         )}
                       </div>
-                      <p
-                        className="mt-2 text-[13.5px] leading-relaxed"
-                        style={{ color: SOFT }}
-                      >
-                        {p.detail}
-                      </p>
+                      <Body className="!mt-2 text-[14.5px]">{p.detail}</Body>
                       {p.stack && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {p.stack.map((s) => (
@@ -1475,34 +1527,35 @@ export default function Adam() {
                 gradeTag={grade >= 6 ? "V6" : "V3"}
                 note="the DECA ones took three years"
               />
-              <div
-                className="rounded-xl overflow-hidden"
-                style={{ border: `1.5px solid ${INK}`, backgroundColor: CARD }}
-              >
-                {awards.map((a, i) => (
-                  <Reveal key={i} delay={i * 50}>
-                    <div
-                      className="flex gap-4 items-start px-5 py-4 transition-colors duration-150 hover:bg-[#F2ECDF]"
+              <Reveal>
+                <ul
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: `1px solid ${LINE}`, backgroundColor: CARD }}
+                >
+                  {awards.map((a, i) => (
+                    <li
+                      key={i}
+                      className="flex gap-4 items-start px-5 py-4"
                       style={{
                         borderTop: i ? `1px solid ${RULE}` : "none",
                       }}
                     >
                       <span
-                        className="text-[11px] mt-[3px] shrink-0"
-                        style={{ fontFamily: MONO, color: INK }}
+                        className="text-[11px] mt-[4px] shrink-0"
+                        style={{ fontFamily: MONO, color: FAINT }}
                       >
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <span
-                        className="text-[13.5px] leading-relaxed"
+                        className="text-[15px] leading-[1.6]"
                         style={{ color: SOFT }}
                       >
                         {a}
                       </span>
-                    </div>
-                  </Reveal>
-                ))}
-              </div>
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
               {grade < 6 && (
                 <MoreAt onClick={() => setGrade(6)}>
                   +{AWARDS.length - awards.length} more at v6
@@ -1534,12 +1587,7 @@ export default function Adam() {
                         >
                           {l.org}
                         </p>
-                        <p
-                          className="mt-2 text-[13px] leading-relaxed"
-                          style={{ color: SOFT }}
-                        >
-                          {l.detail}
-                        </p>
+                        <Body className="text-[14px]">{l.detail}</Body>
                       </Panel>
                     </Reveal>
                   ))}
@@ -1555,32 +1603,21 @@ export default function Adam() {
                 gradeTag="V3"
                 note="go blue devils"
               />
-              <div className="grid sm:grid-cols-2 gap-4">
-                {EDUCATION.map((edu, i) => (
-                  <Reveal key={edu.school} delay={i * 60}>
-                    <Panel className="h-full">
-                      <h3
-                        className="text-[18px]"
-                        style={{ fontFamily: SERIF, color: INK }}
-                      >
-                        {edu.school}
-                      </h3>
-                      <p
-                        className="mt-1 text-[13px]"
-                        style={{ color: SOFT }}
-                      >
-                        {edu.location}
-                      </p>
-                      <p
-                        className="mt-1 text-[11px] lowercase"
-                        style={{ fontFamily: MONO, color: FAINT }}
-                      >
-                        {edu.period}
-                      </p>
-                    </Panel>
-                  </Reveal>
-                ))}
-              </div>
+              <Reveal>
+                <div>
+                  {EDUCATION.map((edu, i) => (
+                    <Entry
+                      key={edu.school}
+                      index={i}
+                      title={edu.school}
+                      meta={edu.period}
+                      last={i === EDUCATION.length - 1}
+                    >
+                      <Body className="!mt-1">{edu.location}</Body>
+                    </Entry>
+                  ))}
+                </div>
+              </Reveal>
             </section>
 
             {/* Offline */}
@@ -1712,7 +1749,7 @@ export default function Adam() {
             </div>
           </div>
           <div
-            className="mt-8 pt-5 flex flex-wrap items-center justify-between gap-3"
+            className="mt-8 pt-5 flex flex-wrap items-center justify-between gap-3 sm:pr-44"
             style={{ borderTop: "1px solid rgba(244,239,228,0.25)" }}
           >
             <span
