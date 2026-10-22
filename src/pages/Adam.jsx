@@ -3,860 +3,307 @@
  * at /adam. Public route (no auth, no app chrome) so it works as a shareable
  * bio link. Intentionally not linked anywhere in the app.
  *
- * Design: a climbing-guidebook zine. One committed metaphor, one ink.
- * (Inspired by elaineyu.design's train-journey portfolio: strict duotone,
- * hand-drawn feel, handwritten asides, a ticket you can stamp.)
- *   - cream paper + single pine-green ink, everywhere
- *   - sticky route-topo nav whose stops are the page anchors
- *   - hero: serif name, a stampable "route card", the V-grade beta selector
- *     (V0 flash / V3 project / V6 full send) that gates section depth
- *   - sections are pitches ("Pitch 1 — Work.") with handwritten margin notes
- *   - left edge (xl+): ink-outline climbing wall, climber ascends with scroll
- *   - right gutter: ink double helix that twists with scroll
- *   - footer: inverted summit band ("You topped out.")
+ * Design: "chr-adam" — the page is a genome browser and Adam's life is one
+ * chromosome. Scrolling pans along it.
+ *   - hero: four corners of mono metadata, one 200px headline, and one object:
+ *     a G-banded chromosome that turns gently on idle. Scrolling takes over the
+ *     rotation and zooms into it (chromosome → chromatin → DNA).
+ *   - sticky browser chrome: locus readout, ruler with section ticks, and the
+ *     zoom control (chromosome / gene / base pair) that gates content depth.
+ *   - Index: one dense table of work, research, school. Rows expand.
+ *   - the double helix: ten cards on a 3D spiral, work on one strand, projects
+ *     on the other. Scroll turns it; the card facing you is in focus.
+ *   - Coverage (research as a depth plot) and Variants (awards as calls).
+ *   - footer: 3' end.
  *
- * Photo: `public/adam-photo.jpg` (falls back to "AR" monogram if missing).
+ * Reduced motion: the chromosome holds still, the helix becomes a plain grid.
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Mail,
-  Phone,
-  MapPin,
-  ExternalLink,
-  Linkedin,
-  ArrowUpRight,
-  Brain,
-  Bug,
-  Crown,
-  Dna,
-  Dumbbell,
-  Mountain,
-  PiggyBank,
-  Pizza,
-  Plane,
-  Puzzle,
-  Wrench,
-} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-// One ink, one paper.
-const INK = "#17493B";
-const PAPER = "#F4EFE4";
-const CARD = "#FDFBF5";
-const SOFT = "rgba(23,73,59,0.8)";
-const FAINT = "rgba(23,73,59,0.55)";
-const RULE = "rgba(23,73,59,0.28)";
-const LINE = "rgba(23,73,59,0.5)"; // quiet card edge — the hard ink border is reserved for the hero
-const WASH = "rgba(23,73,59,0.07)";
+// ---------------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------------
 
-const SERIF = '"Instrument Serif", Georgia, serif';
-const MONO = '"Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
-const HAND = '"Caveat", "Comic Sans MS", cursive';
+const PAPER = "#F7F6F2";
+const INK = "#101828";
+const BLUE = "#2457C5";
+const MAG = "#C2185B";
+const RULE = "#D5D7DC";
+const MUTED = "#6B7280";
+const BODY = "#374151";
+const NIGHT = "#0B0F1A";
+const SANS = '"Inter Tight", Inter, system-ui, -apple-system, sans-serif';
+const MONO = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Content
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
-const WORK = [
+const ZOOMS = ["chromosome", "gene", "base pair"];
+
+const LOCI = [
   {
-    role: "Co-Founder",
+    no: "01",
+    locus: "QUEST1",
+    color: BLUE,
+    feature: "Co-founder, product & engineering",
     org: "Quest Learning",
-    period: "Jul 2024 – Present",
-    icon: Brain,
-    body: [
-      "Started Quest with a co-founder to turn state standards into complete, ready-to-teach lessons: hooks, videos, adaptive quizzes, AP-style case studies, each built around spaced repetition and scaffolding so the material sticks.",
-      "I lead product and engineering. We've grown a 15-person team, shipped 100+ learning resources, passed 110,000 views, and we're in conversations with Williamson County Schools about bringing Quest to their 42,000+ students.",
-    ],
+    span: "2024 – now",
+    strand: "+",
+    body: "Started Quest with a co-founder to turn state standards into complete, ready-to-teach lessons: hooks, videos, adaptive quizzes, AP-style case studies, each built around spaced repetition and scaffolding so the material sticks.",
+    more: "I lead product and engineering. We've grown a 15-person team, shipped 100+ learning resources, passed 110,000 views, and we're in conversations with Williamson County Schools about bringing Quest to their 42,000+ students.",
   },
   {
-    role: "State Secretary",
+    no: "02",
+    locus: "TSA2",
+    color: BLUE,
+    feature: "State Secretary",
     org: "Tennessee Technology Student Association",
-    period: "Jun 2025 – Jun 2026",
-    icon: Wrench,
-    body: [
-      "Served as one of six state officers for Tennessee TSA, which has 3,100 members across 87 chapters. Ran statewide communications that passed 100K views, and built the event-selector tool new members use to pick their competitions.",
-    ],
+    span: "2025 – 2026",
+    strand: "+",
+    body: "One of six state officers for Tennessee TSA: 3,100 members across 87 chapters. Ran statewide communications that passed 100K views, and built the event-selector tool new members use to pick their competitions.",
   },
   {
-    role: "Software Engineer in Test",
+    no: "03",
+    locus: "NOVA1",
+    color: BLUE,
+    feature: "Software engineer in test",
     org: "Novalab Tech",
-    period: "May 2022 – Jan 2023",
-    icon: Bug,
-    body: [
-      "QA automation for two enterprise products, including datatruck.io. I wrote Selenium (Java) and Cucumber test suites across the front end, back end, and API layers, plus the manual smoke and regression cases the team ran each release.",
-    ],
+    span: "2022 – 2023",
+    strand: "−",
+    body: "QA automation for two enterprise products, including datatruck.io. Selenium (Java) and Cucumber test suites across the front end, back end, and API layers, plus the manual smoke and regression cases the team ran each release.",
   },
   {
-    role: "Manager",
+    no: "04",
+    locus: "SALVO",
+    color: BLUE,
+    feature: "Manager, social",
     org: "Salvo's Pizza (family-owned)",
-    period: "Oct 2020 – Present",
-    icon: Pizza,
-    body: [
-      "My family's restaurant in Nashville. I managed and trained a staff of ten through high school, and I still run our social accounts: 1,000+ posts, 17,000 followers, 40M+ views.",
-    ],
+    span: "2020 – now",
+    strand: "+",
+    body: "My family's restaurant in Nashville. I managed and trained a staff of ten through high school, and I still run our social accounts: 1,000+ posts, 17,000 followers, 40M+ views.",
   },
   {
-    role: "Director & Co-Founder",
+    no: "05",
+    locus: "WEI1",
+    color: BLUE,
+    feature: "Director & co-founder",
     org: "Wealth Education Initiative",
-    period: "Dec 2023 – Present",
-    icon: PiggyBank,
-    body: [
-      "A 501(c)(3) that teaches practical financial literacy. We grew two chapters past 100 members and put an eBook into six high schools, and I sat on the county committee that shaped financial-education policy for 20,000+ students.",
-    ],
+    span: "2023 – now",
+    strand: "+",
+    body: "A 501(c)(3) that teaches practical financial literacy. We grew two chapters past 100 members and put an eBook into six high schools, and I sat on the county committee that shaped financial-education policy for 20,000+ students.",
+  },
+  {
+    no: "06",
+    locus: "DROS",
+    color: MAG,
+    feature: "Drosophila research: CRISPR, PCR, cloning",
+    org: "Biomedical research program",
+    span: "2023 – 2026",
+    strand: "+",
+    body: "Three years of bench work: DNA extraction, PCR, gene cloning, CRISPR editing. I designed, ran, and presented two independent projects using Drosophila models to study human-health questions.",
+    more: "That work is what pointed me at computational biology. In every experiment, the bottleneck was analysis, not pipetting.",
+  },
+  {
+    no: "07",
+    locus: "DUKE",
+    color: MUTED,
+    feature: "Neuroscience & computer science",
+    org: "Duke University",
+    span: "2026 – 2030",
+    strand: "+",
+    body: "Class of 2030. Headed toward computational biology.",
   },
 ];
 
-const RESEARCH = {
-  title: "Molecular biology & Drosophila research",
-  period: "2023 – 2026",
-  body: [
-    "Three years of bench work through a biomedical research program: DNA extraction, PCR, gene cloning, CRISPR editing. I designed, ran, and presented two independent projects using Drosophila models to study human-health questions.",
-    "That work is what pointed me at computational biology. In every experiment, the bottleneck was analysis, not pipetting.",
-  ],
-};
+const WORK_CARDS = [
+  { k: "QUEST1 · 2024 – now", t: "Co-founder, Quest Learning", d: "State standards into ready-to-teach lessons. 15-person team, 42,000-student district in talks." },
+  { k: "TSA2 · 2025 – 2026", t: "State Secretary, Tennessee TSA", d: "Six state officers, 3,100 members, 87 chapters. Built the event-selector tool." },
+  { k: "NOVA1 · 2022 – 2023", t: "Software Engineer in Test, Novalab", d: "Selenium + Cucumber suites across front end, back end, API." },
+  { k: "SALVO · 2020 – now", t: "Manager, Salvo's Pizza", d: "Family shop in Nashville. 1,000+ posts, 17,000 followers, 40M+ views." },
+  { k: "WEI1 · 2023 – now", t: "Director, Wealth Education Initiative", d: "501(c)(3). Two chapters past 100 members, eBook in six schools." },
+];
+
+const PROJECT_CARDS = [
+  { k: "ORF 01 · web", t: "TN TSA Event Selector", d: "Ranks competitive events against a member's strengths. 3,100 members.", link: "https://tntsaeventselector.com" },
+  { k: "ORF 02 · react native", t: "ExerciseBud", d: "HealthKit + Health Connect steps, four-week plans, friends leaderboard." },
+  { k: "ORF 03 · next.js", t: "Unitywall Profit Analysis", d: "Quotes vs. true costs for a web agency: hours, margins, variance.", link: "https://unitydashboard.vercel.app/" },
+  { k: "ORF 04 · selenium", t: "Vanderbilt Professor Scraper", d: "200+ VUMC faculty into a sheet for guest-speaker invites." },
+  { k: "ORF 05 · daily", t: "Stylize", d: "Picks an outfit from the forecast and color theory. Most-used thing I've built.", link: "https://stylize.base44.app" },
+];
 
 const AWARDS = [
-  "2× DECA ICDC International Finalist — top 1% of 25,000+ competitors",
-  "Breakthrough Junior Challenge Finalist — top 15 of 2,500+ submissions worldwide",
-  "TSA Nationals: 6th in Data Science & Analytics, top 12 in Biotechnology Design; three state titles (Biotechnology, Data Science, Geospatial Technologies)",
-  "Biotechnology Aptitude and Competency Credential (BACC) — Biotility, University of Florida, 2026",
-  "EIC (INCubatoredu) final pitch — awarded $2,500 in funding; invited to pitch at the Nashville Entrepreneurship Center",
+  ["rs001", "2× DECA ICDC International Finalist, top 1% of 25,000+ competitors"],
+  ["rs002", "Breakthrough Junior Challenge Finalist, top 15 of 2,500+ submissions worldwide"],
+  ["rs003", "TSA Nationals: 6th in Data Science & Analytics, top 12 in Biotechnology Design; three state titles"],
+  ["rs004", "Biotechnology Aptitude and Competency Credential (BACC), Biotility, University of Florida, 2026"],
+  ["rs005", "INCubatoredu final pitch, $2,500 in funding, invited to pitch at the Nashville Entrepreneurship Center"],
 ];
 
 const SERVICE = [
-  {
-    role: "Volunteer & Tutor",
-    org: "Salahadeen Center",
-    detail:
-      "Tutored twelve students in Arabic weekly, mentored youth, and helped organize prayers and community events.",
-  },
-  {
-    role: "General Assembly Vice President",
-    org: "Model United Nations · YMCA Civic Engagement",
-    detail:
-      "Helped coordinate a 700–900-delegate conference and chaired parliamentary debate for a 30-member committee.",
-  },
-  {
-    role: "Communications Director",
-    org: "ScienceFinds",
-    detail:
-      "Connected 75+ students with Nashville STEM professors as guest speakers for my high school's science club.",
-  },
+  ["Volunteer & tutor", "Salahadeen Center", "Tutored twelve students in Arabic weekly, mentored youth, helped organize prayers and community events."],
+  ["General Assembly VP", "Model UN · YMCA Civic Engagement", "Helped coordinate a 700–900-delegate conference and chaired parliamentary debate for a 30-member committee."],
+  ["Communications director", "ScienceFinds", "Connected 75+ students with Nashville STEM professors as guest speakers for the science club."],
 ];
 
 const LANGUAGES = ["English", "Russian", "Arabic", "Uzbek"];
+const WEEKENDS = ["rock climbing", "wrestling & calisthenics", "rubik's cubes", "chess", "traveling"];
 
-const STATS = [
-  { value: "4", label: "languages spoken" },
-  { value: "3", label: "countries grown up in" },
-  { value: "40M+", label: "views produced" },
-  { value: "1", label: "family pizza shop" },
-];
+const CODONS = "ATG GAT TCC AAG CTG TTC GGA CAT CCA TGA ACG TTA GCC AAT GTC TAG GCA TTC AGA CCT GGT AAC TGC ATA GCT CAG TTG ACC GTA TGC";
 
-const INTERESTS = [
-  { icon: Mountain, label: "rock climbing" },
-  { icon: Dumbbell, label: "wrestling & calisthenics" },
-  { icon: Puzzle, label: "rubik's cubes" },
-  { icon: Crown, label: "chess" },
-  { icon: Plane, label: "traveling" },
-];
+const COVERAGE = [14, 22, 36, 50, 62, 58, 78, 92, 100, 86, 70, 54];
 
-const PROJECTS = [
-  {
-    name: "TN TSA Event Selector",
-    link: "https://tntsaeventselector.com",
-    detail:
-      "A questionnaire-driven matcher that ranks TSA's competitive events against a member's strengths and interests. Built for Tennessee TSA's 3,100 members.",
-  },
-  {
-    name: "ExerciseBud",
-    detail:
-      "iOS + Android fitness app in React Native and Expo. Syncs steps from Apple HealthKit and Google Health Connect, generates four-week training plans with GPT-4-turbo, and layers on friends, a step leaderboard, and a guided-breathing screen.",
-    stack: [
-      "React Native",
-      "Expo",
-      "MongoDB Atlas",
-      "OpenAI",
-      "HealthKit / Health Connect",
-    ],
-  },
-  {
-    name: "Unitywall Profit Analysis Tool",
-    link: "https://unitydashboard.vercel.app/",
-    detail:
-      "Internal dashboard for a web agency that separates client-facing quotes from true costs: labor hours, margins, client difficulty, and where estimates diverged from actuals across past projects.",
-    stack: ["React", "Next.js", "Node.js", "Vercel"],
-  },
-  {
-    name: "Vanderbilt Professor Scraper",
-    detail:
-      "A Selenium (Java) crawler that pulled 200+ Vanderbilt Medical Center faculty into a structured sheet so my high school's science club could invite them as guest speakers. 75+ students used the database.",
-    stack: ["Selenium (Java)", "Apache POI"],
-  },
-  {
-    name: "Stylize",
-    link: "https://stylize.base44.app",
-    detail:
-      "Picks my outfit each morning from the local forecast and a few color-theory rules, so I don't have to. I use it more than anything else I've built.",
-  },
-];
+// ---------------------------------------------------------------------------
+// Hooks
+// ---------------------------------------------------------------------------
 
-const EDUCATION = [
-  {
-    school: "Duke University",
-    location: "Neuroscience & Computer Science",
-    period: "Class of 2030",
-  },
-  {
-    school: "Ravenwood High School",
-    location: "Brentwood, TN",
-    period: "Class of 2026",
-  },
-];
-
-const TLDR = [
-  "Duke '30 — neuroscience + CS, aiming at computational biology.",
-  "Co-founded Quest Learning; 42,000-student district in talks.",
-  "Family pizza shop social: 40M+ views.",
-  "Climbs, wrestles, cubes, speaks four languages.",
-];
-
-const CODONS =
-  "ATG GAT TCC AAG CTG TTC GGA CAT CCA TGA ACG TTA GCC AAT GTC TAG GCA TTC AGA CCT GGT AAC TGC ATA GCT CAG TTG ACC GTA TGC";
-
-const GRADES = [
-  { v: 0, tag: "V0", name: "flash", desc: "the 10-second read" },
-  { v: 3, tag: "V3", name: "project", desc: "the resume" },
-  { v: 6, tag: "V6", name: "full send", desc: "everything" },
-];
-
-const NAV_STOPS = [
-  { label: "start", href: "#top" },
-  { label: "work", href: "#work" },
-  { label: "projects", href: "#projects" },
-  { label: "summit", href: "#summit" },
-];
-
-// -----------------------------------------------------------------------------
-// Reveal-on-scroll
-// -----------------------------------------------------------------------------
-
-function Reveal({ children, delay = 0, className = "" }) {
-  const ref = useRef(null);
-  const [vis, setVis] = useState(false);
-
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(false);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setVis(true);
-      return;
-    }
-    // Scroll-driven check instead of IntersectionObserver: an anchor jump or
-    // scrollbar drag can skip right past an element between two frames, and
-    // the observer never reports it — this reveals anything at or above the
-    // 92%-viewport line on every scroll tick, then detaches.
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const on = () => setReduced(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return reduced;
+}
+
+function useViewport() {
+  const [vp, setVp] = useState({ w: 1280, h: 800 });
+  useEffect(() => {
+    const on = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    on();
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  return vp;
+}
+
+/** Progress 0..1 of a tall section with a sticky child: 0 when its top hits the
+ *  viewport top, 1 when its bottom reaches the viewport bottom. */
+function useSectionProgress(ref, onFrame) {
+  const cbRef = useRef(onFrame);
+  cbRef.current = onFrame;
+  useEffect(() => {
     let raf = 0;
-    let done = false;
-    const cleanup = () => {
-      done = true;
-      window.removeEventListener("scroll", onScroll);
+    const tick = () => {
+      raf = 0;
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const travel = r.height - window.innerHeight;
+      const p = travel <= 0 ? 0 : Math.min(1, Math.max(0, -r.top / travel));
+      cbRef.current(p, r);
+    };
+    const on = () => {
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+    tick();
+    window.addEventListener("scroll", on, { passive: true });
+    window.addEventListener("resize", on);
+    return () => {
+      window.removeEventListener("scroll", on);
+      window.removeEventListener("resize", on);
       if (raf) cancelAnimationFrame(raf);
     };
-    const check = () => {
-      if (done) return;
-      if (el.getBoundingClientRect().top < window.innerHeight * 0.92) {
-        setVis(true);
-        cleanup();
-      }
-    };
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        check();
-      });
-    };
-    check();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return cleanup;
-  }, []);
+  }, [ref]);
+}
 
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const ramp = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
+
+// ---------------------------------------------------------------------------
+// The specimen: a submetacentric chromosome with G-banding
+// ---------------------------------------------------------------------------
+
+const BANDS = [
+  [64, 16, "#05070E", 0.55], [92, 8, "#fff", 0.1], [108, 28, "#05070E", 0.5], [146, 10, "#fff", 0.12],
+  [164, 14, "#05070E", 0.55], [190, 10, "#05070E", 0.35], [242, 12, "#05070E", 0.5], [266, 8, "#fff", 0.12],
+  [284, 32, "#05070E", 0.55], [326, 9, "#fff", 0.1], [344, 18, "#05070E", 0.45], [372, 12, "#fff", 0.14],
+  [392, 36, "#05070E", 0.58], [438, 8, "#fff", 0.1], [452, 12, "#05070E", 0.4],
+];
+
+function Chromosome({ style }) {
+  const P = "M -72 46 A 32 32 0 0 1 -8 46 C -2 110 -2 170 0 206 C -4 223 -28 223 -32 206 C -42 170 -78 110 -72 46 Z";
+  const Q = "M -32 232 C -28 215 -4 215 0 232 C -1 320 -2 400 -8 458 A 35 35 0 0 1 -78 458 C -84 400 -48 320 -32 232 Z";
   return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: vis ? 1 : 0,
-        transform: vis ? "none" : "translateY(20px)",
-        transition: `opacity 0.65s ease ${delay}ms, transform 0.65s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
-      }}
-    >
+    <svg viewBox="-150 0 300 540" width="300" height="540" aria-hidden="true" style={{ display: "block", overflow: "visible", ...style }}>
+      <defs>
+        <linearGradient id="chr-body" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#6B7694" /><stop offset="0.18" stopColor="#3A4461" /><stop offset="0.55" stopColor="#1B2338" /><stop offset="0.85" stopColor="#0D1222" /><stop offset="1" stopColor="#070A14" />
+        </linearGradient>
+        <linearGradient id="chr-spec" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0.1" stopColor="#fff" stopOpacity="0" /><stop offset="0.24" stopColor="#fff" stopOpacity="0.28" /><stop offset="0.4" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="chr-tip" cx="0.5" cy="0.5" r="0.6">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.2" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <filter id="chr-soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.6" /></filter>
+        <filter id="chr-shadow" x="-40%" y="-20%" width="180%" height="150%"><feDropShadow dx="0" dy="24" stdDeviation="18" floodColor={INK} floodOpacity="0.3" /></filter>
+        <path id="chr-p" d={P} />
+        <path id="chr-q" d={Q} />
+        <clipPath id="chr-clipL"><use href="#chr-p" /><use href="#chr-q" /></clipPath>
+        <clipPath id="chr-clipR"><use href="#chr-p" transform="scale(-1 1)" /><use href="#chr-q" transform="scale(-1 1)" /></clipPath>
+        <g id="chr-bands">
+          {BANDS.map(([y, h, f, o], i) => <rect key={i} x="-150" y={y} width="300" height={h} fill={f} opacity={o} />)}
+        </g>
+        <g id="chr-tid"><use href="#chr-p" fill="url(#chr-body)" /><use href="#chr-q" fill="url(#chr-body)" /></g>
+      </defs>
+      <g filter="url(#chr-shadow)">
+        <use href="#chr-tid" />
+        <g clipPath="url(#chr-clipL)">
+          <use href="#chr-bands" filter="url(#chr-soft)" />
+          <use href="#chr-p" fill="url(#chr-spec)" /><use href="#chr-q" fill="url(#chr-spec)" />
+          <circle cx="-40" cy="44" r="30" fill="url(#chr-tip)" /><circle cx="-43" cy="462" r="32" fill="url(#chr-tip)" />
+        </g>
+        <use href="#chr-tid" transform="scale(-1 1)" />
+        <g clipPath="url(#chr-clipR)">
+          <use href="#chr-bands" filter="url(#chr-soft)" />
+          <use href="#chr-p" fill="url(#chr-spec)" transform="scale(-1 1)" /><use href="#chr-q" fill="url(#chr-spec)" transform="scale(-1 1)" />
+          <circle cx="40" cy="44" r="30" fill="url(#chr-tip)" /><circle cx="43" cy="462" r="32" fill="url(#chr-tip)" />
+        </g>
+        <ellipse cx="0" cy="219" rx="24" ry="11" fill="#05070E" />
+        <ellipse cx="-3" cy="215" rx="14" ry="5" fill="#3A4461" opacity="0.8" />
+      </g>
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Small pieces
+// ---------------------------------------------------------------------------
+
+function Mono({ children, style, className = "" }) {
+  return (
+    <span className={className} style={{ fontFamily: MONO, fontSize: 12, color: MUTED, ...style }}>
       {children}
-    </div>
+    </span>
   );
 }
 
-// -----------------------------------------------------------------------------
-// DNA background — single ink on paper
-// -----------------------------------------------------------------------------
-
-function DnaBackground() {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-    let raf = 0;
-    let width = 0;
-    let height = 0;
-
-    const draw = () => {
-      const phase = reduceMotion ? 0 : window.scrollY * 0.0038;
-      ctx.clearRect(0, 0, width, height);
-
-      // Wide: a full helix in the right gutter. Narrow: a thin, faint strand
-      // hugging the right edge so it never runs through the text column.
-      const wide = width >= 1024;
-      const cx = wide ? Math.min(width / 2 + 620, width - 110) : width - 30;
-      const baseAmp = wide ? 86 : 22;
-      const alpha = wide ? 1 : 0.45;
-      const wavelength = 470;
-      const k = (Math.PI * 2) / wavelength;
-      const step = 7;
-      // slight amplitude wobble so the strands read hand-drawn, not plotted
-      const amp = (y) => baseAmp * (1 + 0.04 * Math.sin(y * 0.013 + 1.7));
-
-      for (let y = -40; y <= height + 40; y += 26) {
-        const a = k * y + phase;
-        const x1 = cx + amp(y) * Math.sin(a);
-        const x2 = cx + amp(y) * Math.sin(a + Math.PI);
-        ctx.strokeStyle = `rgba(23,73,59,${(0.16 * alpha).toFixed(3)})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x1, y);
-        ctx.lineTo(x2, y);
-        ctx.stroke();
-      }
-
-      for (const offset of [0, Math.PI]) {
-        for (let y = -40; y <= height + 40; y += step) {
-          const a1 = k * y + offset + phase;
-          const a2 = k * (y + step) + offset + phase;
-          const depth = (Math.cos(a1) + 1) / 2;
-          ctx.strokeStyle = `rgba(23,73,59,${((0.08 + 0.2 * depth) * alpha).toFixed(3)})`;
-          ctx.lineWidth = 1.2 + 1.4 * depth;
-          ctx.beginPath();
-          ctx.moveTo(cx + amp(y) * Math.sin(a1), y);
-          ctx.lineTo(cx + amp(y + step) * Math.sin(a2), y + step);
-          ctx.stroke();
-        }
-      }
-    };
-
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw();
-    };
-
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        draw();
-      });
-    };
-
-    resize();
-    window.addEventListener("resize", resize);
-    if (!reduceMotion) {
-      window.addEventListener("scroll", onScroll, { passive: true });
-    }
-    return () => {
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 0 }}
-    />
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Climbing wall — ink outlines only
-// -----------------------------------------------------------------------------
-
-const WALL_W = 120;
-const routeX = (p) => 60 + Math.sin(p * Math.PI * 3) * 22;
-const routeY = (p, vh) => vh - 84 - p * (vh - 164);
-
-function Hold({ h }) {
-  const style = { fill: WASH, stroke: INK, strokeWidth: 1.4, opacity: 0.85 };
-  switch (h.shape) {
-    case "crimp":
-      return (
-        <rect
-          x={-h.r}
-          y={-h.r * 0.35}
-          width={h.r * 2}
-          height={h.r * 0.7}
-          rx="2"
-          {...style}
-        />
-      );
-    case "sloper":
-      return <path d={`M ${-h.r},1 A ${h.r} ${h.r} 0 0 1 ${h.r},1 Z`} {...style} />;
-    case "pinch":
-      return <ellipse rx={h.r * 0.5} ry={h.r} {...style} />;
-    default:
-      return <ellipse rx={h.r} ry={h.r * 0.78} {...style} />;
-  }
-}
-
-function ClimbingWall() {
-  const climberRef = useRef(null);
-  const poseARef = useRef(null);
-  const poseBRef = useRef(null);
-  const [vh, setVh] = useState(900);
-
-  useEffect(() => {
-    const onResize = () => setVh(window.innerHeight);
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  const holds = useMemo(() => {
-    const JITTER = [5, -7, 3, -4, 8, -2, 6, -8, 2, -5, 7, -3, 4];
-    const SHAPES = ["jug", "crimp", "sloper", "pinch"];
-    const list = [];
-    for (let i = 0; i < 13; i++) {
-      const p = i / 12;
-      list.push({
-        x: routeX(p) + JITTER[i],
-        y: routeY(p, vh) + JITTER[(i + 4) % 13] * 0.8,
-        r: 5 + ((i * 7) % 5),
-        rot: (i * 53) % 180,
-        shape: SHAPES[i % SHAPES.length],
-      });
-    }
-    const SCATTER = [
-      [18, 0.08],
-      [98, 0.16],
-      [22, 0.3],
-      [102, 0.42],
-      [14, 0.55],
-      [100, 0.66],
-      [20, 0.8],
-      [96, 0.9],
-    ];
-    SCATTER.forEach(([x, f], i) => {
-      list.push({
-        x,
-        y: 60 + f * (vh - 140),
-        r: 4 + (i % 3) * 2,
-        rot: (i * 77) % 180,
-        shape: SHAPES[(i + 2) % SHAPES.length],
-      });
-    });
-    return list;
-  }, [vh]);
-
-  useEffect(() => {
-    const el = climberRef.current;
-    if (!el) return;
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-    let raf = 0;
-
-    const update = () => {
-      const doc = document.documentElement;
-      const max = Math.max(1, doc.scrollHeight - window.innerHeight);
-      const p = Math.min(1, Math.max(0, window.scrollY / max));
-      const x = routeX(p);
-      const y = routeY(p, window.innerHeight);
-      const sway = Math.sin(p * Math.PI * 8) * 6;
-      el.setAttribute(
-        "transform",
-        `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${sway.toFixed(1)})`
-      );
-      const stepParity = Math.floor(p * 14) % 2;
-      if (poseARef.current && poseBRef.current) {
-        poseARef.current.style.opacity = stepParity ? "0" : "1";
-        poseBRef.current.style.opacity = stepParity ? "1" : "0";
-      }
-    };
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        update();
-      });
-    };
-
-    update();
-    if (!reduceMotion) {
-      window.addEventListener("scroll", onScroll, { passive: true });
-    }
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [vh]);
-
-  const gradeTags = [
-    ["V0", 0.02],
-    ["V2", 0.34],
-    ["V4", 0.66],
-    ["V6", 0.97],
-  ];
-
+function ZoomControl({ zoom, setZoom, dark }) {
+  const fg = dark ? PAPER : INK;
+  const bg = dark ? NIGHT : PAPER;
   return (
     <div
-      aria-hidden="true"
-      className="fixed left-0 top-0 bottom-0 hidden xl:block pointer-events-none"
-      style={{ width: WALL_W, zIndex: 0 }}
+      role="group"
+      aria-label="zoom level"
+      className="flex gap-1 p-[3px] rounded-md"
+      style={{ border: `1px solid ${dark ? "rgba(255,255,255,.22)" : INK}`, background: bg, fontFamily: MONO, fontSize: 11 }}
     >
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: "#EFE9DC",
-          borderRight: `1px solid ${RULE}`,
-        }}
-      />
-      <svg
-        width={WALL_W}
-        height={vh}
-        viewBox={`0 0 ${WALL_W} ${vh}`}
-        className="absolute inset-0"
-      >
-        {[0.25, 0.5, 0.75].map((f) => (
-          <line
-            key={f}
-            x1="0"
-            x2={WALL_W}
-            y1={f * vh}
-            y2={f * vh}
-            stroke={RULE}
-            strokeWidth="1"
-          />
-        ))}
-        <polyline
-          points={Array.from({ length: 25 }, (_, i) => {
-            const p = i / 24;
-            return `${routeX(p).toFixed(1)},${routeY(p, vh).toFixed(1)}`;
-          }).join(" ")}
-          fill="none"
-          stroke={FAINT}
-          strokeWidth="1.3"
-          strokeDasharray="2 6"
-          strokeLinecap="round"
-        />
-        {holds.map((h, i) => (
-          <g key={i} transform={`translate(${h.x} ${h.y}) rotate(${h.rot})`}>
-            <Hold h={h} />
-          </g>
-        ))}
-        {gradeTags.map(([tag, p]) => (
-          <g key={tag} transform={`translate(97 ${routeY(p, vh).toFixed(1)})`}>
-            <circle r="10" fill="none" stroke={INK} strokeWidth="1.2" />
-            <text
-              x="0"
-              y="3"
-              textAnchor="middle"
-              fontSize="8"
-              fontFamily="Space Mono, monospace"
-              fill={INK}
-            >
-              {tag}
-            </text>
-          </g>
-        ))}
-        {/* summit flag */}
-        <g transform="translate(60 34)">
-          <line
-            x1="0"
-            y1="0"
-            x2="0"
-            y2="-22"
-            stroke={INK}
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <path
-            d="M0,-22 L20,-17 L0,-12 Z"
-            fill={WASH}
-            stroke={INK}
-            strokeWidth="1.2"
-          />
-        </g>
-        {/* crash pad */}
-        <g transform={`translate(0 ${vh - 30})`}>
-          <rect
-            x="8"
-            y="0"
-            width="104"
-            height="18"
-            rx="5"
-            fill={WASH}
-            stroke={INK}
-            strokeWidth="1.2"
-          />
-          <line x1="42" y1="0" x2="42" y2="18" stroke={INK} strokeWidth="1" opacity="0.5" />
-          <line x1="78" y1="0" x2="78" y2="18" stroke={INK} strokeWidth="1" opacity="0.5" />
-        </g>
-        {/* climber */}
-        <g ref={climberRef} transform={`translate(60 ${routeY(0, vh)})`}>
-          <circle cx="0" cy="-15" r="4.4" fill="none" stroke={INK} strokeWidth="1.8" />
-          <path d="M0,-10 L0,4" stroke={INK} strokeWidth="2.4" strokeLinecap="round" />
-          <g ref={poseARef} style={{ transition: "opacity 0.15s" }}>
-            <path d="M0,-8 L9,-17" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M0,-6 L-8,-1" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M0,4 L-7,12" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M0,4 L6,11" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-          </g>
-          <g ref={poseBRef} style={{ opacity: 0, transition: "opacity 0.15s" }}>
-            <path d="M0,-8 L-9,-17" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M0,-6 L8,-1" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M0,4 L7,12" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M0,4 L-6,11" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-          </g>
-          <circle cx="3.5" cy="6" r="2.4" fill={PAPER} stroke={INK} strokeWidth="1.2" />
-        </g>
-      </svg>
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Route nav — the topo line
-// -----------------------------------------------------------------------------
-
-function RouteNav() {
-  return (
-    <nav
-      className="sticky top-0"
-      style={{
-        zIndex: 30,
-        backgroundColor: "rgba(244,239,228,0.94)",
-        borderBottom: `1px solid ${RULE}`,
-        backdropFilter: "blur(4px)",
-      }}
-    >
-      <div className="max-w-[1020px] mx-auto px-6 py-3 flex items-center">
-        {NAV_STOPS.map((s, i) => (
-          <React.Fragment key={s.label}>
-            {i > 0 && (
-              <span
-                aria-hidden="true"
-                className="flex-1 mx-2 border-t border-dashed"
-                style={{ borderColor: FAINT }}
-              />
-            )}
-            <a
-              href={s.href}
-              className="flex items-center gap-1.5 text-[12px] lowercase"
-              style={{ fontFamily: MONO, color: INK }}
-            >
-              <span
-                className="w-2 h-2 rounded-full border"
-                style={{
-                  borderColor: INK,
-                  backgroundColor: i === 0 ? INK : "transparent",
-                }}
-              />
-              {s.label}
-            </a>
-          </React.Fragment>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Route card (stampable) + grade selector
-// -----------------------------------------------------------------------------
-
-function RouteCard() {
-  const [stamped, setStamped] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={() => setStamped(true)}
-      className="relative text-left w-full transition-transform duration-150 hover:-translate-y-0.5"
-      style={{
-        transform: "rotate(-1.2deg)",
-        backgroundColor: CARD,
-        border: `1.5px solid ${INK}`,
-        boxShadow: `4px 4px 0 ${INK}`,
-        borderRadius: 10,
-        padding: "14px 16px",
-        cursor: "pointer",
-        fontFamily: MONO,
-        color: INK,
-      }}
-    >
-      <div className="flex justify-between text-[10px] tracking-[0.14em] uppercase" style={{ color: FAINT }}>
-        <span>route card</span>
-        <span>plt-01</span>
-      </div>
-      <div className="mt-1.5 text-[13px] font-bold">
-        START → SUMMIT <span style={{ color: FAINT }}>· round trip</span>
-      </div>
-      <div className="mt-1.5 grid grid-cols-2 gap-x-4 text-[11px]" style={{ color: SOFT }}>
-        <span>climber: you</span>
-        <span>grade: V0–V6</span>
-        <span>fa: adam, 2026</span>
-        <span>approach: scroll ↓</span>
-      </div>
-      <div
-        className="mt-2 pt-1.5 text-[10px] border-t border-dashed"
-        style={{ borderColor: RULE, color: FAINT }}
-      >
-        adam's 2026 route card
-      </div>
-      {stamped ? (
-        <span
-          className="absolute -right-2 -top-3 w-16 h-16 rounded-full flex items-center justify-center text-center leading-tight"
-          style={{
-            border: `2px solid ${INK}`,
-            color: INK,
-            fontFamily: HAND,
-            fontSize: 15,
-            transform: "rotate(12deg)",
-            backgroundColor: "rgba(253,251,245,0.85)",
-          }}
-        >
-          sent ✓<br />
-          sep '26
-        </span>
-      ) : (
-        <span
-          className="absolute right-4 -bottom-6"
-          style={{ fontFamily: HAND, fontSize: 17, color: SOFT, transform: "rotate(-3deg)" }}
-        >
-          ↑ click to stamp
-        </span>
-      )}
-    </button>
-  );
-}
-
-function GradeSelector({ grade, setGrade }) {
-  const active = GRADES.find((g) => g.v === grade);
-  return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{ border: `1.5px solid ${INK}`, backgroundColor: CARD }}
-    >
-      <div
-        className="px-4 py-2.5 text-[11px] tracking-[0.14em] lowercase border-b"
-        style={{ fontFamily: MONO, color: SOFT, borderColor: RULE }}
-      >
-        how much beta do you want?
-      </div>
-      <div className="grid grid-cols-3">
-        {GRADES.map((g, i) => {
-          const isActive = grade === g.v;
-          return (
-            <button
-              key={g.v}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => setGrade(g.v)}
-              className="px-3 py-3.5 text-left transition-colors duration-150"
-              style={{
-                borderLeft: i ? `1px solid ${RULE}` : "none",
-                backgroundColor: isActive ? WASH : "transparent",
-                cursor: "pointer",
-              }}
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] shrink-0"
-                  style={{
-                    fontFamily: MONO,
-                    border: `1.5px solid ${INK}`,
-                    backgroundColor: isActive ? INK : "transparent",
-                    color: isActive ? PAPER : INK,
-                  }}
-                >
-                  {g.tag}
-                </span>
-                <span className="min-w-0">
-                  <span
-                    className="block text-[12px] lowercase"
-                    style={{ fontFamily: MONO, color: INK, fontWeight: 700 }}
-                  >
-                    {g.name}
-                  </span>
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <div
-        className="px-4 py-2 border-t text-[16px]"
-        style={{ borderColor: RULE, fontFamily: HAND, color: SOFT }}
-      >
-        {active ? active.desc : ""}
-      </div>
-    </div>
-  );
-}
-
-function GradePill({ grade, setGrade }) {
-  return (
-    <div
-      className="fixed bottom-5 right-5 hidden sm:flex items-center gap-1 rounded-full px-3 py-2"
-      style={{
-        zIndex: 20,
-        backgroundColor: "rgba(253,251,245,0.95)",
-        border: `1.5px solid ${INK}`,
-        boxShadow: `3px 3px 0 ${INK}`,
-      }}
-    >
-      <span
-        className="text-[10px] tracking-[0.14em] lowercase pr-1"
-        style={{ fontFamily: MONO, color: SOFT }}
-      >
-        beta
-      </span>
-      {GRADES.map((g) => {
-        const active = grade === g.v;
+      {ZOOMS.map((z, i) => {
+        const on = zoom === i;
         return (
           <button
-            key={g.v}
+            key={z}
             type="button"
-            aria-pressed={active}
-            onClick={() => setGrade(g.v)}
-            className="rounded-full px-2.5 py-1 text-[11px] transition-colors duration-150"
-            style={{
-              fontFamily: MONO,
-              color: active ? PAPER : INK,
-              backgroundColor: active ? INK : "transparent",
-              cursor: "pointer",
-            }}
+            aria-pressed={on}
+            onClick={() => setZoom(i)}
+            className="px-2.5 py-1.5 rounded transition-colors duration-150"
+            style={{ background: on ? fg : "transparent", color: on ? bg : dark ? "#8A93A8" : "#4B5563", cursor: "pointer", font: "inherit" }}
           >
-            {g.tag}
+            {z}
           </button>
         );
       })}
@@ -864,961 +311,561 @@ function GradePill({ grade, setGrade }) {
   );
 }
 
-function MoreAt({ onClick, children }) {
+function H2({ children }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12px] lowercase transition-all duration-150 hover:-translate-y-0.5"
-      style={{
-        fontFamily: MONO,
-        color: INK,
-        border: `1.5px solid ${INK}`,
-        backgroundColor: CARD,
-        boxShadow: `3px 3px 0 ${INK}`,
-        cursor: "pointer",
-      }}
+    <h2 style={{ margin: 0, fontFamily: SANS, fontSize: "clamp(32px, 3.4vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em", color: INK, lineHeight: 1 }}>
+      {children}
+    </h2>
+  );
+}
+
+function Pill({ href, children }) {
+  return (
+    <a
+      href={href}
+      target={href.startsWith("http") ? "_blank" : undefined}
+      rel={href.startsWith("http") ? "noreferrer" : undefined}
+      className="inline-flex items-center px-3 py-2 rounded transition-colors duration-150 hover:bg-[#101828] hover:text-[#F7F6F2]"
+      style={{ fontFamily: MONO, fontSize: 12, color: INK, border: `1px solid ${INK}`, textDecoration: "none" }}
     >
       {children}
-      <ArrowUpRight className="w-3.5 h-3.5" />
-    </button>
+    </a>
   );
 }
 
-// -----------------------------------------------------------------------------
-// Primitives
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Hero: sticky frame, scroll turns and zooms the chromosome
+// ---------------------------------------------------------------------------
 
-function HandNote({ children, className = "", rotate = -2, size = 19 }) {
-  return (
-    <span
-      className={className}
-      style={{
-        fontFamily: HAND,
-        fontSize: size,
-        color: SOFT,
-        display: "inline-block",
-        transform: `rotate(${rotate}deg)`,
-        lineHeight: 1.15,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
+const BIO = "Builds software that makes sense of living things. First-year at Duke, neuroscience and computer science. Co-founder of Quest Learning.".split(" ");
 
-function SectionHeader({ pitch, title, gradeTag, note }) {
-  return (
-    <div className="mb-8">
-      <div className="flex items-center gap-3">
-        <span
-          className="text-[11px] tracking-[0.12em] lowercase"
-          style={{ fontFamily: MONO, color: FAINT }}
-        >
-          {pitch}
-        </span>
-        <span
-          className="flex-1 border-t border-dashed"
-          style={{ borderColor: RULE }}
-        />
-        {gradeTag && (
-          <span
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[10.5px]"
-            style={{ fontFamily: MONO, border: `1.5px solid ${INK}`, color: INK }}
-          >
-            {gradeTag}
-          </span>
-        )}
-      </div>
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-5 gap-y-1">
-        <h2
-          style={{
-            fontFamily: SERIF,
-            color: INK,
-            fontSize: "clamp(32px, 4.4vw, 46px)",
-            fontWeight: 400,
-            lineHeight: 1.05,
-          }}
-        >
-          {title}
-        </h2>
-        {note && <HandNote>{note}</HandNote>}
-      </div>
-    </div>
-  );
-}
+function Hero({ reduced, zoom, setZoom, onLeave }) {
+  const ref = useRef(null);
+  const [p, setP] = useState(0);
+  const leftRef = useRef(false);
+  useSectionProgress(ref, (v) => {
+    setP(v);
+    if (v > 0.6 && !leftRef.current) {
+      leftRef.current = true;
+      onLeave();
+    }
+  });
 
-function Panel({ children, className = "" }) {
-  return (
-    <div
-      className={`rounded-xl p-6 ${className}`}
-      style={{
-        backgroundColor: CARD,
-        border: `1px solid ${LINE}`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+  const rot = reduced ? 0 : p * 170;
+  const scale = reduced ? 1 : 1 + ramp(p, 0.15, 1) * 2.6;
+  const chrOpacity = reduced ? 1 : 1 - ramp(p, 0.62, 0.92);
+  const textFade = reduced ? 1 : 1 - ramp(p, 0.55, 0.85);
+  const revealed = reduced ? BIO.length : Math.round((0.42 + 0.58 * ramp(p, 0.02, 0.4)) * BIO.length);
 
-// A guidebook entry: number in the margin, title + date on one line, body
-// below. Used for Work and Education so the page isn't a stack of boxes.
-function Entry({ index, title, meta, icon: Icon, children, last }) {
   return (
-    <div
-      className="grid gap-x-5 py-6 first:pt-0"
-      style={{
-        gridTemplateColumns: "28px minmax(0, 1fr)",
-        borderBottom: last ? "none" : `1px solid ${RULE}`,
-      }}
-    >
-      <span
-        className="text-[11px] pt-[7px]"
-        style={{ fontFamily: MONO, color: FAINT }}
+    <section ref={ref} id="top" style={{ height: reduced ? "auto" : "260vh", position: "relative" }}>
+      <div
+        className="overflow-hidden"
+        style={{ position: reduced ? "relative" : "sticky", top: 0, height: reduced ? "auto" : "100vh", minHeight: reduced ? "100vh" : undefined, borderBottom: `1px solid ${INK}` }}
       >
-        {String(index + 1).padStart(2, "0")}
-      </span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h3
-            className="text-[21px] leading-tight"
-            style={{ fontFamily: SERIF, color: INK }}
-          >
-            {title}
-          </h3>
-          {meta && (
-            <span
-              className="sm:ml-auto text-[11px] lowercase whitespace-nowrap"
-              style={{ fontFamily: MONO, color: FAINT }}
-            >
-              {meta}
-            </span>
-          )}
-          {Icon && (
-            <Icon
-              className="hidden sm:block w-4 h-4 shrink-0 self-center"
-              style={{ color: INK, opacity: 0.45 }}
-            />
-          )}
+        {/* corners */}
+        <Mono style={{ position: "absolute", left: 24, top: 20, color: INK }}>Adam Rakhmanov</Mono>
+        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 20 }}>chr-adam · chr1:1–2,400,000</Mono>
+        <Mono className="hidden sm:block" style={{ position: "absolute", left: 24, bottom: 20 }}>Durham, NC · Duke '30 · Nashville</Mono>
+        <div style={{ position: "absolute", right: 24, bottom: 20, zIndex: 3, opacity: textFade, pointerEvents: textFade < 0.3 ? "none" : "auto" }}>
+          <ZoomControl zoom={zoom} setZoom={setZoom} />
         </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
-function Body({ children, className = "" }) {
-  return (
-    <p
-      className={`mt-2.5 text-[15px] leading-[1.65] max-w-[66ch] ${className}`}
-      style={{ color: SOFT }}
-    >
-      {children}
-    </p>
-  );
-}
-
-function Avatar() {
-  const [failed, setFailed] = useState(false);
-  return (
-    <div className="relative shrink-0" style={{ transform: "rotate(2deg)" }}>
-      {failed ? (
+        {/* the specimen */}
         <div
-          className="w-[88px] h-[88px] sm:w-44 sm:h-44 rounded-lg flex items-center justify-center text-4xl"
+          className="adam-chr-stage"
           style={{
-            backgroundColor: WASH,
-            border: `1.5px solid ${INK}`,
-            color: INK,
-            fontFamily: SERIF,
-            boxShadow: `4px 4px 0 ${INK}`,
+            position: "absolute",
+            right: "clamp(8px, 10vw, 180px)",
+            top: "clamp(48px, 10vh, 110px)",
+            width: "clamp(150px, 24vw, 320px)",
+            aspectRatio: "300 / 540",
+            opacity: chrOpacity,
+            transform: `rotateY(${rot}deg) scale(${scale})`,
+            transformOrigin: "50% 44%",
+            transformStyle: "preserve-3d",
+            willChange: "transform, opacity",
+            zIndex: 1,
           }}
         >
-          AR
+          <div className={reduced ? "" : "adam-chr-idle"} style={{ width: "100%", height: "100%", transformStyle: "preserve-3d" }}>
+            <Chromosome style={{ width: "100%", height: "100%" }} />
+          </div>
+          <Mono className="hidden lg:block" style={{ position: "absolute", left: "-44%", top: "16%", whiteSpace: "nowrap", opacity: textFade }}>p13 · work</Mono>
+          <Mono className="hidden lg:block" style={{ position: "absolute", right: "-36%", top: "68%", whiteSpace: "nowrap", opacity: textFade }}>q22 · projects</Mono>
         </div>
-      ) : (
-        <img
-          src="/adam-photo.jpg"
-          alt="Adam Rakhmanov"
-          onError={() => setFailed(true)}
-          className="w-[88px] h-[88px] sm:w-44 sm:h-44 rounded-lg object-cover"
-          style={{
-            border: `1.5px solid ${INK}`,
-            boxShadow: `4px 4px 0 ${INK}`,
-          }}
-        />
-      )}
-      <div className="mt-2 hidden sm:block text-center">
-        <HandNote rotate={-2} size={18}>me, probably thinking about lunch</HandNote>
+
+        {/* headline over the object */}
+        <div style={{ position: "absolute", left: 24, right: 24, bottom: "clamp(72px, 12vh, 110px)", zIndex: 2, opacity: textFade, display: "flex", flexDirection: "column", gap: 20 }}>
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: SANS,
+              fontWeight: 600,
+              fontSize: "clamp(56px, 13.5vw, 200px)",
+              lineHeight: 0.86,
+              letterSpacing: "-0.045em",
+              color: INK,
+            }}
+          >
+            Adam
+            <br />
+            Rakhmanov
+          </h1>
+          <p style={{ margin: 0, maxWidth: "44ch", fontFamily: SANS, fontSize: "clamp(16px, 1.6vw, 22px)", lineHeight: 1.4, color: BODY }}>
+            {BIO.map((w, i) => (
+              <span key={i} style={{ color: i < revealed ? BODY : "rgba(55,65,81,0.22)", transition: "color 0.25s" }}>
+                {w}{" "}
+              </span>
+            ))}
+          </p>
+        </div>
+
+        <Mono className="hidden md:block" style={{ position: "absolute", left: "50%", bottom: 20, transform: "translateX(-50%)", color: BLUE, whiteSpace: "nowrap", opacity: 1 - ramp(p, 0, 0.15) }}>
+          ▸ ATG GCT GAC GCA ATG · scroll to unwind ↓
+        </Mono>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Browser chrome: sticky locus + ruler + zoom, with codon ticker
+// ---------------------------------------------------------------------------
+
+const STOPS = [
+  ["index", "#index"],
+  ["helix", "#helix"],
+  ["coverage", "#coverage"],
+  ["variants", "#variants"],
+  ["3'", "#end"],
+];
+
+function Chrome({ zoom, setZoom }) {
+  const [frac, setFrac] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const on = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const doc = document.documentElement;
+        const max = Math.max(1, doc.scrollHeight - window.innerHeight);
+        setFrac(window.scrollY / max);
+      });
+    };
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", on);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+  const locus = Math.round(1 + frac * 2_399_999).toLocaleString("en-US");
+
+  return (
+    <div className="sticky top-0" style={{ zIndex: 30, background: "rgba(247,246,242,0.94)", backdropFilter: "blur(6px)", borderBottom: `1px solid ${RULE}` }}>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-2.5">
+        <div className="flex items-center gap-2.5" style={{ fontFamily: MONO, fontSize: 12 }}>
+          <a href="#top" style={{ color: INK, fontWeight: 700, textDecoration: "none" }}>chr-adam</a>
+          <span className="px-2 py-1 rounded" style={{ border: `1px solid ${RULE}`, color: BODY, background: "#fff", minWidth: 150, textAlign: "center" }}>
+            chr1:{locus}
+          </span>
+        </div>
+        <div className="flex-1 min-w-[200px] flex flex-col gap-1">
+          <div className="flex justify-between" style={{ fontFamily: MONO, fontSize: 11, color: MUTED }}>
+            <span>5'</span>
+            {STOPS.map(([label, href]) => (
+              <a key={label} href={href} style={{ color: MUTED, textDecoration: "none" }} className="hover:underline">
+                {label}
+              </a>
+            ))}
+          </div>
+          <div style={{ position: "relative", height: 7, borderTop: `1px solid ${INK}` }}>
+            {Array.from({ length: 25 }, (_, i) => (
+              <span key={i} style={{ position: "absolute", left: `${(i / 24) * 100}%`, top: 0, width: 1, height: i % 4 === 0 ? 7 : 4, background: INK }} />
+            ))}
+            <span style={{ position: "absolute", left: `${frac * 100}%`, top: -4, width: 2, height: 10, background: BLUE, transform: "translateX(-1px)" }} />
+          </div>
+        </div>
+        <div className="hidden sm:block">
+          <ZoomControl zoom={zoom} setZoom={setZoom} />
+        </div>
+      </div>
+      <div className="overflow-hidden border-t py-1" style={{ borderColor: RULE }} aria-hidden="true">
+        <div style={{ display: "flex", width: "max-content", whiteSpace: "nowrap", transform: `translateX(${-(frac * 2400) % 1800}px)`, fontFamily: MONO, fontSize: 10.5, letterSpacing: "0.18em", color: "rgba(107,114,128,0.8)" }}>
+          {[0, 1, 2].map((n) => (
+            <span key={n} className="pr-8">{`5' ▸ ${CODONS} ▸ ${CODONS} ▸ 3' /// `}</span>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function StackChip({ children }) {
+// ---------------------------------------------------------------------------
+// Index: the dense table
+// ---------------------------------------------------------------------------
+
+function Index({ zoom }) {
+  const [open, setOpen] = useState(() => new Set());
+  const toggle = (no) =>
+    setOpen((s) => {
+      const n = new Set(s);
+      if (n.has(no)) n.delete(no);
+      else n.add(no);
+      return n;
+    });
+
   return (
-    <span
-      className="inline-flex text-[10.5px] lowercase rounded px-2 py-0.5 border"
-      style={{ fontFamily: MONO, color: SOFT, borderColor: RULE }}
-    >
-      {children}
-    </span>
+    <section id="index" className="px-6 pt-12 pb-16" style={{ scrollMarginTop: 90 }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-3 mb-6">
+        <H2>Index</H2>
+        <Mono>{ZOOMS[zoom]} view · {LOCI.length} loci · {zoom === 2 ? "all expanded" : zoom === 1 ? "click a row to expand" : "loci only"}</Mono>
+      </div>
+      <div style={{ borderBottom: `1px solid ${RULE}` }}>
+        <div className="adam-row hidden md:grid" style={{ borderTop: 0, padding: "6px 0" }}>
+          {["no.", "locus", "feature", "organism", "span", "strand"].map((h) => <Mono key={h}>{h}</Mono>)}
+        </div>
+        {LOCI.map((l) => {
+          const expanded = zoom === 2 || (zoom === 1 && open.has(l.no));
+          return (
+            <div key={l.no} className="adam-row" style={{ background: expanded ? "#fff" : "transparent" }}>
+              <Mono className="hidden md:block">{l.no}</Mono>
+              <Mono style={{ color: l.color, fontWeight: 700 }}>{l.locus}</Mono>
+              <div className="min-w-0 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  disabled={zoom !== 1}
+                  onClick={() => toggle(l.no)}
+                  className="text-left"
+                  style={{ font: "inherit", fontFamily: SANS, fontSize: 16, fontWeight: 600, color: INK, background: "none", border: 0, padding: 0, cursor: zoom === 1 ? "pointer" : "default" }}
+                >
+                  {l.feature}
+                </button>
+                <span className="md:hidden" style={{ fontFamily: SANS, fontSize: 14, color: BODY }}>{l.org} · <Mono>{l.span}</Mono></span>
+                {expanded && (
+                  <div className="flex flex-col gap-2" style={{ maxWidth: "62ch", fontFamily: SANS, fontSize: 15, lineHeight: 1.6, color: BODY }}>
+                    <p style={{ margin: 0 }}>{l.body}</p>
+                    {zoom === 2 && l.more && <p style={{ margin: 0 }}>{l.more}</p>}
+                  </div>
+                )}
+              </div>
+              <span className="hidden md:block" style={{ fontFamily: SANS, fontSize: 15, color: BODY }}>{l.org}</span>
+              <Mono className="hidden md:block">{l.span}</Mono>
+              <Mono className="hidden md:block">{l.strand}</Mono>
+            </div>
+          );
+        })}
+      </div>
+      {zoom === 0 && (
+        <Mono style={{ display: "block", marginTop: 14 }}>chromosome view shows loci only. zoom to gene for detail.</Mono>
+      )}
+    </section>
   );
 }
 
-function StaggerTitle({ text, delayBase = 0 }) {
-  return (
-    <span className="block overflow-hidden pb-1">
-      {text.split("").map((ch, i) => (
-        <span
-          key={i}
-          className="inline-block adam-letter"
-          style={{ animationDelay: `${delayBase + i * 40}ms` }}
-        >
-          {ch === " " ? " " : ch}
-        </span>
-      ))}
-    </span>
+// ---------------------------------------------------------------------------
+// The double helix: ten cards on a 3D spiral
+// ---------------------------------------------------------------------------
+
+function HelixCard({ c, strand, style, cardRef }) {
+  const accent = strand === "A" ? BLUE : MAG;
+  const inner = (
+    <>
+      <span style={{ fontFamily: MONO, fontSize: 11, color: strand === "A" ? "#8FB0FF" : "#FF7AB6" }}>{c.k}</span>
+      <span style={{ fontFamily: SANS, fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.15, color: PAPER }}>{c.t}{c.link ? " ↗" : ""}</span>
+      <span style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.45, color: "#B8BFCF" }}>{c.d}</span>
+    </>
+  );
+  const base = {
+    boxSizing: "border-box",
+    padding: "18px 20px",
+    borderRadius: 8,
+    background: "#141B2E",
+    border: `1px solid ${accent}`,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    textDecoration: "none",
+    ...style,
+  };
+  return c.link ? (
+    <a ref={cardRef} href={c.link} target="_blank" rel="noreferrer" style={base}>{inner}</a>
+  ) : (
+    <div ref={cardRef} style={base}>{inner}</div>
   );
 }
 
-// -----------------------------------------------------------------------------
+function Helix({ reduced, zoom, setZoom }) {
+  const ref = useRef(null);
+  const groupRef = useRef(null);
+  const cardRefs = useRef([]);
+  const { w } = useViewport();
+  const R = clamp(w * 0.3, 150, 420);
+  const cardW = w < 640 ? 230 : 300;
+  const stepY = w < 640 ? 78 : 92;
+
+  const cards = useMemo(() => {
+    const list = [];
+    WORK_CARDS.forEach((c, i) => list.push({ c, strand: "A", angle: i * 72, y: i * stepY - 2 * stepY }));
+    PROJECT_CARDS.forEach((c, i) => list.push({ c, strand: "B", angle: i * 72 + 180, y: i * stepY - 2 * stepY }));
+    return list;
+  }, [stepY]);
+
+  useSectionProgress(ref, (p) => {
+    if (reduced) return;
+    const g = groupRef.current;
+    if (!g) return;
+    const rot = -30 + p * 720;
+    g.style.transform = `rotateX(-8deg) rotateY(${rot}deg)`;
+    cards.forEach((card, i) => {
+      const el = cardRefs.current[i];
+      if (!el) return;
+      const facing = Math.cos(((card.angle + rot) * Math.PI) / 180);
+      el.style.opacity = String(0.18 + 0.82 * Math.max(0, facing));
+      el.style.pointerEvents = facing > 0.5 ? "auto" : "none";
+    });
+  });
+
+  if (reduced) {
+    return (
+      <section id="helix" className="px-6 py-16" style={{ background: NIGHT, color: PAPER, scrollMarginTop: 90 }}>
+        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-8">
+          <h2 style={{ margin: 0, fontFamily: SANS, fontSize: "clamp(32px, 3.4vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em" }}>Work &amp; projects</h2>
+          <Mono style={{ color: "#8A93A8" }}>base pair view · 10 features</Mono>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {cards.map(({ c, strand }, i) => <HelixCard key={i} c={c} strand={strand} />)}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section ref={ref} id="helix" style={{ height: "320vh", background: NIGHT, color: PAPER }}>
+      <div className="sticky top-0 overflow-hidden" style={{ height: "100vh" }}>
+        <Mono style={{ position: "absolute", left: 24, top: 84, color: "#8A93A8" }}>base pair view · 10 features</Mono>
+        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 84, color: "#8A93A8" }}>chr1:1,300,000–1,900,000</Mono>
+        <div style={{ position: "absolute", left: 24, bottom: 24, zIndex: 2, display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontFamily: SANS, fontSize: "clamp(28px, 3.2vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1 }}>Work &amp; projects</span>
+          <Mono style={{ color: "#8A93A8" }}>two strands · scroll turns the helix</Mono>
+        </div>
+        <div className="hidden sm:block" style={{ position: "absolute", right: 24, bottom: 24, zIndex: 2 }}>
+          <ZoomControl zoom={zoom} setZoom={setZoom} dark />
+        </div>
+
+        <div style={{ position: "absolute", inset: "0 0 8vh 0", perspective: 1600 }}>
+          <div ref={groupRef} style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d", transform: "rotateX(-8deg) rotateY(-30deg)", willChange: "transform" }}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={`rung-${i}`}
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: R * 2,
+                  height: 2,
+                  margin: `-1px 0 0 ${-R}px`,
+                  background: `linear-gradient(90deg, transparent, ${BLUE} 18%, ${MAG} 82%, transparent)`,
+                  transform: `translateY(${i * stepY - 2 * stepY}px) rotateY(${i * 72}deg)`,
+                }}
+              />
+            ))}
+            {cards.map(({ c, strand, angle, y }, i) => (
+              <HelixCard
+                key={i}
+                c={c}
+                strand={strand}
+                cardRef={(el) => { cardRefs.current[i] = el; }}
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: cardW,
+                  height: 150,
+                  margin: `-75px 0 0 ${-cardW / 2}px`,
+                  transform: `translateY(${y}px) rotateY(${angle}deg) translateZ(${R}px)`,
+                  backfaceVisibility: "hidden",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse at 50% 50%, rgba(11,15,26,0) 36%, rgba(11,15,26,.88) 76%)" }} />
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Coverage + Variants
+// ---------------------------------------------------------------------------
+
+function Coverage({ zoom }) {
+  const ref = useRef(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } }, { threshold: 0.3 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <section id="coverage" ref={ref} className="flex flex-col gap-4" style={{ scrollMarginTop: 90 }}>
+      <H2>Coverage</H2>
+      <Mono>research · 2023–2026 · Drosophila</Mono>
+      <p style={{ margin: 0, maxWidth: "54ch", fontFamily: SANS, fontSize: 16, lineHeight: 1.6, color: BODY }}>
+        Three years of bench work: DNA extraction, PCR, gene cloning, CRISPR editing. Two independent Drosophila projects on human-health questions.
+        {zoom >= 1 && " The bottleneck was analysis, never pipetting. That pointed me at computational biology."}
+      </p>
+      <div className="flex items-end gap-[3px] mt-2" style={{ height: 120, borderBottom: `1px solid ${RULE}` }}>
+        {COVERAGE.map((h, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: seen ? `${h}%` : "4%",
+              background: BLUE,
+              opacity: 0.35 + 0.65 * (h / 100),
+              transition: `height 0.9s cubic-bezier(0.16,1,0.3,1) ${i * 45}ms`,
+            }}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between"><Mono>2023</Mono><Mono>PCR</Mono><Mono>cloning</Mono><Mono>CRISPR</Mono><Mono>2026</Mono></div>
+    </section>
+  );
+}
+
+function Variants({ zoom }) {
+  const awards = zoom === 0 ? AWARDS.slice(0, 2) : zoom === 1 ? AWARDS.slice(0, 3) : AWARDS;
+  return (
+    <section id="variants" className="flex flex-col gap-4" style={{ scrollMarginTop: 90 }}>
+      <H2>Variants</H2>
+      <Mono>awards · {AWARDS.length} calls · showing {awards.length} · filter: PASS</Mono>
+      <div style={{ position: "relative", height: 20, borderBottom: "1px solid #9CA3AF", marginBottom: 8 }}>
+        {[8, 26, 49, 70, 88].map((x, i) => (
+          <span key={x} style={{ position: "absolute", left: `${x}%`, bottom: -5, width: 10, height: 10, borderRadius: "50%", background: i < awards.length ? MAG : RULE }} />
+        ))}
+      </div>
+      <div style={{ borderBottom: `1px solid ${RULE}` }}>
+        {awards.map(([id, text]) => (
+          <div key={id} className="grid gap-4 py-3" style={{ gridTemplateColumns: "72px minmax(0,1fr)", borderTop: `1px solid ${RULE}` }}>
+            <Mono style={{ color: MAG }}>{id}</Mono>
+            <span style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.5, color: INK }}>{text}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BasePairExtras() {
+  return (
+    <section className="px-6 pb-16 grid md:grid-cols-2 gap-12">
+      <div className="flex flex-col gap-4">
+        <H2>Service</H2>
+        <Mono>base pair view only</Mono>
+        <div style={{ borderBottom: `1px solid ${RULE}` }}>
+          {SERVICE.map(([role, org, d]) => (
+            <div key={org} className="py-4 flex flex-col gap-1" style={{ borderTop: `1px solid ${RULE}` }}>
+              <span style={{ fontFamily: SANS, fontSize: 16, fontWeight: 600, color: INK }}>{role}</span>
+              <Mono>{org}</Mono>
+              <p style={{ margin: "4px 0 0", fontFamily: SANS, fontSize: 15, lineHeight: 1.55, color: BODY, maxWidth: "56ch" }}>{d}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-4">
+        <H2>Off the computer</H2>
+        <Mono>languages · most weekends</Mono>
+        <div className="flex flex-wrap gap-2">
+          {LANGUAGES.map((l) => <span key={l} className="px-3 py-1.5 rounded" style={{ fontFamily: MONO, fontSize: 12, color: INK, border: `1px solid ${INK}` }}>{l.toLowerCase()}</span>)}
+        </div>
+        <p style={{ margin: 0, fontFamily: SANS, fontSize: 15, lineHeight: 1.55, color: BODY, maxWidth: "48ch" }}>Grew up between Tashkent, Cairo, and Nashville. That's where the four come from.</p>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {WEEKENDS.map((l) => <span key={l} className="px-3 py-1.5 rounded" style={{ fontFamily: MONO, fontSize: 12, color: BODY, border: `1px solid ${RULE}` }}>{l}</span>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 export default function Adam() {
-  const [grade, setGrade] = useState(3);
+  const reduced = useReducedMotion();
+  const [zoom, setZoom] = useState(0);
+  const onLeaveHero = useCallback(() => setZoom((z) => (z === 0 ? 1 : z)), []);
 
   useEffect(() => {
     const prev = document.title;
     document.title = "Adam Rakhmanov";
-    return () => {
-      document.title = prev;
-    };
+    return () => { document.title = prev; };
   }, []);
 
-  const workItems = WORK.map((e) => ({
-    ...e,
-    body: grade >= 6 ? e.body : e.body.slice(0, 1),
-  }));
-  const projects = grade >= 6 ? PROJECTS : PROJECTS.slice(0, 3);
-  const awards = grade >= 6 ? AWARDS : AWARDS.slice(0, 3);
-  let pitchNo = 0;
-  const pitch = () => {
-    pitchNo += 1;
-    return `pitch ${pitchNo}`;
-  };
-
   return (
-    <div
-      id="top"
-      className="min-h-screen"
-      style={{
-        backgroundColor: PAPER,
-        color: INK,
-        fontFamily:
-          '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-      }}
-    >
+    <div style={{ background: PAPER, color: INK, fontFamily: SANS, minHeight: "100vh", WebkitFontSmoothing: "antialiased" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Mono:wght@400;700&family=Caveat:wght@500;600&display=swap');
-        @keyframes adam-rise {
-          from { transform: translateY(110%); opacity: 0; }
-          to { transform: none; opacity: 1; }
-        }
-        .adam-letter {
-          transform: translateY(110%);
-          opacity: 0;
-          animation: adam-rise 0.65s cubic-bezier(0.16,1,0.3,1) forwards;
-        }
-        @keyframes adam-marquee {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-        .adam-ticker { animation: adam-marquee 52s linear infinite; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         html { scroll-behavior: smooth; }
+        .adam-chr-stage { perspective: 1400px; }
+        @keyframes adam-chr-idle {
+          0%   { transform: rotateX(8deg) rotateY(-32deg) rotateZ(-3deg); }
+          50%  { transform: rotateX(-6deg) rotateY(32deg) rotateZ(3deg); }
+          100% { transform: rotateX(8deg) rotateY(-32deg) rotateZ(-3deg); }
+        }
+        .adam-chr-idle { animation: adam-chr-idle 10s ease-in-out infinite; }
+        .adam-row {
+          display: grid;
+          grid-template-columns: 56px 110px minmax(0,1fr) 220px 130px 60px;
+          gap: 24px;
+          align-items: baseline;
+          padding: 18px 0;
+          border-top: 1px solid ${RULE};
+          transition: background 0.15s;
+        }
+        .adam-row:hover { background: #fff; }
+        @media (max-width: 767px) {
+          .adam-row { grid-template-columns: 76px minmax(0,1fr); gap: 14px; padding: 14px 0; }
+        }
         @media (prefers-reduced-motion: reduce) {
-          .adam-letter { animation: none; transform: none; opacity: 1; }
-          .adam-ticker { animation: none; }
           html { scroll-behavior: auto; }
+          .adam-chr-idle { animation: none; }
         }
       `}</style>
 
-      <DnaBackground />
-      <ClimbingWall />
-      <GradePill grade={grade} setGrade={setGrade} />
-      <RouteNav />
+      <Hero reduced={reduced} zoom={zoom} setZoom={setZoom} onLeave={onLeaveHero} />
+      <Chrome zoom={zoom} setZoom={setZoom} />
 
-      {/* ================================================================= */}
-      {/* Hero — opaque paper block, background art never touches it         */}
-      {/* ================================================================= */}
-      <header
-        className="relative"
-        style={{
-          backgroundColor: PAPER,
-          borderBottom: `1px solid ${RULE}`,
-          zIndex: 2,
-        }}
-      >
-        <div className="relative max-w-[1020px] mx-auto px-6 pt-10 sm:pt-14">
-          <div className="flex flex-col md:flex-row gap-8 md:gap-14">
-            <div className="min-w-0 flex-1">
-              {/* name + photo share a row on phones so the face isn't buried */}
-              <div className="flex items-start justify-between gap-4">
-                <h1
-                  style={{
-                    fontFamily: SERIF,
-                    fontWeight: 400,
-                    color: INK,
-                    fontSize: "clamp(40px, 10.5vw, 96px)",
-                    lineHeight: 0.98,
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  <StaggerTitle text="Adam" delayBase={80} />
-                  <StaggerTitle text="Rakhmanov." delayBase={280} />
-                </h1>
-                <div className="md:hidden pt-2 pr-1">
-                  <Avatar />
-                </div>
-              </div>
-
-              <p
-                className="mt-6 max-w-[22ch]"
-                style={{
-                  fontFamily: SERIF,
-                  fontStyle: "italic",
-                  fontSize: "clamp(21px, 2.4vw, 26px)",
-                  lineHeight: 1.25,
-                  color: INK,
-                }}
-              >
-                “I want to build software that makes sense of living things.”
-              </p>
-
-              <dl className="mt-7 space-y-2">
-                {[
-                  ["@duke", "neuroscience & cs, class of '30"],
-                  ["@quest learning", "co-founder — 42,000-student district in talks"],
-                  ["@salvo's pizza", "the family shop, 40M+ views"],
-                ].map(([at, what]) => (
-                  <div
-                    key={at}
-                    className="flex flex-col sm:flex-row sm:gap-3 text-[12.5px] leading-snug"
-                    style={{ fontFamily: MONO }}
-                  >
-                    <dt className="shrink-0 sm:w-[140px]" style={{ color: INK, fontWeight: 700 }}>
-                      {at}
-                    </dt>
-                    <dd style={{ color: SOFT }}>{what}</dd>
-                  </div>
-                ))}
-              </dl>
-
-              <p
-                className="mt-7 text-[16px] leading-[1.6] max-w-[52ch]"
-                style={{ color: SOFT }}
-              >
-                First-year at Duke headed toward computational biology. Most
-                of my time goes to Quest Learning; the rest goes to the pizza
-                shop when I'm home in Nashville.
-              </p>
-
-              <div className="mt-7 flex flex-wrap gap-2">
-                <ContactPill
-                  href="mailto:adamrakhmanovit@gmail.com"
-                  icon={Mail}
-                  label="email"
-                />
-                <ContactPill
-                  href="tel:+16157088786"
-                  icon={Phone}
-                  label="(615) 708-8786"
-                />
-                <ContactPill icon={MapPin} label="durham, nc" static />
-                <ContactPill
-                  href="https://www.linkedin.com/in/adamrakhmanov/"
-                  icon={Linkedin}
-                  label="linkedin"
-                  external
-                />
-              </div>
-            </div>
-
-            <div className="w-full md:w-[300px] shrink-0 md:pt-3">
-              <div className="hidden md:flex md:justify-end">
-                <Avatar />
-              </div>
-              <div className="mt-2 md:mt-10">
-                <RouteCard />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-12 max-w-[560px]">
-            <GradeSelector grade={grade} setGrade={setGrade} />
-          </div>
+      <main>
+        <Index zoom={zoom} />
+        <Helix reduced={reduced} zoom={zoom} setZoom={setZoom} />
+        <div className="px-6 py-16 grid md:grid-cols-2 gap-12" style={{ borderBottom: `1px solid ${RULE}` }}>
+          <Coverage zoom={zoom} />
+          <Variants zoom={zoom} />
         </div>
-
-        {/* hand-drawn ridgeline — its own band, nothing sits on top of it */}
-        <svg
-          aria-hidden="true"
-          className="block w-full pointer-events-none mt-6"
-          height="110"
-          viewBox="0 0 1440 110"
-          preserveAspectRatio="none"
-        >
-          <polyline
-            points="0,88 90,74 160,82 260,54 340,76 470,40 560,66 700,30 800,62 930,38 1040,64 1160,48 1280,72 1360,60 1440,68"
-            fill="none"
-            stroke={INK}
-            strokeOpacity="0.26"
-            strokeWidth="1.4"
-            strokeLinejoin="round"
-          />
-          <polyline
-            points="0,104 120,96 230,102 330,82 430,98 560,74 690,92 820,70 950,90 1080,76 1220,96 1340,86 1440,94"
-            fill="none"
-            stroke={INK}
-            strokeOpacity="0.14"
-            strokeWidth="1.2"
-            strokeLinejoin="round"
-          />
-          <g transform="translate(700 30)">
-            <line x1="0" y1="0" x2="0" y2="-14" stroke={INK} strokeOpacity="0.55" strokeWidth="1.2" />
-            <path d="M0,-14 L10,-11.5 L0,-9 Z" fill={INK} fillOpacity="0.4" />
-          </g>
-        </svg>
-
-        {/* DNA codon ticker */}
-        <div
-          className="overflow-hidden border-t py-1.5"
-          style={{ borderColor: RULE }}
-          aria-hidden="true"
-        >
-          <div className="adam-ticker flex w-max whitespace-nowrap">
-            {[0, 1].map((n) => (
-              <span
-                key={n}
-                className="text-[10.5px] tracking-[0.18em] pr-8"
-                style={{ fontFamily: MONO, color: FAINT }}
-              >
-                {`5' ▸ ${CODONS} ▸ ${CODONS} ▸ 3' /// `}
-              </span>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      {/* ================================================================= */}
-      {/* Route facts                                                        */}
-      {/* ================================================================= */}
-      <div className="relative" style={{ zIndex: 1 }}>
-        <div className="max-w-[1020px] mx-auto px-6 mt-10">
-          <Reveal>
-            <div
-              className="grid grid-cols-2 sm:grid-cols-4 rounded-xl overflow-hidden"
-              style={{ border: `1px solid ${LINE}`, backgroundColor: CARD }}
-            >
-              {STATS.map((s, i) => (
-                <div
-                  key={s.label}
-                  className="p-5"
-                  style={{ borderLeft: i ? `1px solid ${RULE}` : "none" }}
-                >
-                  <div
-                    style={{
-                      fontFamily: SERIF,
-                      fontStyle: "italic",
-                      color: INK,
-                      fontSize: 30,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {s.value}
-                  </div>
-                  <div
-                    className="mt-1.5 text-[10.5px] lowercase leading-tight"
-                    style={{ fontFamily: MONO, color: SOFT }}
-                  >
-                    {s.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        </div>
-      </div>
-
-      {/* ================================================================= */}
-      {/* Main                                                               */}
-      {/* ================================================================= */}
-      <main
-        className="relative max-w-[1020px] mx-auto px-6 py-14 space-y-16"
-        style={{ zIndex: 1 }}
-      >
-        {grade < 3 && (
-          <section>
-            <SectionHeader
-              pitch={pitch()}
-              title="The flash read."
-              gradeTag="V0"
-              note="all you really need"
-            />
-            <Reveal>
-              <Panel>
-                <ul className="space-y-3">
-                  {TLDR.map((t, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-4 text-[16px] leading-[1.6]"
-                      style={{ color: SOFT }}
-                    >
-                      <span
-                        className="text-[11px] mt-[4px] shrink-0"
-                        style={{ fontFamily: MONO, color: INK }}
-                      >
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex flex-wrap gap-3">
-                  <MoreAt onClick={() => setGrade(3)}>bump to v3 — the resume</MoreAt>
-                  <MoreAt onClick={() => setGrade(6)}>full send — v6</MoreAt>
-                </div>
-              </Panel>
-            </Reveal>
-          </section>
-        )}
-
-        {grade >= 3 && (
-          <>
-            {/* Work */}
-            <section id="work" style={{ scrollMarginTop: 70 }}>
-              <SectionHeader
-                pitch={pitch()}
-                title="Work."
-                gradeTag={grade >= 6 ? "V6" : "V3"}
-                note="the pizza shop taught me the most, honestly"
-              />
-              <Reveal>
-                <div>
-                  {workItems.map((e, i) => (
-                    <Entry
-                      key={e.org}
-                      index={i}
-                      title={
-                        <>
-                          {e.role}
-                          <span style={{ color: FAINT }}> at </span>
-                          {e.org}
-                        </>
-                      }
-                      meta={e.period}
-                      icon={e.icon}
-                      last={i === workItems.length - 1}
-                    >
-                      {e.body.map((para, j) => (
-                        <Body key={j}>{para}</Body>
-                      ))}
-                    </Entry>
-                  ))}
-                </div>
-              </Reveal>
-              {grade < 6 && (
-                <MoreAt onClick={() => setGrade(6)}>full beta at v6</MoreAt>
-              )}
-            </section>
-
-            {/* Research */}
-            <section>
-              <SectionHeader
-                pitch={pitch()}
-                title="Research."
-                gradeTag={grade >= 6 ? "V6" : "V3"}
-                note="flies are underrated"
-              />
-              <Reveal>
-                <Panel className="relative overflow-hidden">
-                  <Dna
-                    className="absolute -right-3 -bottom-3 w-28 h-28"
-                    style={{ color: INK, opacity: 0.06 }}
-                  />
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <h3
-                      className="text-[19px]"
-                      style={{ fontFamily: SERIF, color: INK }}
-                    >
-                      {RESEARCH.title}
-                    </h3>
-                    <span
-                      className="text-[11px]"
-                      style={{ fontFamily: MONO, color: FAINT }}
-                    >
-                      {RESEARCH.period}
-                    </span>
-                  </div>
-                  {(grade >= 6 ? RESEARCH.body : RESEARCH.body.slice(0, 1)).map(
-                    (para, i) => (
-                      <Body key={i}>{para}</Body>
-                    )
-                  )}
-                </Panel>
-              </Reveal>
-            </section>
-
-            {/* Projects */}
-            <section id="projects" style={{ scrollMarginTop: 70 }}>
-              <SectionHeader
-                pitch={pitch()}
-                title="Projects."
-                gradeTag={grade >= 6 ? "V6" : "V3"}
-                note="stylize: least impressive, most used"
-              />
-              <div className="grid sm:grid-cols-2 gap-4">
-                {projects.map((p, i) => (
-                  <Reveal key={p.name} delay={(i % 2) * 80}>
-                    <Panel className="h-full">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <h3
-                          className="text-[18px]"
-                          style={{ fontFamily: SERIF, color: INK }}
-                        >
-                          {p.name}
-                        </h3>
-                        {p.link && (
-                          <a
-                            href={p.link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] lowercase shrink-0 underline underline-offset-2"
-                            style={{ fontFamily: MONO, color: INK }}
-                          >
-                            visit <ArrowUpRight className="w-3 h-3" />
-                          </a>
-                        )}
-                      </div>
-                      <Body className="!mt-2 text-[14.5px]">{p.detail}</Body>
-                      {p.stack && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {p.stack.map((s) => (
-                            <StackChip key={s}>{s}</StackChip>
-                          ))}
-                        </div>
-                      )}
-                    </Panel>
-                  </Reveal>
-                ))}
-              </div>
-              {grade < 6 && (
-                <MoreAt onClick={() => setGrade(6)}>
-                  +{PROJECTS.length - projects.length} more at v6
-                </MoreAt>
-              )}
-            </section>
-
-            {/* Awards */}
-            <section>
-              <SectionHeader
-                pitch={pitch()}
-                title="Awards."
-                gradeTag={grade >= 6 ? "V6" : "V3"}
-                note="the DECA ones took three years"
-              />
-              <Reveal>
-                <ul
-                  className="rounded-xl overflow-hidden"
-                  style={{ border: `1px solid ${LINE}`, backgroundColor: CARD }}
-                >
-                  {awards.map((a, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-4 items-start px-5 py-4"
-                      style={{
-                        borderTop: i ? `1px solid ${RULE}` : "none",
-                      }}
-                    >
-                      <span
-                        className="text-[11px] mt-[4px] shrink-0"
-                        style={{ fontFamily: MONO, color: FAINT }}
-                      >
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span
-                        className="text-[15px] leading-[1.6]"
-                        style={{ color: SOFT }}
-                      >
-                        {a}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-              {grade < 6 && (
-                <MoreAt onClick={() => setGrade(6)}>
-                  +{AWARDS.length - awards.length} more at v6
-                </MoreAt>
-              )}
-            </section>
-
-            {/* Service — V6 only */}
-            {grade >= 6 && (
-              <section>
-                <SectionHeader
-                  pitch={pitch()}
-                  title="Service."
-                  gradeTag="V6"
-                />
-                <div className="grid sm:grid-cols-3 gap-4">
-                  {SERVICE.map((l, i) => (
-                    <Reveal key={l.org} delay={i * 70}>
-                      <Panel className="!p-5 h-full">
-                        <h3
-                          className="text-[16px] leading-snug"
-                          style={{ fontFamily: SERIF, color: INK }}
-                        >
-                          {l.role}
-                        </h3>
-                        <p
-                          className="text-[11px] lowercase mt-1"
-                          style={{ fontFamily: MONO, color: FAINT }}
-                        >
-                          {l.org}
-                        </p>
-                        <Body className="text-[14px]">{l.detail}</Body>
-                      </Panel>
-                    </Reveal>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Education */}
-            <section>
-              <SectionHeader
-                pitch={pitch()}
-                title="Education."
-                gradeTag="V3"
-                note="go blue devils"
-              />
-              <Reveal>
-                <div>
-                  {EDUCATION.map((edu, i) => (
-                    <Entry
-                      key={edu.school}
-                      index={i}
-                      title={edu.school}
-                      meta={edu.period}
-                      last={i === EDUCATION.length - 1}
-                    >
-                      <Body className="!mt-1">{edu.location}</Body>
-                    </Entry>
-                  ))}
-                </div>
-              </Reveal>
-            </section>
-
-            {/* Offline */}
-            <section>
-              <SectionHeader
-                pitch={pitch()}
-                title="Off the computer."
-                gradeTag="V3"
-                note="ask me about cubes"
-              />
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Reveal>
-                  <Panel className="h-full">
-                    <div
-                      className="text-[10.5px] lowercase tracking-[0.14em] mb-3"
-                      style={{ fontFamily: MONO, color: FAINT }}
-                    >
-                      languages
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {LANGUAGES.map((l) => (
-                        <span
-                          key={l}
-                          className="inline-flex text-[12px] lowercase rounded-full px-3 py-1"
-                          style={{
-                            fontFamily: MONO,
-                            color: INK,
-                            border: `1px solid ${INK}`,
-                          }}
-                        >
-                          {l}
-                        </span>
-                      ))}
-                    </div>
-                    {grade >= 6 && (
-                      <HandNote className="mt-3" rotate={-1} size={18}>
-                        grew up between Tashkent, Cairo, and Nashville —
-                        that's where the four come from
-                      </HandNote>
-                    )}
-                  </Panel>
-                </Reveal>
-                <Reveal delay={80}>
-                  <Panel className="h-full">
-                    <div
-                      className="text-[10.5px] lowercase tracking-[0.14em] mb-3"
-                      style={{ fontFamily: MONO, color: FAINT }}
-                    >
-                      most weekends
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {INTERESTS.map((it) => (
-                        <span
-                          key={it.label}
-                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] lowercase"
-                          style={{
-                            color: INK,
-                            border: `1px solid ${INK}`,
-                          }}
-                        >
-                          <it.icon className="w-3.5 h-3.5" style={{ color: INK }} />
-                          {it.label}
-                        </span>
-                      ))}
-                    </div>
-                  </Panel>
-                </Reveal>
-              </div>
-            </section>
-          </>
-        )}
+        {zoom === 2 && <BasePairExtras />}
       </main>
 
-      {/* ================================================================= */}
-      {/* Summit footer — inverted band                                      */}
-      {/* ================================================================= */}
-      <footer
-        id="summit"
-        className="relative"
-        style={{ backgroundColor: INK, color: PAPER, zIndex: 1 }}
-      >
-        <svg
-          aria-hidden="true"
-          className="w-full block"
-          height="60"
-          viewBox="0 0 1440 60"
-          preserveAspectRatio="none"
-          style={{ backgroundColor: PAPER }}
-        >
-          <polygon
-            points="0,60 180,30 340,48 520,14 700,44 900,8 1080,40 1260,22 1440,46 1440,60"
-            fill={INK}
-          />
-          <g transform="translate(900 8)">
-            <line x1="0" y1="0" x2="0" y2="-16" stroke={INK} strokeWidth="1.6" />
-            <path d="M0,-16 L11,-13 L0,-10 Z" fill={INK} />
-          </g>
-        </svg>
-        <div className="max-w-[1020px] mx-auto px-6 pt-10 pb-9">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div>
-              <div style={{ fontFamily: SERIF, fontSize: 34, lineHeight: 1 }}>
-                You topped out.
-              </div>
-              <div
-                className="mt-2 text-[11px] lowercase tracking-[0.14em]"
-                style={{ fontFamily: MONO, color: "rgba(244,239,228,0.75)" }}
-              >
-                belay off — thanks for reading
-              </div>
-            </div>
-            <div className="flex items-center gap-5">
-              <FooterLink href="mailto:adamrakhmanovit@gmail.com" icon={Mail}>
-                email
-              </FooterLink>
-              <FooterLink
-                href="https://www.linkedin.com/in/adamrakhmanov/"
-                icon={Linkedin}
-                external
-              >
-                linkedin
-              </FooterLink>
-              <FooterLink
-                href="https://www.questlearning.co"
-                icon={ExternalLink}
-              >
-                quest learning
-              </FooterLink>
-            </div>
-          </div>
-          <div
-            className="mt-8 pt-5 flex flex-wrap items-center justify-between gap-3 sm:pr-44"
-            style={{ borderTop: "1px solid rgba(244,239,228,0.25)" }}
-          >
-            <span
-              className="text-[11px] lowercase"
-              style={{ fontFamily: MONO, color: "rgba(244,239,228,0.65)" }}
-            >
-              © 2026 adam rakhmanov
-            </span>
-            <span
-              style={{
-                fontFamily: HAND,
-                fontSize: 18,
-                color: "rgba(244,239,228,0.85)",
-                transform: "rotate(-1deg)",
-              }}
-            >
-              made between problem sets, dough runs, and too many open tabs
-            </span>
+      <footer id="end" className="px-6 py-8 flex flex-wrap items-end justify-between gap-4" style={{ scrollMarginTop: 90 }}>
+        <div className="flex flex-col gap-3">
+          <span style={{ fontFamily: SANS, fontSize: "clamp(32px, 3.4vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1 }}>3' end</span>
+          <div className="flex flex-wrap gap-2">
+            <Pill href="mailto:adamrakhmanovit@gmail.com">email</Pill>
+            <Pill href="tel:+16157088786">(615) 708-8786</Pill>
+            <Pill href="https://www.linkedin.com/in/adamrakhmanov/">linkedin ↗</Pill>
+            <Pill href="https://www.questlearning.co">quest learning ↗</Pill>
           </div>
         </div>
+        <Mono>chr-adam · assembled 2026 · Durham, NC</Mono>
       </footer>
     </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Small components
-// -----------------------------------------------------------------------------
-
-function ContactPill({ href, icon: Icon, label, external, static: isStatic }) {
-  const inner = (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] lowercase transition-all duration-150"
-      style={{
-        fontFamily: MONO,
-        color: INK,
-        backgroundColor: CARD,
-        border: `1.5px solid ${INK}`,
-      }}
-    >
-      <Icon className="w-3.5 h-3.5" style={{ color: INK }} />
-      {label}
-      {external && <ArrowUpRight className="w-3 h-3" style={{ color: FAINT }} />}
-    </span>
-  );
-  if (isStatic || !href) return inner;
-  return (
-    <a
-      href={href}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noreferrer" : undefined}
-      className="rounded-full inline-block transition-transform duration-150 hover:-translate-y-0.5"
-    >
-      {inner}
-    </a>
-  );
-}
-
-function FooterLink({ href, icon: Icon, external, children }) {
-  return (
-    <a
-      href={href}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noreferrer" : undefined}
-      className="inline-flex items-center gap-1.5 text-[12px] lowercase underline-offset-2 hover:underline"
-      style={{ fontFamily: MONO, color: PAPER }}
-    >
-      <Icon className="w-3.5 h-3.5" />
-      {children}
-    </a>
   );
 }
