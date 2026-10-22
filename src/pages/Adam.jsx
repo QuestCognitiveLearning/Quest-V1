@@ -375,11 +375,14 @@ function PuzzleCube({ size = 240, scrollRot = 0, idle = true, onStatus }) {
     return [p[0], p[1]];
   };
 
+  // Drag a sticker: after a few pixels the layer is chosen and it follows the
+  // finger live (highlighted), then snaps to the nearest quarter turn on release.
   const onPointerDown = (e) => {
+    if (animRef.current) return;
     const faceEl = e.target.closest ? e.target.closest("[data-face]") : null;
     e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
     if (faceEl) {
-      drag.current = { kind: "turn", x: e.clientX, y: e.clientY, pos: faceEl.dataset.pos.split(",").map(Number), face: faceEl.dataset.face, done: false };
+      drag.current = { kind: "turn", x: e.clientX, y: e.clientY, pos: faceEl.dataset.pos.split(",").map(Number), face: faceEl.dataset.face, axis: null };
     } else {
       drag.current = { kind: "orbit", x: e.clientX, y: e.clientY };
     }
@@ -393,29 +396,71 @@ function PuzzleCube({ size = 240, scrollRot = 0, idle = true, onStatus }) {
       d.x = e.clientX; d.y = e.clientY;
       return;
     }
-    if (d.done || Math.hypot(dx, dy) < 14) return;
-    d.done = true;
-    // pick the in-face axis whose screen direction best matches the drag
-    const n = FACE_NORMAL[d.face];
-    const candidates = [];
-    ["x", "y", "z"].forEach((ax) => {
-      const e3 = [0, 0, 0]; e3[AXIS_IDX[ax]] = 1;
-      if (Math.abs(n[AXIS_IDX[ax]]) === 1) return;
-      [1, -1].forEach((sgn) => {
-        const m = e3.map((v) => v * sgn);
-        const [sx, sy] = project(m);
-        const len = Math.hypot(sx, sy) || 1;
-        candidates.push({ m, score: (sx * dx + sy * dy) / len });
+    if (!d.axis) {
+      if (Math.hypot(dx, dy) < 6) return;
+      // pick the in-face axis whose screen direction best matches the drag
+      const n = FACE_NORMAL[d.face];
+      const candidates = [];
+      ["x", "y", "z"].forEach((ax) => {
+        const e3 = [0, 0, 0]; e3[AXIS_IDX[ax]] = 1;
+        if (Math.abs(n[AXIS_IDX[ax]]) === 1) return;
+        [1, -1].forEach((sgn) => {
+          const m = e3.map((v) => v * sgn);
+          const [sx, sy] = project(m);
+          const len = Math.hypot(sx, sy) || 1;
+          candidates.push({ m, dirX: sx / len, dirY: sy / len, score: (sx * dx + sy * dy) / len });
+        });
       });
-    });
-    candidates.sort((a, b) => b.score - a.score);
-    const m = candidates[0].m;
-    const r = cross(n, m); // rotation axis; +90° about r carries n onto m
-    const axis = ["x", "y", "z"][r.findIndex((v) => Math.abs(v) === 1)];
-    const dir = r[AXIS_IDX[axis]] > 0 ? 1 : -1;
-    startMove({ axis, layer: d.pos[AXIS_IDX[axis]], dir }, true);
+      candidates.sort((a, b) => b.score - a.score);
+      const best = candidates[0];
+      const r = cross(n, best.m); // +90° about r carries n onto m
+      const axis = ["x", "y", "z"][r.findIndex((v) => Math.abs(v) === 1)];
+      d.axis = axis;
+      d.layer = d.pos[AXIS_IDX[axis]];
+      d.sign = r[AXIS_IDX[axis]] > 0 ? 1 : -1;
+      d.dirX = best.dirX; d.dirY = best.dirY;
+    }
+    // degrees of turn = distance dragged along the chosen screen direction
+    const along = dx * d.dirX + dy * d.dirY;
+    const angle = clamp((along / (size * 0.55)) * 90, -180, 180) * d.sign;
+    animRef.current = { axis: d.axis, layer: d.layer, dir: d.sign, angle, live: true };
+    setAnim({ ...animRef.current });
   };
-  const onPointerUp = () => { drag.current = null; };
+  const onPointerUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.kind !== "turn" || !d.axis) { if (d && d.kind === "turn") { animRef.current = null; setAnim(null); } return; }
+    const a = animRef.current;
+    if (!a) return;
+    const quarters = Math.round(a.angle / 90);
+    const target = quarters * 90;
+    const from = a.angle;
+    const t0 = performance.now();
+    const settle = (now) => {
+      const k = clamp((now - t0) / 140, 0, 1);
+      const e = 1 - Math.pow(1 - k, 3);
+      animRef.current = { ...a, angle: from + (target - from) * e, live: true };
+      setAnim({ ...animRef.current });
+      if (k < 1) { requestAnimationFrame(settle); return; }
+      if (quarters !== 0) {
+        const sgn = quarters > 0 ? 1 : -1;
+        const times = Math.abs(quarters);
+        setCubies((prev) =>
+          prev.map((q) => {
+            if (q.pos[AXIS_IDX[a.axis]] !== a.layer) return q;
+            let pos = q.pos;
+            const turns = [...q.turns];
+            for (let i = 0; i < times; i++) { pos = rotVec(pos, a.axis, sgn); turns.push([a.axis, sgn]); }
+            return { ...q, pos, orient: `rotate${a.axis.toUpperCase()}(${90 * sgn * times}deg) ${q.orient}`, turns };
+          })
+        );
+        setMoves((m) => m + 1);
+      }
+      animRef.current = null;
+      setAnim(null);
+    };
+    requestAnimationFrame(settle);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
@@ -433,6 +478,7 @@ function PuzzleCube({ size = 240, scrollRot = 0, idle = true, onStatus }) {
           {cubies.map((q) => {
             const inLayer = anim && q.pos[AXIS_IDX[anim.axis]] === anim.layer;
             const layerRot = inLayer ? `rotate${anim.axis.toUpperCase()}(${anim.angle}deg) ` : "";
+            const lit = inLayer && anim.live;
             const [x, y, z] = q.pos;
             return (
               <div
@@ -463,7 +509,7 @@ function PuzzleCube({ size = 240, scrollRot = 0, idle = true, onStatus }) {
                     }}
                   >
                     {q.stickers[f] && (
-                      <div data-face={f} data-pos={q.pos.join(",")} style={{ width: "100%", height: "100%", borderRadius: size * 0.022, background: STICKER[f], boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12), inset 0 -6px 10px rgba(0,0,0,0.12), inset 0 6px 10px rgba(255,255,255,0.22)" }} />
+                      <div data-face={f} data-pos={q.pos.join(",")} style={{ width: "100%", height: "100%", borderRadius: size * 0.022, background: STICKER[f], boxShadow: lit ? "inset 0 0 0 3px rgba(255,255,255,0.9), inset 0 0 12px rgba(255,255,255,0.5)" : "inset 0 0 0 1px rgba(0,0,0,0.12), inset 0 -6px 10px rgba(0,0,0,0.12), inset 0 6px 10px rgba(255,255,255,0.22)" }} />
                     )}
                   </div>
                 ))}
@@ -811,7 +857,7 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
           }}
         >
           <PuzzleCube size={cubeSize} scrollRot={rot} idle={!reduced} />
-          <Mono className="hidden lg:block" style={{ display: "block", textAlign: "center", marginTop: 8, whiteSpace: "nowrap", opacity: labelFade }}>drag a sticker to turn · drag around it to orbit</Mono>
+          <Mono className="hidden lg:block" style={{ display: "block", textAlign: "center", marginTop: 8, whiteSpace: "nowrap", opacity: labelFade }}>drag a sticker and the layer follows · drag the space around it to orbit</Mono>
         </div>
 
         {/* headline over the object */}
@@ -990,8 +1036,11 @@ function Index({ zoom }) {
 // The double helix: ten cards on a 3D spiral
 // ---------------------------------------------------------------------------
 
+const HELIX_A = "#3B5BA5"; // muted blue
+const HELIX_B = "#A8336B"; // muted magenta
+
 function HelixCard({ c, strand, style, cardRef }) {
-  const accent = strand === "A" ? BLUE : MAG;
+  const accent = strand === "A" ? HELIX_A : HELIX_B;
   const innerRef = useRef(null);
   const sheenRef = useRef(null);
   // holographic tilt: the card leans toward the cursor and a sheen follows it
@@ -1004,7 +1053,7 @@ function HelixCard({ c, strand, style, cardRef }) {
     el.style.transform = `rotateX(${(-py * 14).toFixed(2)}deg) rotateY(${(px * 16).toFixed(2)}deg) translateZ(12px)`;
     if (sheenRef.current) {
       sheenRef.current.style.opacity = "1";
-      sheenRef.current.style.background = `radial-gradient(240px circle at ${(px + 0.5) * 100}% ${(py + 0.5) * 100}%, rgba(255,255,255,0.22), rgba(255,255,255,0.04) 40%, transparent 70%)`;
+      sheenRef.current.style.background = `radial-gradient(240px circle at ${(px + 0.5) * 100}% ${(py + 0.5) * 100}%, rgba(36,87,197,0.10), rgba(36,87,197,0.02) 40%, transparent 70%)`;
     }
   };
   const onLeave = () => {
@@ -1012,10 +1061,10 @@ function HelixCard({ c, strand, style, cardRef }) {
     if (sheenRef.current) sheenRef.current.style.opacity = "0";
   };
   const inner = (
-    <div ref={innerRef} style={{ position: "relative", width: "100%", height: "100%", boxSizing: "border-box", padding: "16px 18px 16px 20px", borderRadius: 6, background: "rgba(20,27,46,0.92)", border: "1px solid rgba(255,255,255,0.12)", borderLeft: `3px solid ${accent}`, display: "flex", flexDirection: "column", gap: 8, transition: "transform 0.25s ease", transformStyle: "preserve-3d", overflow: "hidden", backdropFilter: "blur(4px)" }}>
-      <span style={{ fontFamily: MONO, fontSize: 11, color: strand === "A" ? "#8FB0FF" : "#FF7AB6" }}>{c.k}</span>
-      <span style={{ fontFamily: SANS, fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.15, color: PAPER }}>{c.t}{c.link ? " ↗" : ""}</span>
-      <span style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.45, color: "#B8BFCF" }}>{c.d}</span>
+    <div ref={innerRef} style={{ position: "relative", width: "100%", height: "100%", boxSizing: "border-box", padding: "16px 18px 16px 20px", borderRadius: 6, background: "rgba(255,255,255,0.96)", border: `1px solid ${RULE}`, borderLeft: `3px solid ${accent}`, display: "flex", flexDirection: "column", gap: 8, transition: "transform 0.25s ease", transformStyle: "preserve-3d", overflow: "hidden", boxShadow: "0 10px 30px rgba(16,24,40,0.08)" }}>
+      <span style={{ fontFamily: MONO, fontSize: 11, color: accent }}>{c.k}</span>
+      <span style={{ fontFamily: SANS, fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.15, color: INK }}>{c.t}{c.link ? " ↗" : ""}</span>
+      <span style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.45, color: BODY }}>{c.d}</span>
       <div ref={sheenRef} aria-hidden="true" style={{ position: "absolute", inset: 0, opacity: 0, transition: "opacity 0.3s", pointerEvents: "none", borderRadius: 8 }} />
     </div>
   );
@@ -1095,7 +1144,7 @@ function Helix({ reduced, zoom, setZoom }) {
 
       ctx.clearRect(0, 0, cw, ch);
       // axis guide
-      ctx.strokeStyle = "rgba(255,255,255,0.06)";
+      ctx.strokeStyle = "rgba(16,24,40,0.08)";
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(cx, cy - H / 2 - 30); ctx.lineTo(cx, cy + H / 2 + 30); ctx.stroke();
 
@@ -1103,7 +1152,7 @@ function Helix({ reduced, zoom, setZoom }) {
       for (const it of items) {
         if (it.kind !== "rung") continue;
         const depth = (it.a.z + it.b.z) / (2 * R);
-        ctx.strokeStyle = `rgba(143,176,255,${0.08 + 0.14 * (depth + 1) / 2})`;
+        ctx.strokeStyle = `rgba(16,24,40,${0.06 + 0.12 * (depth + 1) / 2})`;
         ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.moveTo(it.a.sx, it.a.sy); ctx.lineTo(it.b.sx, it.b.sy); ctx.stroke();
       }
@@ -1111,11 +1160,11 @@ function Helix({ reduced, zoom, setZoom }) {
       const balls = items.filter((it) => it.kind === "ball");
       for (const k of ["A", "B"]) {
         const pts = balls.filter((b) => b.k === k).sort((m, n) => m.sy - n.sy);
-        const base = k === "A" ? "36,87,197" : "194,24,91";
+        const base = k === "A" ? "59,91,165" : "168,51,107";
         for (let j = 1; j < pts.length; j++) {
           const q0 = pts[j - 1], q1 = pts[j];
           const d = (q0.facing + q1.facing) / 2;
-          ctx.strokeStyle = `rgba(${base},${0.25 + 0.65 * ((d + 1) / 2)})`;
+          ctx.strokeStyle = `rgba(${base},${0.18 + 0.6 * ((d + 1) / 2)})`;
           ctx.lineWidth = (2.2 + 2.6 * ((d + 1) / 2)) * q1.sc;
           ctx.lineCap = "round";
           ctx.beginPath(); ctx.moveTo(q0.sx, q0.sy); ctx.lineTo(q1.sx, q1.sy); ctx.stroke();
@@ -1126,18 +1175,18 @@ function Helix({ reduced, zoom, setZoom }) {
         {
           const isF = it.feature >= 0;
           const r = (isF ? 12 : 4.6) * it.sc;
-          const base = it.k === "A" ? [36, 87, 197] : [194, 24, 91];
-          const dim = 0.45 + 0.55 * ((it.facing + 1) / 2);
+          const base = it.k === "A" ? [59, 91, 165] : [168, 51, 107];
+          const dim = 0.35 + 0.65 * ((it.facing + 1) / 2);
           if (isF) {
             const g2 = ctx.createRadialGradient(it.sx, it.sy, r * 0.6, it.sx, it.sy, r * 3.2);
-            g2.addColorStop(0, `rgba(${base[0]},${base[1]},${base[2]},${0.35 * dim})`);
+            g2.addColorStop(0, `rgba(${base[0]},${base[1]},${base[2]},${0.16 * dim})`);
             g2.addColorStop(1, `rgba(${base[0]},${base[1]},${base[2]},0)`);
             ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(it.sx, it.sy, r * 3.2, 0, Math.PI * 2); ctx.fill();
           }
           const g = ctx.createRadialGradient(it.sx - r * 0.35, it.sy - r * 0.35, r * 0.1, it.sx, it.sy, r);
-          g.addColorStop(0, `rgba(${base[0] + 110},${base[1] + 110},${base[2] + 80},${dim})`);
+          g.addColorStop(0, `rgba(${base[0] + 70},${base[1] + 70},${base[2] + 60},${dim})`);
           g.addColorStop(0.6, `rgba(${base[0]},${base[1]},${base[2]},${dim})`);
-          g.addColorStop(1, `rgba(${base[0] * 0.4},${base[1] * 0.4},${base[2] * 0.4},${dim})`);
+          g.addColorStop(1, `rgba(${base[0] * 0.6},${base[1] * 0.6},${base[2] * 0.6},${dim})`);
           ctx.fillStyle = g;
           ctx.beginPath(); ctx.arc(it.sx, it.sy, r, 0, Math.PI * 2); ctx.fill();
           if (isF) {
@@ -1147,7 +1196,7 @@ function Helix({ reduced, zoom, setZoom }) {
             ctx.font = `700 11px ${MONO}`;
             ctx.textAlign = right ? "left" : "right";
             ctx.textBaseline = "middle";
-            ctx.fillStyle = `rgba(${it.k === "A" ? "143,176,255" : "255,122,182"},${0.35 + 0.65 * ((it.facing + 1) / 2)})`;
+            ctx.fillStyle = `rgba(${it.k === "A" ? "59,91,165" : "168,51,107"},${0.3 + 0.7 * ((it.facing + 1) / 2)})`;
             ctx.fillText(tag, it.sx + (right ? r + 8 : -r - 8), it.sy);
           }
         }
@@ -1170,7 +1219,7 @@ function Helix({ reduced, zoom, setZoom }) {
         el.style.pointerEvents = eased > 0.6 ? "auto" : "none";
         el.style.zIndex = String(Math.round(10 + eased * 10));
         if (eased > 0.05) {
-          ctx.strokeStyle = q.k === "A" ? `rgba(143,176,255,${0.7 * eased})` : `rgba(255,122,182,${0.7 * eased})`;
+          ctx.strokeStyle = q.k === "A" ? `rgba(59,91,165,${0.6 * eased})` : `rgba(168,51,107,${0.6 * eased})`;
           ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(q.sx, q.sy);
           if (narrow) ctx.lineTo(q.sx, top); else ctx.lineTo(right ? left : left + cardW, q.sy);
@@ -1185,10 +1234,10 @@ function Helix({ reduced, zoom, setZoom }) {
 
   if (reduced) {
     return (
-      <section id="helix" className="px-6 py-16" style={{ background: NIGHT, color: PAPER, scrollMarginTop: 90 }}>
+      <section id="helix" className="px-6 py-16" style={{ background: PAPER, color: INK, scrollMarginTop: 90, borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
         <div className="flex flex-wrap items-baseline justify-between gap-3 mb-8">
-          <h2 style={{ margin: 0, fontFamily: SANS, fontSize: "clamp(32px, 3.4vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em" }}>Work &amp; projects</h2>
-          <Mono style={{ color: "#8A93A8" }}>base pair view · 10 features</Mono>
+          <H2>Work &amp; projects</H2>
+          <Mono>base pair view · 10 features</Mono>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           {features.map(({ c, strand }, i) => <HelixCard key={i} c={c} strand={strand} style={{ minHeight: 150 }} />)}
@@ -1198,16 +1247,16 @@ function Helix({ reduced, zoom, setZoom }) {
   }
 
   return (
-    <section ref={ref} id="helix" style={{ height: "420vh", background: NIGHT, color: PAPER }}>
+    <section ref={ref} id="helix" style={{ height: "420vh", background: PAPER, color: INK, borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
       <div className="sticky top-0 overflow-hidden" style={{ height: "100vh" }}>
-        <Mono style={{ position: "absolute", left: 24, top: 84, color: "#8A93A8", zIndex: 3 }}>base pair view · 10 features</Mono>
-        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 84, color: "#8A93A8", zIndex: 3 }}>chr1:1,300,000–1,900,000</Mono>
+        <Mono style={{ position: "absolute", left: 24, top: 84, zIndex: 3 }}>base pair view · 10 features</Mono>
+        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 84, zIndex: 3 }}>chr1:1,300,000–1,900,000</Mono>
         <div style={{ position: "absolute", left: 24, bottom: 24, zIndex: 3, display: "flex", flexDirection: "column", gap: 6, pointerEvents: "none" }}>
-          <span style={{ fontFamily: SANS, fontSize: "clamp(28px, 3.2vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1 }}>Work &amp; projects</span>
-          <Mono style={{ color: "#8A93A8" }}><span style={{ color: "#8FB0FF" }}>●</span> strand A work &nbsp; <span style={{ color: "#FF7AB6" }}>●</span> strand B projects &nbsp;· scroll turns the helix</Mono>
+          <span style={{ fontFamily: SANS, fontSize: "clamp(28px, 3.2vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1, color: INK }}>Work &amp; projects</span>
+          <Mono><span style={{ color: HELIX_A }}>●</span> strand A work &nbsp; <span style={{ color: HELIX_B }}>●</span> strand B projects &nbsp;· scroll turns the helix</Mono>
         </div>
         <div className="hidden sm:block" style={{ position: "absolute", right: 24, bottom: 24, zIndex: 3 }}>
-          <ZoomControl zoom={zoom} setZoom={setZoom} dark />
+          <ZoomControl zoom={zoom} setZoom={setZoom} />
         </div>
 
         <canvas ref={canvasRef} aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
