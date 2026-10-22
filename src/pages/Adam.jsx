@@ -815,10 +815,11 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
         </div>
 
         {/* headline over the object */}
-        <div style={{ position: "absolute", left: 24, right: 24, bottom: "clamp(72px, 12vh, 110px)", zIndex: 2, opacity: textFade, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ position: "absolute", left: 24, right: 24, bottom: "clamp(72px, 12vh, 110px)", zIndex: 2, opacity: textFade, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 20, pointerEvents: "none" }}>
           <h1
             style={{
               margin: 0,
+              pointerEvents: "auto",
               fontFamily: SANS,
               fontWeight: 600,
               fontSize: "clamp(56px, 13.5vw, 200px)",
