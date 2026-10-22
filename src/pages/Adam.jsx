@@ -337,6 +337,163 @@ function Pill({ href, children }) {
 // Hero: sticky frame, scroll turns and zooms the chromosome
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Ball-and-stick DNA, canvas 2D. The hero's second act: the chromosome unwinds
+// into this. Scroll spins it, the cursor unzips base pairs where it passes,
+// a click flicks it. Written from scratch; no three.js.
+// ---------------------------------------------------------------------------
+
+const BASES = "ATGCGTACCGATTAGCATGCCGTAATGCAGTCCGATAGCTTAGCCGATGCATAGGCTAACG";
+const BASE_COLOR = { A: "#2457C5", T: "#E0B23A", G: "#2E9E6B", C: "#8B5CF6" };
+
+function DnaHelix({ opacity, spin, active }) {
+  const canvasRef = useRef(null);
+  const st = useRef({ mouse: null, unzip: new Float32Array(BASES.length), vel: 0, rot: 0, t: 0, raf: 0 });
+  const propsRef = useRef({ opacity, spin, active });
+  propsRef.current = { opacity, spin, active };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const S = st.current;
+    let w = 0, h = 0, dpr = 1;
+    const resize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = canvas.clientWidth; h = canvas.clientHeight;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const N = BASES.length;
+    const draw = (now) => {
+      S.raf = 0;
+      const { opacity: op, spin: sp, active: on } = propsRef.current;
+      if (!on || op <= 0.01) { ctx.clearRect(0, 0, w, h); return; }
+      const dt = Math.min(0.05, (now - S.t) / 1000 || 0.016);
+      S.t = now;
+      S.vel *= 0.96;
+      S.rot += dt * (0.35 + S.vel);
+      const rot = S.rot + sp;
+
+      const L = Math.min(w * 0.86, 1500);
+      const R = Math.min(92, w * 0.066);
+      const pitch = L / N;
+      const tilt = w < 640 ? 0.0 : -0.42;
+      const f = 900;
+      const cx = w / 2, cy = h * 0.52;
+      const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
+
+      const items = [];
+      for (let i = 0; i < N; i++) {
+        const x = -L / 2 + i * pitch;
+        // unzip target from cursor distance along the (tilted) axis
+        let target = 0;
+        if (S.mouse) {
+          const mx = S.mouse.x - cx, my = S.mouse.y - cy;
+          const ax = mx * cosT + my * sinT;
+          const d = Math.abs(ax - x);
+          target = clamp(1 - d / 190, 0, 1);
+          target = target * target * (3 - 2 * target);
+        }
+        S.unzip[i] += (target - S.unzip[i]) * 0.12;
+        const u = S.unzip[i];
+        const a = i * 0.36 + rot;
+        const sep = R * (1 + u * 1.7);
+        const pts = [
+          [x, Math.cos(a) * sep, Math.sin(a) * sep, "A"],
+          [x, Math.cos(a + Math.PI) * sep, Math.sin(a + Math.PI) * sep, "B"],
+        ];
+        const proj = pts.map(([px, py, pz, k]) => {
+          const rx = px * cosT - py * sinT, ry = px * sinT + py * cosT;
+          const sc = f / (f + pz + 300);
+          return { sx: cx + rx * sc, sy: cy + ry * sc, z: pz, sc, k };
+        });
+        items.push({ kind: "rung", i, u, a: proj[0], b: proj[1], z: (proj[0].z + proj[1].z) / 2 });
+        proj.forEach((q) => items.push({ kind: "ball", z: q.z, sx: q.sx, sy: q.sy, sc: q.sc, k: q.k }));
+      }
+      items.sort((m, n) => m.z - n.z);
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalAlpha = op;
+      for (const it of items) {
+        if (it.kind === "rung") {
+          const col = BASE_COLOR[BASES[it.i]];
+          const mx = (it.a.sx + it.b.sx) / 2, my = (it.a.sy + it.b.sy) / 2;
+          const gap = it.u * 0.55;
+          ctx.lineWidth = 4.5 * it.a.sc;
+          ctx.lineCap = "round";
+          ctx.strokeStyle = col;
+          ctx.globalAlpha = op * (0.55 + 0.45 * ((it.z + 100) / 200));
+          ctx.beginPath();
+          ctx.moveTo(it.a.sx, it.a.sy);
+          ctx.lineTo(it.a.sx + (mx - it.a.sx) * (1 - gap), it.a.sy + (my - it.a.sy) * (1 - gap));
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(it.b.sx, it.b.sy);
+          ctx.lineTo(it.b.sx + (mx - it.b.sx) * (1 - gap), it.b.sy + (my - it.b.sy) * (1 - gap));
+          ctx.stroke();
+          ctx.globalAlpha = op;
+        } else {
+          const r = 8.5 * it.sc;
+          const base = it.k === "A" ? [36, 87, 197] : [194, 24, 91];
+          const g = ctx.createRadialGradient(it.sx - r * 0.35, it.sy - r * 0.35, r * 0.1, it.sx, it.sy, r);
+          g.addColorStop(0, `rgb(${base[0] + 90},${base[1] + 90},${base[2] + 70})`);
+          g.addColorStop(0.6, `rgb(${base[0]},${base[1]},${base[2]})`);
+          g.addColorStop(1, `rgb(${base[0] * 0.45},${base[1] * 0.45},${base[2] * 0.45})`);
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(it.sx, it.sy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    };
+    const loop = (now) => {
+      draw(now);
+      S.raf = requestAnimationFrame(loop);
+    };
+    S.raf = requestAnimationFrame(loop);
+    return () => {
+      window.removeEventListener("resize", resize);
+      if (S.raf) cancelAnimationFrame(S.raf);
+    };
+  }, []);
+
+  const onMove = (e) => {
+    const r = canvasRef.current.getBoundingClientRect();
+    const pt = e.touches ? e.touches[0] : e;
+    st.current.mouse = { x: pt.clientX - r.left, y: pt.clientY - r.top };
+  };
+  const onLeave = () => { st.current.mouse = null; };
+  const onClick = () => { st.current.vel += 2.2; };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      onTouchMove={onMove}
+      onTouchEnd={onLeave}
+      onClick={onClick}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: opacity > 0.01 ? 1 : 0, pointerEvents: opacity > 0.3 ? "auto" : "none", cursor: "crosshair" }}
+    />
+  );
+}
+
+function PopLetters({ text }) {
+  return (
+    <span style={{ display: "inline-block", perspective: 600 }}>
+      {text.split("").map((ch, i) => (
+        <span key={i} className="adam-letter" style={{ display: "inline-block", transformStyle: "preserve-3d" }}>{ch}</span>
+      ))}
+    </span>
+  );
+}
+
 const BIO = "Builds software that makes sense of living things. First-year at Duke, neuroscience and computer science. Co-founder of Quest Learning.".split(" ");
 
 function Hero({ reduced, zoom, setZoom, onLeave }) {
@@ -353,8 +510,10 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
 
   const rot = reduced ? 0 : p * 170;
   const scale = reduced ? 1 : 1 + ramp(p, 0.15, 1) * 2.6;
-  const chrOpacity = reduced ? 1 : 1 - ramp(p, 0.62, 0.92);
+  const chrOpacity = reduced ? 1 : 1 - ramp(p, 0.58, 0.8);
+  const dnaOpacity = reduced ? 0 : ramp(p, 0.66, 0.9) * (1 - ramp(p, 0.96, 1));
   const textFade = reduced ? 1 : 1 - ramp(p, 0.55, 0.85);
+  const labelFade = reduced ? 1 : 1 - ramp(p, 0.08, 0.3);
   const revealed = reduced ? BIO.length : Math.round((0.42 + 0.58 * ramp(p, 0.02, 0.4)) * BIO.length);
 
   return (
@@ -370,6 +529,14 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
         <div style={{ position: "absolute", right: 24, bottom: 20, zIndex: 3, opacity: textFade, pointerEvents: textFade < 0.3 ? "none" : "auto" }}>
           <ZoomControl zoom={zoom} setZoom={setZoom} />
         </div>
+
+        {/* second act: the chromosome unwinds into DNA */}
+        {!reduced && <DnaHelix opacity={dnaOpacity} spin={p * 6} active={p > 0.6 && p < 0.999} />}
+        {!reduced && (
+          <Mono style={{ position: "absolute", left: "50%", top: 24, transform: "translateX(-50%)", color: BLUE, whiteSpace: "nowrap", opacity: dnaOpacity, pointerEvents: "none" }}>
+            move along the helix to unzip it · click to spin
+          </Mono>
+        )}
 
         {/* the specimen */}
         <div
@@ -391,8 +558,8 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
           <div className={reduced ? "" : "adam-chr-idle"} style={{ width: "100%", height: "100%", transformStyle: "preserve-3d" }}>
             <Chromosome style={{ width: "100%", height: "100%" }} />
           </div>
-          <Mono className="hidden lg:block" style={{ position: "absolute", left: "-44%", top: "16%", whiteSpace: "nowrap", opacity: textFade }}>p13 · work</Mono>
-          <Mono className="hidden lg:block" style={{ position: "absolute", right: "-36%", top: "68%", whiteSpace: "nowrap", opacity: textFade }}>q22 · projects</Mono>
+          <Mono className="hidden lg:block" style={{ position: "absolute", left: "-44%", top: "16%", whiteSpace: "nowrap", opacity: labelFade }}>p13 · work</Mono>
+          <Mono className="hidden lg:block" style={{ position: "absolute", right: "-36%", top: "68%", whiteSpace: "nowrap", opacity: labelFade }}>q22 · projects</Mono>
         </div>
 
         {/* headline over the object */}
@@ -408,9 +575,9 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
               color: INK,
             }}
           >
-            Adam
+            <PopLetters text="Adam" />
             <br />
-            Rakhmanov
+            <PopLetters text="Rakhmanov" />
           </h1>
           <p style={{ margin: 0, maxWidth: "44ch", fontFamily: SANS, fontSize: "clamp(16px, 1.6vw, 22px)", lineHeight: 1.4, color: BODY }}>
             {BIO.map((w, i) => (
@@ -572,29 +739,38 @@ function Index({ zoom }) {
 
 function HelixCard({ c, strand, style, cardRef }) {
   const accent = strand === "A" ? BLUE : MAG;
+  const innerRef = useRef(null);
+  const sheenRef = useRef(null);
+  // holographic tilt: the card leans toward the cursor and a sheen follows it
+  const onMove = (e) => {
+    const el = innerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `rotateX(${(-py * 14).toFixed(2)}deg) rotateY(${(px * 16).toFixed(2)}deg) translateZ(12px)`;
+    if (sheenRef.current) {
+      sheenRef.current.style.opacity = "1";
+      sheenRef.current.style.background = `radial-gradient(240px circle at ${(px + 0.5) * 100}% ${(py + 0.5) * 100}%, rgba(255,255,255,0.22), rgba(255,255,255,0.04) 40%, transparent 70%)`;
+    }
+  };
+  const onLeave = () => {
+    if (innerRef.current) innerRef.current.style.transform = "rotateX(0deg) rotateY(0deg) translateZ(0px)";
+    if (sheenRef.current) sheenRef.current.style.opacity = "0";
+  };
   const inner = (
-    <>
+    <div ref={innerRef} style={{ position: "relative", width: "100%", height: "100%", boxSizing: "border-box", padding: "18px 20px", borderRadius: 8, background: "#141B2E", border: `1px solid ${accent}`, display: "flex", flexDirection: "column", gap: 8, transition: "transform 0.25s ease", transformStyle: "preserve-3d", overflow: "hidden" }}>
       <span style={{ fontFamily: MONO, fontSize: 11, color: strand === "A" ? "#8FB0FF" : "#FF7AB6" }}>{c.k}</span>
       <span style={{ fontFamily: SANS, fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.15, color: PAPER }}>{c.t}{c.link ? " ↗" : ""}</span>
       <span style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.45, color: "#B8BFCF" }}>{c.d}</span>
-    </>
+      <div ref={sheenRef} aria-hidden="true" style={{ position: "absolute", inset: 0, opacity: 0, transition: "opacity 0.3s", pointerEvents: "none", borderRadius: 8 }} />
+    </div>
   );
-  const base = {
-    boxSizing: "border-box",
-    padding: "18px 20px",
-    borderRadius: 8,
-    background: "#141B2E",
-    border: `1px solid ${accent}`,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    textDecoration: "none",
-    ...style,
-  };
+  const base = { boxSizing: "border-box", textDecoration: "none", perspective: 700, ...style };
   return c.link ? (
-    <a ref={cardRef} href={c.link} target="_blank" rel="noreferrer" style={base}>{inner}</a>
+    <a ref={cardRef} href={c.link} target="_blank" rel="noreferrer" style={base} onMouseMove={onMove} onMouseLeave={onLeave}>{inner}</a>
   ) : (
-    <div ref={cardRef} style={base}>{inner}</div>
+    <div ref={cardRef} style={base} onMouseMove={onMove} onMouseLeave={onLeave}>{inner}</div>
   );
 }
 
@@ -637,7 +813,7 @@ function Helix({ reduced, zoom, setZoom }) {
           <Mono style={{ color: "#8A93A8" }}>base pair view · 10 features</Mono>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          {cards.map(({ c, strand }, i) => <HelixCard key={i} c={c} strand={strand} />)}
+          {cards.map(({ c, strand }, i) => <HelixCard key={i} c={c} strand={strand} style={{ minHeight: 150 }} />)}
         </div>
       </section>
     );
@@ -741,17 +917,101 @@ function Coverage({ zoom }) {
   );
 }
 
+// Constellation: the awards are the bright stars, the cursor draws lines to
+// whatever is near it. Faint background stars are seeded, not random, so the
+// sky is the same on every visit.
+const FAINT_STARS = Array.from({ length: 46 }, (_, i) => {
+  const a = Math.sin(i * 12.9898) * 43758.5453;
+  const b = Math.sin(i * 78.233) * 12345.678;
+  return [a - Math.floor(a), b - Math.floor(b), 0.6 + ((i * 7) % 5) * 0.25];
+});
+const STAR_POS = [[0.1, 0.42], [0.3, 0.2], [0.5, 0.62], [0.7, 0.3], [0.88, 0.5]];
+
+function Constellation({ lit }) {
+  const ref = useRef(null);
+  const mouse = useRef(null);
+  const [hover, setHover] = useState(-1);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let raf = 0, w = 0, h = 0;
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = canvas.clientWidth; h = canvas.clientHeight;
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    const draw = () => {
+      raf = 0;
+      ctx.clearRect(0, 0, w, h);
+      const m = mouse.current;
+      for (const [fx, fy, r] of FAINT_STARS) {
+        ctx.fillStyle = "rgba(16,24,40,0.28)";
+        ctx.beginPath(); ctx.arc(fx * w, fy * h, r, 0, Math.PI * 2); ctx.fill();
+      }
+      if (m) {
+        const near = [];
+        FAINT_STARS.forEach(([fx, fy]) => { const d = Math.hypot(fx * w - m.x, fy * h - m.y); if (d < 120) near.push([fx * w, fy * h, d, false]); });
+        STAR_POS.forEach(([fx, fy], i) => { if (i >= lit) return; const d = Math.hypot(fx * w - m.x, fy * h - m.y); if (d < 170) near.push([fx * w, fy * h, d, true]); });
+        for (const [x, y, d, big] of near) {
+          ctx.strokeStyle = big ? `rgba(194,24,91,${(1 - d / 170) * 0.9})` : `rgba(16,24,40,${(1 - d / 120) * 0.45})`;
+          ctx.lineWidth = big ? 1.2 : 0.8;
+          ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(x, y); ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(36,87,197,0.9)";
+        ctx.beginPath(); ctx.arc(m.x, m.y, 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+      STAR_POS.forEach(([fx, fy], i) => {
+        const on = i < lit;
+        const x = fx * w, y = fy * h;
+        if (on) {
+          const g = ctx.createRadialGradient(x, y, 0, x, y, 16);
+          g.addColorStop(0, "rgba(194,24,91,0.35)"); g.addColorStop(1, "rgba(194,24,91,0)");
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = on ? MAG : RULE;
+        ctx.beginPath(); ctx.arc(x, y, on ? 5 : 4, 0, Math.PI * 2); ctx.fill();
+      });
+    };
+    const tick = () => { if (!raf) raf = requestAnimationFrame(draw); };
+    tick();
+    canvas.__tick = tick;
+    return () => { window.removeEventListener("resize", resize); if (raf) cancelAnimationFrame(raf); };
+  }, [lit]);
+  const onMove = (e) => {
+    const r = ref.current.getBoundingClientRect();
+    const pt = e.touches ? e.touches[0] : e;
+    const m = { x: pt.clientX - r.left, y: pt.clientY - r.top };
+    mouse.current = m;
+    let hi = -1;
+    STAR_POS.forEach(([fx, fy], i) => { if (i < lit && Math.hypot(fx * r.width - m.x, fy * r.height - m.y) < 22) hi = i; });
+    setHover(hi);
+    ref.current.__tick && ref.current.__tick();
+  };
+  const onLeave = () => { mouse.current = null; setHover(-1); ref.current && ref.current.__tick && ref.current.__tick(); };
+  return (
+    <div style={{ position: "relative", height: 150, borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}`, background: "#fff", borderRadius: 6, overflow: "hidden" }}>
+      <canvas ref={ref} aria-hidden="true" onMouseMove={onMove} onMouseLeave={onLeave} onTouchMove={onMove} onTouchEnd={onLeave} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", cursor: "crosshair" }} />
+      {hover >= 0 && (
+        <Mono style={{ position: "absolute", left: `${STAR_POS[hover][0] * 100}%`, top: `${STAR_POS[hover][1] * 100}%`, transform: "translate(12px, -50%)", color: MAG, background: "#fff", padding: "2px 6px", pointerEvents: "none", whiteSpace: "nowrap" }}>
+          {AWARDS[hover][0]} · {AWARDS[hover][1].split(",")[0]}
+        </Mono>
+      )}
+      <Mono style={{ position: "absolute", left: 10, bottom: 8, pointerEvents: "none" }}>move to connect the calls</Mono>
+    </div>
+  );
+}
+
 function Variants({ zoom }) {
   const awards = zoom === 0 ? AWARDS.slice(0, 2) : zoom === 1 ? AWARDS.slice(0, 3) : AWARDS;
   return (
     <section id="variants" className="flex flex-col gap-4" style={{ scrollMarginTop: 90 }}>
       <H2>Variants</H2>
       <Mono>awards · {AWARDS.length} calls · showing {awards.length} · filter: PASS</Mono>
-      <div style={{ position: "relative", height: 20, borderBottom: "1px solid #9CA3AF", marginBottom: 8 }}>
-        {[8, 26, 49, 70, 88].map((x, i) => (
-          <span key={x} style={{ position: "absolute", left: `${x}%`, bottom: -5, width: 10, height: 10, borderRadius: "50%", background: i < awards.length ? MAG : RULE }} />
-        ))}
-      </div>
+      <Constellation lit={awards.length} />
       <div style={{ borderBottom: `1px solid ${RULE}` }}>
         {awards.map(([id, text]) => (
           <div key={id} className="grid gap-4 py-3" style={{ gridTemplateColumns: "72px minmax(0,1fr)", borderTop: `1px solid ${RULE}` }}>
@@ -822,6 +1082,8 @@ export default function Adam() {
           100% { transform: rotateX(8deg) rotateY(-32deg) rotateZ(-3deg); }
         }
         .adam-chr-idle { animation: adam-chr-idle 10s ease-in-out infinite; }
+        .adam-letter { transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), color 0.35s; }
+        .adam-letter:hover { transform: translateY(-8%) rotateX(14deg) rotateY(-10deg) translateZ(40px); color: ${BLUE}; }
         .adam-row {
           display: grid;
           grid-template-columns: 56px 110px minmax(0,1fr) 220px 130px 60px;
@@ -838,6 +1100,8 @@ export default function Adam() {
         @media (prefers-reduced-motion: reduce) {
           html { scroll-behavior: auto; }
           .adam-chr-idle { animation: none; }
+          .adam-letter { transition: none; }
+          .adam-letter:hover { transform: none; }
         }
       `}</style>
 
