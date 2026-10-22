@@ -6,8 +6,8 @@
  * Design: "chr-adam" — the page is a genome browser and Adam's life is one
  * chromosome. Scrolling pans along it.
  *   - hero: four corners of mono metadata, one 200px headline, and one object:
- *     a G-banded chromosome that turns gently on idle. Scrolling takes over the
- *     rotation and zooms into it (chromosome → chromatin → DNA).
+ *     a CSS-3D puzzle cube (sweep a row to turn it, click to scramble). Scroll
+ *     spins and zooms it, then the DNA assembles like a sequence loading.
  *   - sticky browser chrome: locus readout, ruler with section ticks, and the
  *     zoom control (chromosome / gene / base pair) that gates content depth.
  *   - Index: one dense table of work, research, school. Rows expand.
@@ -214,75 +214,172 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const ramp = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
 
 // ---------------------------------------------------------------------------
-// The specimen: a submetacentric chromosome with G-banding
+// The specimen: a 3×3 puzzle cube in CSS 3D. Sweep across a row to turn it,
+// click to scramble. Stickers use the page's base-pair colours. Written from
+// scratch; 26 cubies, each face its own element, so it is editable and cheap.
 // ---------------------------------------------------------------------------
 
-const BANDS = [
-  [66, 14, "#0E2060", 0.26], [96, 8, "#fff", 0.16], [112, 26, "#0E2060", 0.24], [150, 10, "#fff", 0.14],
-  [168, 12, "#0E2060", 0.28], [246, 12, "#0E2060", 0.24], [270, 8, "#fff", 0.14], [288, 30, "#0E2060", 0.26],
-  [330, 9, "#fff", 0.14], [348, 16, "#0E2060", 0.22], [376, 12, "#fff", 0.16], [396, 34, "#0E2060", 0.28],
-  [444, 10, "#0E2060", 0.2],
-];
+const STICKER = {
+  px: MAG,       // right
+  nx: "#E0B23A", // left
+  py: "#2E9E6B", // bottom (y is down in CSS)
+  ny: PAPER,     // top
+  pz: BLUE,      // front
+  nz: "#8B5CF6", // back
+};
 
-function Chromosome({ style }) {
-  const P = "M -74 48 A 34 34 0 0 1 -6 48 C 0 110 0 170 1 206 C -3 224 -29 224 -33 206 C -43 170 -80 110 -74 48 Z";
-  const Q = "M -33 232 C -29 214 -3 214 1 232 C 0 320 -1 400 -7 458 A 36 36 0 0 1 -79 458 C -86 400 -49 320 -33 232 Z";
+const FACE_T = (half) => ({
+  px: `rotateY(90deg) translateZ(${half}px)`,
+  nx: `rotateY(-90deg) translateZ(${half}px)`,
+  py: `rotateX(-90deg) translateZ(${half}px)`,
+  ny: `rotateX(90deg) translateZ(${half}px)`,
+  pz: `translateZ(${half}px)`,
+  nz: `rotateY(180deg) translateZ(${half}px)`,
+});
+
+function rotVec([x, y, z], axis, dir) {
+  if (axis === "y") return [z * dir, y, -x * dir];
+  if (axis === "x") return [x, -z * dir, y * dir];
+  return [-y * dir, x * dir, z];
+}
+
+function makeCubies() {
+  const list = [];
+  for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+    if (!x && !y && !z) continue;
+    list.push({
+      id: `${x}${y}${z}`,
+      pos: [x, y, z],
+      orient: "",
+      stickers: { px: x === 1, nx: x === -1, py: y === 1, ny: y === -1, pz: z === 1, nz: z === -1 },
+    });
+  }
+  return list;
+}
+
+function PuzzleCube({ size = 240, style }) {
+  const [cubies, setCubies] = useState(makeCubies);
+  const [anim, setAnim] = useState(null); // { axis, layer, dir, angle }
+  const queue = useRef([]);
+  const animRef = useRef(null);
+  const sweep = useRef({ x: 0, y: 0, dx: 0, dy: 0, has: false });
+  const c = size / 3;
+  const gap = Math.max(3, size * 0.016);
+  const half = (c - gap) / 2;
+  const faceT = useMemo(() => FACE_T(half), [half]);
+
+  const startMove = useCallback((move) => {
+    if (animRef.current) { queue.current.push(move); return; }
+    animRef.current = { ...move, angle: 0, t0: 0 };
+    setAnim(animRef.current);
+    const dur = 240;
+    const step = (now) => {
+      const a = animRef.current;
+      if (!a) return;
+      if (!a.t0) a.t0 = now;
+      const k = clamp((now - a.t0) / dur, 0, 1);
+      const e = 1 - Math.pow(1 - k, 3);
+      a.angle = e * 90 * a.dir;
+      setAnim({ ...a });
+      if (k < 1) { requestAnimationFrame(step); return; }
+      // commit: rotate positions and prepend the rotation to each orientation
+      setCubies((prev) =>
+        prev.map((q) => {
+          const idx = { x: 0, y: 1, z: 2 }[a.axis];
+          if (q.pos[idx] !== a.layer) return q;
+          const rot = `rotate${a.axis.toUpperCase()}(${90 * a.dir}deg)`;
+          return { ...q, pos: rotVec(q.pos, a.axis, a.dir), orient: `${rot} ${q.orient}` };
+        })
+      );
+      animRef.current = null;
+      setAnim(null);
+      const next = queue.current.shift();
+      if (next) requestAnimationFrame(() => startMove(next));
+    };
+    requestAnimationFrame(step);
+  }, []);
+
+  const scramble = () => {
+    const axes = ["x", "y", "z"];
+    for (let i = 0; i < 10; i++) {
+      startMove({ axis: axes[Math.floor(Math.random() * 3)], layer: Math.floor(Math.random() * 3) - 1, dir: Math.random() < 0.5 ? 1 : -1 });
+    }
+  };
+
+  // sweep across a row (horizontal) turns that y-layer; sweep down a column turns that x-layer
+  const onMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const pt = e.touches ? e.touches[0] : e;
+    const x = pt.clientX - r.left, y = pt.clientY - r.top;
+    const S = sweep.current;
+    if (!S.has) { S.x = x; S.y = y; S.dx = 0; S.dy = 0; S.has = true; return; }
+    S.dx += x - S.x; S.dy += y - S.y; S.x = x; S.y = y;
+    const row = clamp(Math.floor((y / r.height) * 3), 0, 2) - 1;
+    const col = clamp(Math.floor((x / r.width) * 3), 0, 2) - 1;
+    const th = r.width * 0.22;
+    if (Math.abs(S.dx) > th && Math.abs(S.dx) > Math.abs(S.dy)) {
+      startMove({ axis: "y", layer: row, dir: S.dx > 0 ? 1 : -1 });
+      S.dx = 0; S.dy = 0;
+    } else if (Math.abs(S.dy) > th) {
+      startMove({ axis: "x", layer: col, dir: S.dy > 0 ? -1 : 1 });
+      S.dx = 0; S.dy = 0;
+    }
+  };
+  const onLeave = () => { sweep.current.has = false; };
+
   return (
-    <svg viewBox="-150 0 300 540" width="300" height="540" aria-hidden="true" style={{ display: "block", overflow: "visible", ...style }}>
-      <defs>
-        <linearGradient id="chr-body" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#9DB6F4" /><stop offset="0.2" stopColor="#5B82E3" /><stop offset="0.55" stopColor="#2F57C4" /><stop offset="0.85" stopColor="#1E3D94" /><stop offset="1" stopColor="#162E72" />
-        </linearGradient>
-        <linearGradient id="chr-spec" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0.12" stopColor="#fff" stopOpacity="0" /><stop offset="0.26" stopColor="#fff" stopOpacity="0.45" /><stop offset="0.42" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="chr-rim" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0.75" stopColor="#9DB6F4" stopOpacity="0" /><stop offset="0.97" stopColor="#BFD0FA" stopOpacity="0.55" /><stop offset="1" stopColor="#BFD0FA" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id="chr-tip" cx="0.5" cy="0.5" r="0.6">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.35" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </radialGradient>
-        <filter id="chr-organic" x="-20%" y="-10%" width="140%" height="120%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="2" seed="7" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-        <filter id="chr-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.4" /></filter>
-        <filter id="chr-fuzz" x="-30%" y="-15%" width="160%" height="130%"><feGaussianBlur stdDeviation="9" /></filter>
-        <filter id="chr-shadow" x="-40%" y="-20%" width="180%" height="150%"><feDropShadow dx="0" dy="26" stdDeviation="20" floodColor="#1E3D94" floodOpacity="0.28" /></filter>
-        <path id="chr-p" d={P} />
-        <path id="chr-q" d={Q} />
-        <clipPath id="chr-clipL"><use href="#chr-p" /><use href="#chr-q" /></clipPath>
-        <clipPath id="chr-clipR"><use href="#chr-p" transform="scale(-1 1)" /><use href="#chr-q" transform="scale(-1 1)" /></clipPath>
-        <g id="chr-bands">
-          {BANDS.map(([y, h, f, o], i) => <rect key={i} x="-150" y={y} width="300" height={h} fill={f} opacity={o} />)}
-        </g>
-        <g id="chr-tid"><use href="#chr-p" fill="url(#chr-body)" /><use href="#chr-q" fill="url(#chr-body)" /></g>
-      </defs>
-      {/* chromatin fuzz: a blurred copy under the body softens the silhouette */}
-      <g filter="url(#chr-fuzz)" opacity="0.4">
-        <use href="#chr-tid" /><use href="#chr-tid" transform="scale(-1 1)" />
-      </g>
-      <g filter="url(#chr-shadow)">
-        <g filter="url(#chr-organic)">
-          <use href="#chr-tid" />
-          <g clipPath="url(#chr-clipL)">
-            <use href="#chr-bands" filter="url(#chr-soft)" />
-            <use href="#chr-p" fill="url(#chr-spec)" /><use href="#chr-q" fill="url(#chr-spec)" />
-            <use href="#chr-p" fill="url(#chr-rim)" /><use href="#chr-q" fill="url(#chr-rim)" />
-            <circle cx="-40" cy="46" r="32" fill="url(#chr-tip)" /><circle cx="-43" cy="462" r="34" fill="url(#chr-tip)" />
-          </g>
-          <use href="#chr-tid" transform="scale(-1 1)" />
-          <g clipPath="url(#chr-clipR)">
-            <use href="#chr-bands" filter="url(#chr-soft)" />
-            <use href="#chr-p" fill="url(#chr-spec)" transform="scale(-1 1)" /><use href="#chr-q" fill="url(#chr-spec)" transform="scale(-1 1)" />
-            <use href="#chr-p" fill="url(#chr-rim)" transform="scale(-1 1)" /><use href="#chr-q" fill="url(#chr-rim)" transform="scale(-1 1)" />
-            <circle cx="40" cy="46" r="32" fill="url(#chr-tip)" /><circle cx="43" cy="462" r="34" fill="url(#chr-tip)" />
-          </g>
-          <ellipse cx="0" cy="219" rx="26" ry="12" fill="#162E72" />
-          <ellipse cx="-4" cy="215" rx="15" ry="5.5" fill="#5B82E3" opacity="0.8" />
-        </g>
-      </g>
-    </svg>
+    <div
+      role="img"
+      aria-label="interactive puzzle cube"
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      onTouchMove={onMove}
+      onTouchEnd={onLeave}
+      onClick={scramble}
+      style={{ width: size, height: size, position: "relative", cursor: "grab", touchAction: "none", transformStyle: "preserve-3d", ...style }}
+    >
+      <div style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0, transformStyle: "preserve-3d" }}>
+        {cubies.map((q) => {
+          const idx = { x: 0, y: 1, z: 2 }[anim ? anim.axis : "x"];
+          const inLayer = anim && q.pos[idx] === anim.layer;
+          const layerRot = inLayer ? `rotate${anim.axis.toUpperCase()}(${anim.angle}deg) ` : "";
+          const [x, y, z] = q.pos;
+          return (
+            <div
+              key={q.id}
+              style={{
+                position: "absolute",
+                width: c - gap,
+                height: c - gap,
+                margin: -(c - gap) / 2,
+                transformStyle: "preserve-3d",
+                transform: `${layerRot}translate3d(${x * c}px, ${y * c}px, ${z * c}px) ${q.orient}`,
+              }}
+            >
+              {Object.keys(faceT).map((f) => (
+                <div
+                  key={f}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    transform: faceT[f],
+                    backfaceVisibility: "hidden",
+                    background: "#0B0F1A",
+                    borderRadius: size * 0.03,
+                    boxSizing: "border-box",
+                    padding: size * 0.012,
+                  }}
+                >
+                  {q.stickers[f] && (
+                    <div style={{ width: "100%", height: "100%", borderRadius: size * 0.022, background: STICKER[f], boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12), inset 0 -6px 10px rgba(0,0,0,0.12), inset 0 6px 10px rgba(255,255,255,0.22)" }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -542,6 +639,8 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
   const textFade = reduced ? 1 : 1 - ramp(p, 0.26, 0.4);
   const labelFade = reduced ? 1 : 1 - ramp(p, 0.06, 0.2);
   const revealed = reduced ? BIO.length : Math.round((0.42 + 0.58 * ramp(p, 0.02, 0.26)) * BIO.length);
+  const { w: vw } = useViewport();
+  const cubeSize = clamp(vw * 0.2, 130, 260);
   const bp = Math.round(loaded * 2_400_000);
   const steps = [
     [0.0, "reading sequence"],
@@ -593,28 +692,27 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
           </div>
         )}
 
-        {/* the specimen */}
+        {/* the specimen: a puzzle cube. idle turn, scroll spins and zooms it */}
         <div
           className="adam-chr-stage"
           style={{
             position: "absolute",
-            right: "clamp(8px, 10vw, 180px)",
-            top: "clamp(48px, 10vh, 110px)",
-            width: "clamp(150px, 24vw, 320px)",
-            aspectRatio: "300 / 540",
+            right: "clamp(8px, 9vw, 170px)",
+            top: "clamp(40px, 9vh, 100px)",
+            width: cubeSize,
+            height: cubeSize,
             opacity: chrOpacity,
             transform: `rotateY(${rot}deg) scale(${scale})`,
-            transformOrigin: "50% 44%",
             transformStyle: "preserve-3d",
             willChange: "transform, opacity",
             zIndex: 1,
+            pointerEvents: chrOpacity > 0.5 ? "auto" : "none",
           }}
         >
-          <div className={reduced ? "" : "adam-chr-idle"} style={{ width: "100%", height: "100%", transformStyle: "preserve-3d" }}>
-            <Chromosome style={{ width: "100%", height: "100%" }} />
+          <div className={reduced ? "" : "adam-chr-idle"} style={{ width: "100%", height: "100%", transformStyle: "preserve-3d", transform: "rotateX(-28deg) rotateY(-36deg)" }}>
+            <PuzzleCube size={cubeSize} />
           </div>
-          <Mono className="hidden lg:block" style={{ position: "absolute", left: "-44%", top: "16%", whiteSpace: "nowrap", opacity: labelFade }}>p13 · work</Mono>
-          <Mono className="hidden lg:block" style={{ position: "absolute", right: "-36%", top: "68%", whiteSpace: "nowrap", opacity: labelFade }}>q22 · projects</Mono>
+          <Mono className="hidden lg:block" style={{ position: "absolute", left: "50%", top: "calc(100% + 64px)", transform: "translateX(-50%)", whiteSpace: "nowrap", opacity: labelFade }}>sweep a row to turn it · click to scramble</Mono>
         </div>
 
         {/* headline over the object */}
@@ -1226,11 +1324,11 @@ export default function Adam() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         html { scroll-behavior: smooth; }
-        .adam-chr-stage { perspective: 1400px; }
+        .adam-chr-stage { perspective: 1200px; }
         @keyframes adam-chr-idle {
-          0%   { transform: rotateX(8deg) rotateY(-32deg) rotateZ(-3deg); }
-          50%  { transform: rotateX(-6deg) rotateY(32deg) rotateZ(3deg); }
-          100% { transform: rotateX(8deg) rotateY(-32deg) rotateZ(-3deg); }
+          0%   { transform: rotateX(-24deg) rotateY(-48deg); }
+          50%  { transform: rotateX(-32deg) rotateY(-22deg); }
+          100% { transform: rotateX(-24deg) rotateY(-48deg); }
         }
         .adam-chr-idle { animation: adam-chr-idle 10s ease-in-out infinite; }
         @keyframes adam-blink { 0%, 60% { opacity: 1; } 61%, 100% { opacity: 0; } }
