@@ -702,15 +702,17 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
             width: cubeSize,
             height: cubeSize,
             opacity: chrOpacity,
-            transform: `rotateY(${rot}deg) scale(${scale})`,
-            transformStyle: "preserve-3d",
+            transform: `scale(${scale})`,
             willChange: "transform, opacity",
             zIndex: 1,
             pointerEvents: chrOpacity > 0.5 ? "auto" : "none",
           }}
         >
-          <div className={reduced ? "" : "adam-chr-idle"} style={{ width: "100%", height: "100%", transformStyle: "preserve-3d", transform: "rotateX(-28deg) rotateY(-36deg)" }}>
-            <PuzzleCube size={cubeSize} />
+          {/* scroll rotation lives inside the perspective element so the cube stays solid while it turns */}
+          <div style={{ width: "100%", height: "100%", transformStyle: "preserve-3d", transform: `rotateY(${rot}deg)` }}>
+            <div className={reduced ? "" : "adam-chr-idle"} style={{ width: "100%", height: "100%", transformStyle: "preserve-3d", transform: "rotateX(-28deg) rotateY(-36deg)" }}>
+              <PuzzleCube size={cubeSize} />
+            </div>
           </div>
           <Mono className="hidden lg:block" style={{ position: "absolute", left: "50%", top: "calc(100% + 64px)", transform: "translateX(-50%)", whiteSpace: "nowrap", opacity: labelFade }}>sweep a row to turn it · click to scramble</Mono>
         </div>
