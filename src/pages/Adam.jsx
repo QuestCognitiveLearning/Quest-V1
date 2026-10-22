@@ -218,29 +218,37 @@ const ramp = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
 // ---------------------------------------------------------------------------
 
 const BANDS = [
-  [64, 16, "#05070E", 0.55], [92, 8, "#fff", 0.1], [108, 28, "#05070E", 0.5], [146, 10, "#fff", 0.12],
-  [164, 14, "#05070E", 0.55], [190, 10, "#05070E", 0.35], [242, 12, "#05070E", 0.5], [266, 8, "#fff", 0.12],
-  [284, 32, "#05070E", 0.55], [326, 9, "#fff", 0.1], [344, 18, "#05070E", 0.45], [372, 12, "#fff", 0.14],
-  [392, 36, "#05070E", 0.58], [438, 8, "#fff", 0.1], [452, 12, "#05070E", 0.4],
+  [66, 14, "#0E2060", 0.26], [96, 8, "#fff", 0.16], [112, 26, "#0E2060", 0.24], [150, 10, "#fff", 0.14],
+  [168, 12, "#0E2060", 0.28], [246, 12, "#0E2060", 0.24], [270, 8, "#fff", 0.14], [288, 30, "#0E2060", 0.26],
+  [330, 9, "#fff", 0.14], [348, 16, "#0E2060", 0.22], [376, 12, "#fff", 0.16], [396, 34, "#0E2060", 0.28],
+  [444, 10, "#0E2060", 0.2],
 ];
 
 function Chromosome({ style }) {
-  const P = "M -72 46 A 32 32 0 0 1 -8 46 C -2 110 -2 170 0 206 C -4 223 -28 223 -32 206 C -42 170 -78 110 -72 46 Z";
-  const Q = "M -32 232 C -28 215 -4 215 0 232 C -1 320 -2 400 -8 458 A 35 35 0 0 1 -78 458 C -84 400 -48 320 -32 232 Z";
+  const P = "M -74 48 A 34 34 0 0 1 -6 48 C 0 110 0 170 1 206 C -3 224 -29 224 -33 206 C -43 170 -80 110 -74 48 Z";
+  const Q = "M -33 232 C -29 214 -3 214 1 232 C 0 320 -1 400 -7 458 A 36 36 0 0 1 -79 458 C -86 400 -49 320 -33 232 Z";
   return (
     <svg viewBox="-150 0 300 540" width="300" height="540" aria-hidden="true" style={{ display: "block", overflow: "visible", ...style }}>
       <defs>
         <linearGradient id="chr-body" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#6B7694" /><stop offset="0.18" stopColor="#3A4461" /><stop offset="0.55" stopColor="#1B2338" /><stop offset="0.85" stopColor="#0D1222" /><stop offset="1" stopColor="#070A14" />
+          <stop offset="0" stopColor="#9DB6F4" /><stop offset="0.2" stopColor="#5B82E3" /><stop offset="0.55" stopColor="#2F57C4" /><stop offset="0.85" stopColor="#1E3D94" /><stop offset="1" stopColor="#162E72" />
         </linearGradient>
         <linearGradient id="chr-spec" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0.1" stopColor="#fff" stopOpacity="0" /><stop offset="0.24" stopColor="#fff" stopOpacity="0.28" /><stop offset="0.4" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.12" stopColor="#fff" stopOpacity="0" /><stop offset="0.26" stopColor="#fff" stopOpacity="0.45" /><stop offset="0.42" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="chr-rim" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0.75" stopColor="#9DB6F4" stopOpacity="0" /><stop offset="0.97" stopColor="#BFD0FA" stopOpacity="0.55" /><stop offset="1" stopColor="#BFD0FA" stopOpacity="0" />
         </linearGradient>
         <radialGradient id="chr-tip" cx="0.5" cy="0.5" r="0.6">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.2" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0" stopColor="#fff" stopOpacity="0.35" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
         </radialGradient>
-        <filter id="chr-soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.6" /></filter>
-        <filter id="chr-shadow" x="-40%" y="-20%" width="180%" height="150%"><feDropShadow dx="0" dy="24" stdDeviation="18" floodColor={INK} floodOpacity="0.3" /></filter>
+        <filter id="chr-organic" x="-20%" y="-10%" width="140%" height="120%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="2" seed="7" result="n" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+        <filter id="chr-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.4" /></filter>
+        <filter id="chr-fuzz" x="-30%" y="-15%" width="160%" height="130%"><feGaussianBlur stdDeviation="9" /></filter>
+        <filter id="chr-shadow" x="-40%" y="-20%" width="180%" height="150%"><feDropShadow dx="0" dy="26" stdDeviation="20" floodColor="#1E3D94" floodOpacity="0.28" /></filter>
         <path id="chr-p" d={P} />
         <path id="chr-q" d={Q} />
         <clipPath id="chr-clipL"><use href="#chr-p" /><use href="#chr-q" /></clipPath>
@@ -250,21 +258,29 @@ function Chromosome({ style }) {
         </g>
         <g id="chr-tid"><use href="#chr-p" fill="url(#chr-body)" /><use href="#chr-q" fill="url(#chr-body)" /></g>
       </defs>
+      {/* chromatin fuzz: a blurred copy under the body softens the silhouette */}
+      <g filter="url(#chr-fuzz)" opacity="0.4">
+        <use href="#chr-tid" /><use href="#chr-tid" transform="scale(-1 1)" />
+      </g>
       <g filter="url(#chr-shadow)">
-        <use href="#chr-tid" />
-        <g clipPath="url(#chr-clipL)">
-          <use href="#chr-bands" filter="url(#chr-soft)" />
-          <use href="#chr-p" fill="url(#chr-spec)" /><use href="#chr-q" fill="url(#chr-spec)" />
-          <circle cx="-40" cy="44" r="30" fill="url(#chr-tip)" /><circle cx="-43" cy="462" r="32" fill="url(#chr-tip)" />
+        <g filter="url(#chr-organic)">
+          <use href="#chr-tid" />
+          <g clipPath="url(#chr-clipL)">
+            <use href="#chr-bands" filter="url(#chr-soft)" />
+            <use href="#chr-p" fill="url(#chr-spec)" /><use href="#chr-q" fill="url(#chr-spec)" />
+            <use href="#chr-p" fill="url(#chr-rim)" /><use href="#chr-q" fill="url(#chr-rim)" />
+            <circle cx="-40" cy="46" r="32" fill="url(#chr-tip)" /><circle cx="-43" cy="462" r="34" fill="url(#chr-tip)" />
+          </g>
+          <use href="#chr-tid" transform="scale(-1 1)" />
+          <g clipPath="url(#chr-clipR)">
+            <use href="#chr-bands" filter="url(#chr-soft)" />
+            <use href="#chr-p" fill="url(#chr-spec)" transform="scale(-1 1)" /><use href="#chr-q" fill="url(#chr-spec)" transform="scale(-1 1)" />
+            <use href="#chr-p" fill="url(#chr-rim)" transform="scale(-1 1)" /><use href="#chr-q" fill="url(#chr-rim)" transform="scale(-1 1)" />
+            <circle cx="40" cy="46" r="32" fill="url(#chr-tip)" /><circle cx="43" cy="462" r="34" fill="url(#chr-tip)" />
+          </g>
+          <ellipse cx="0" cy="219" rx="26" ry="12" fill="#162E72" />
+          <ellipse cx="-4" cy="215" rx="15" ry="5.5" fill="#5B82E3" opacity="0.8" />
         </g>
-        <use href="#chr-tid" transform="scale(-1 1)" />
-        <g clipPath="url(#chr-clipR)">
-          <use href="#chr-bands" filter="url(#chr-soft)" />
-          <use href="#chr-p" fill="url(#chr-spec)" transform="scale(-1 1)" /><use href="#chr-q" fill="url(#chr-spec)" transform="scale(-1 1)" />
-          <circle cx="40" cy="44" r="30" fill="url(#chr-tip)" /><circle cx="43" cy="462" r="32" fill="url(#chr-tip)" />
-        </g>
-        <ellipse cx="0" cy="219" rx="24" ry="11" fill="#05070E" />
-        <ellipse cx="-3" cy="215" rx="14" ry="5" fill="#3A4461" opacity="0.8" />
       </g>
     </svg>
   );
@@ -346,11 +362,11 @@ function Pill({ href, children }) {
 const BASES = "ATGCGTACCGATTAGCATGCCGTAATGCAGTCCGATAGCTTAGCCGATGCATAGGCTAACG";
 const BASE_COLOR = { A: "#2457C5", T: "#E0B23A", G: "#2E9E6B", C: "#8B5CF6" };
 
-function DnaHelix({ opacity, spin, active }) {
+function DnaHelix({ opacity, spin, active, build = 1 }) {
   const canvasRef = useRef(null);
   const st = useRef({ mouse: null, unzip: new Float32Array(BASES.length), vel: 0, rot: 0, t: 0, raf: 0 });
-  const propsRef = useRef({ opacity, spin, active });
-  propsRef.current = { opacity, spin, active };
+  const propsRef = useRef({ opacity, spin, active, build });
+  propsRef.current = { opacity, spin, active, build };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -370,7 +386,7 @@ function DnaHelix({ opacity, spin, active }) {
     const N = BASES.length;
     const draw = (now) => {
       S.raf = 0;
-      const { opacity: op, spin: sp, active: on } = propsRef.current;
+      const { opacity: op, spin: sp, active: on, build: bd } = propsRef.current;
       if (!on || op <= 0.01) { ctx.clearRect(0, 0, w, h); return; }
       const dt = Math.min(0.05, (now - S.t) / 1000 || 0.016);
       S.t = now;
@@ -387,7 +403,11 @@ function DnaHelix({ opacity, spin, active }) {
       const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
 
       const items = [];
+      // loading: base pairs assemble from the 5' end as `build` climbs 0 → 1
+      const built = bd * N;
       for (let i = 0; i < N; i++) {
+        if (i > built + 1) break;
+        const fadeIn = clamp(built - i + 1, 0, 1);
         const x = -L / 2 + i * pitch;
         // unzip target from cursor distance along the (tilted) axis
         let target = 0;
@@ -411,8 +431,8 @@ function DnaHelix({ opacity, spin, active }) {
           const sc = f / (f + pz + 300);
           return { sx: cx + rx * sc, sy: cy + ry * sc, z: pz, sc, k };
         });
-        items.push({ kind: "rung", i, u, a: proj[0], b: proj[1], z: (proj[0].z + proj[1].z) / 2 });
-        proj.forEach((q) => items.push({ kind: "ball", z: q.z, sx: q.sx, sy: q.sy, sc: q.sc, k: q.k }));
+        items.push({ kind: "rung", i, u, fadeIn, a: proj[0], b: proj[1], z: (proj[0].z + proj[1].z) / 2 });
+        proj.forEach((q) => items.push({ kind: "ball", z: q.z, sx: q.sx, sy: q.sy, sc: q.sc * (0.4 + 0.6 * fadeIn), k: q.k, fadeIn }));
       }
       items.sort((m, n) => m.z - n.z);
 
@@ -426,7 +446,7 @@ function DnaHelix({ opacity, spin, active }) {
           ctx.lineWidth = 4.5 * it.a.sc;
           ctx.lineCap = "round";
           ctx.strokeStyle = col;
-          ctx.globalAlpha = op * (0.55 + 0.45 * ((it.z + 100) / 200));
+          ctx.globalAlpha = op * it.fadeIn * (0.55 + 0.45 * ((it.z + 100) / 200));
           ctx.beginPath();
           ctx.moveTo(it.a.sx, it.a.sy);
           ctx.lineTo(it.a.sx + (mx - it.a.sx) * (1 - gap), it.a.sy + (my - it.a.sy) * (1 - gap));
@@ -438,6 +458,7 @@ function DnaHelix({ opacity, spin, active }) {
           ctx.globalAlpha = op;
         } else {
           const r = 8.5 * it.sc;
+          ctx.globalAlpha = op * it.fadeIn;
           const base = it.k === "A" ? [36, 87, 197] : [194, 24, 91];
           const g = ctx.createRadialGradient(it.sx - r * 0.35, it.sy - r * 0.35, r * 0.1, it.sx, it.sy, r);
           g.addColorStop(0, `rgb(${base[0] + 90},${base[1] + 90},${base[2] + 70})`);
@@ -447,6 +468,7 @@ function DnaHelix({ opacity, spin, active }) {
           ctx.beginPath();
           ctx.arc(it.sx, it.sy, r, 0, Math.PI * 2);
           ctx.fill();
+          ctx.globalAlpha = op;
         }
       }
       ctx.globalAlpha = 1;
@@ -502,22 +524,34 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
   const leftRef = useRef(false);
   useSectionProgress(ref, (v) => {
     setP(v);
-    if (v > 0.6 && !leftRef.current) {
+    if (v > 0.5 && !leftRef.current) {
       leftRef.current = true;
       onLeave();
     }
   });
 
-  const rot = reduced ? 0 : p * 170;
-  const scale = reduced ? 1 : 1 + ramp(p, 0.15, 1) * 2.6;
-  const chrOpacity = reduced ? 1 : 1 - ramp(p, 0.58, 0.8);
-  const dnaOpacity = reduced ? 0 : ramp(p, 0.66, 0.9) * (1 - ramp(p, 0.96, 1));
-  const textFade = reduced ? 1 : 1 - ramp(p, 0.55, 0.85);
-  const labelFade = reduced ? 1 : 1 - ramp(p, 0.08, 0.3);
-  const revealed = reduced ? BIO.length : Math.round((0.42 + 0.58 * ramp(p, 0.02, 0.4)) * BIO.length);
+  // Act 1 (p 0 → 0.4): chromosome turns, zooms, fades. Act 2 (0.4 → 1): the
+  // DNA assembles base pair by base pair like a sequence loading, then hands
+  // off to the index.
+  const rot = reduced ? 0 : ramp(p, 0, 0.42) * 170;
+  const scale = reduced ? 1 : 1 + ramp(p, 0.08, 0.42) * 2.6;
+  const chrOpacity = reduced ? 1 : 1 - ramp(p, 0.3, 0.42);
+  const dnaOpacity = reduced ? 0 : ramp(p, 0.36, 0.48) * (1 - ramp(p, 0.97, 1));
+  const build = reduced ? 1 : ramp(p, 0.42, 0.86);
+  const loaded = reduced ? 1 : ramp(p, 0.42, 0.9);
+  const textFade = reduced ? 1 : 1 - ramp(p, 0.26, 0.4);
+  const labelFade = reduced ? 1 : 1 - ramp(p, 0.06, 0.2);
+  const revealed = reduced ? BIO.length : Math.round((0.42 + 0.58 * ramp(p, 0.02, 0.26)) * BIO.length);
+  const bp = Math.round(loaded * 2_400_000);
+  const steps = [
+    [0.0, "reading sequence"],
+    [0.3, "indexing loci"],
+    [0.6, "calling variants"],
+    [0.85, "assembly complete"],
+  ];
 
   return (
-    <section ref={ref} id="top" style={{ height: reduced ? "auto" : "260vh", position: "relative" }}>
+    <section ref={ref} id="top" style={{ height: reduced ? "auto" : "420vh", position: "relative" }}>
       <div
         className="overflow-hidden"
         style={{ position: reduced ? "relative" : "sticky", top: 0, height: reduced ? "auto" : "100vh", minHeight: reduced ? "100vh" : undefined, borderBottom: `1px solid ${INK}` }}
@@ -525,17 +559,38 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
         {/* corners */}
         <Mono style={{ position: "absolute", left: 24, top: 20, color: INK }}>Adam Rakhmanov</Mono>
         <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 20 }}>chr-adam · chr1:1–2,400,000</Mono>
-        <Mono className="hidden sm:block" style={{ position: "absolute", left: 24, bottom: 20 }}>Durham, NC · Duke '30 · Nashville</Mono>
+        <Mono className="hidden sm:block" style={{ position: "absolute", left: 24, bottom: 20, opacity: textFade }}>Durham, NC · Duke '30 · Nashville</Mono>
         <div style={{ position: "absolute", right: 24, bottom: 20, zIndex: 3, opacity: textFade, pointerEvents: textFade < 0.3 ? "none" : "auto" }}>
           <ZoomControl zoom={zoom} setZoom={setZoom} />
         </div>
 
         {/* second act: the chromosome unwinds into DNA */}
-        {!reduced && <DnaHelix opacity={dnaOpacity} spin={p * 6} active={p > 0.6 && p < 0.999} />}
+        {!reduced && <DnaHelix opacity={dnaOpacity} spin={p * 7} active={p > 0.34 && p < 0.999} build={build} />}
         {!reduced && (
-          <Mono style={{ position: "absolute", left: "50%", top: 24, transform: "translateX(-50%)", color: BLUE, whiteSpace: "nowrap", opacity: dnaOpacity, pointerEvents: "none" }}>
-            move along the helix to unzip it · click to spin
-          </Mono>
+          <div style={{ position: "absolute", left: 24, right: 24, bottom: 20, zIndex: 2, opacity: dnaOpacity, pointerEvents: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <span style={{ fontFamily: SANS, fontSize: "clamp(22px, 2.6vw, 34px)", fontWeight: 600, letterSpacing: "-0.03em", color: INK }}>
+                {loaded < 1 ? "assembling chr-adam" : "chr-adam ready"}
+                <span className="adam-blink" style={{ color: BLUE }}>{loaded < 1 ? "…" : " ▸"}</span>
+              </span>
+              <Mono style={{ color: INK }}>{bp.toLocaleString("en-US")} / 2,400,000 bp · {Math.round(loaded * 100)}%</Mono>
+            </div>
+            <div style={{ height: 6, background: RULE, borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ width: `${loaded * 100}%`, height: "100%", background: `linear-gradient(90deg, ${BLUE}, ${MAG})` }} />
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {steps.map(([at, label]) => {
+                const done = loaded >= at + 0.12;
+                const now = loaded >= at && !done;
+                return (
+                  <Mono key={label} style={{ color: done ? BLUE : now ? INK : MUTED, opacity: loaded >= at ? 1 : 0.35 }}>
+                    {done ? "✓" : now ? "●" : "○"} {label}
+                  </Mono>
+                );
+              })}
+              <Mono className="hidden md:inline" style={{ marginLeft: "auto", color: MUTED }}>move along the helix to unzip · click to spin</Mono>
+            </div>
+          </div>
         )}
 
         {/* the specimen */}
@@ -759,7 +814,7 @@ function HelixCard({ c, strand, style, cardRef }) {
     if (sheenRef.current) sheenRef.current.style.opacity = "0";
   };
   const inner = (
-    <div ref={innerRef} style={{ position: "relative", width: "100%", height: "100%", boxSizing: "border-box", padding: "18px 20px", borderRadius: 8, background: "#141B2E", border: `1px solid ${accent}`, display: "flex", flexDirection: "column", gap: 8, transition: "transform 0.25s ease", transformStyle: "preserve-3d", overflow: "hidden" }}>
+    <div ref={innerRef} style={{ position: "relative", width: "100%", height: "100%", boxSizing: "border-box", padding: "16px 18px 16px 20px", borderRadius: 6, background: "rgba(20,27,46,0.92)", border: "1px solid rgba(255,255,255,0.12)", borderLeft: `3px solid ${accent}`, display: "flex", flexDirection: "column", gap: 8, transition: "transform 0.25s ease", transformStyle: "preserve-3d", overflow: "hidden", backdropFilter: "blur(4px)" }}>
       <span style={{ fontFamily: MONO, fontSize: 11, color: strand === "A" ? "#8FB0FF" : "#FF7AB6" }}>{c.k}</span>
       <span style={{ fontFamily: SANS, fontSize: 19, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.15, color: PAPER }}>{c.t}{c.link ? " ↗" : ""}</span>
       <span style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.45, color: "#B8BFCF" }}>{c.d}</span>
@@ -776,34 +831,159 @@ function HelixCard({ c, strand, style, cardRef }) {
 
 function Helix({ reduced, zoom, setZoom }) {
   const ref = useRef(null);
-  const groupRef = useRef(null);
+  const canvasRef = useRef(null);
   const cardRefs = useRef([]);
-  const { w } = useViewport();
-  const R = clamp(w * 0.3, 150, 420);
-  const cardW = w < 640 ? 230 : 300;
-  const stepY = w < 640 ? 78 : 92;
+  const { w, h: vh } = useViewport();
+  const narrow = w < 768;
+  const cardW = narrow ? 210 : 290;
 
-  const cards = useMemo(() => {
+  // Ten features on a vertical double helix: work on strand A (blue, angle θ),
+  // projects on strand B (magenta, θ + π). Feature i sits on rung FEATURE_AT[i].
+  const N = 40;
+  const FEATURE_AT = useMemo(() => [3, 11, 19, 27, 35], []);
+  const features = useMemo(() => {
     const list = [];
-    WORK_CARDS.forEach((c, i) => list.push({ c, strand: "A", angle: i * 72, y: i * stepY - 2 * stepY }));
-    PROJECT_CARDS.forEach((c, i) => list.push({ c, strand: "B", angle: i * 72 + 180, y: i * stepY - 2 * stepY }));
+    WORK_CARDS.forEach((c, i) => list.push({ c, strand: "A", rung: FEATURE_AT[i] }));
+    PROJECT_CARDS.forEach((c, i) => list.push({ c, strand: "B", rung: FEATURE_AT[i] }));
     return list;
-  }, [stepY]);
+  }, [FEATURE_AT]);
 
-  useSectionProgress(ref, (p) => {
+  const prog = useRef(0);
+  useSectionProgress(ref, (p) => { prog.current = p; });
+
+  useEffect(() => {
     if (reduced) return;
-    const g = groupRef.current;
-    if (!g) return;
-    const rot = -30 + p * 720;
-    g.style.transform = `rotateX(-8deg) rotateY(${rot}deg)`;
-    cards.forEach((card, i) => {
-      const el = cardRefs.current[i];
-      if (!el) return;
-      const facing = Math.cos(((card.angle + rot) * Math.PI) / 180);
-      el.style.opacity = String(0.18 + 0.82 * Math.max(0, facing));
-      el.style.pointerEvents = facing > 0.5 ? "auto" : "none";
-    });
-  });
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let raf = 0, cw = 0, ch = 0, t0 = 0;
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cw = canvas.clientWidth; ch = canvas.clientHeight;
+      canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const draw = (now) => {
+      if (!t0) t0 = now;
+      const idle = (now - t0) / 1000 * 0.12;
+      const rot = -0.8 + prog.current * Math.PI * 3.2 + idle;
+      const R = clamp(cw * (narrow ? 0.22 : 0.15), 80, 230);
+      const H = ch * (narrow ? 0.78 : 0.8);
+      const pitch = H / (N - 1);
+      const f = 900;
+      const cx = cw / 2, cy = ch * 0.5 - (narrow ? 20 : 0);
+
+      const items = [];
+      const featPos = new Array(features.length);
+      for (let i = 0; i < N; i++) {
+        const y = -H / 2 + i * pitch;
+        const a = i * 0.5 + rot;
+        const pts = [["A", a], ["B", a + Math.PI]].map(([k, ang]) => {
+          const x3 = Math.cos(ang) * R, z3 = Math.sin(ang) * R;
+          const sc = f / (f + 260 - z3);
+          return { k, sx: cx + x3 * sc, sy: cy + y * sc, z: z3, sc, facing: z3 / R };
+        });
+        items.push({ kind: "rung", i, a: pts[0], b: pts[1], z: 0 });
+        pts.forEach((q) => {
+          const fi = features.findIndex((ft) => ft.rung === i && ft.strand === q.k);
+          if (fi >= 0) featPos[fi] = q;
+          items.push({ kind: "ball", ...q, feature: fi });
+        });
+      }
+      items.sort((m, n) => m.z - n.z);
+
+      ctx.clearRect(0, 0, cw, ch);
+      // axis guide
+      ctx.strokeStyle = "rgba(255,255,255,0.06)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy - H / 2 - 30); ctx.lineTo(cx, cy + H / 2 + 30); ctx.stroke();
+
+      // rungs: faint, drawn first so the backbones read on top
+      for (const it of items) {
+        if (it.kind !== "rung") continue;
+        const depth = (it.a.z + it.b.z) / (2 * R);
+        ctx.strokeStyle = `rgba(143,176,255,${0.08 + 0.14 * (depth + 1) / 2})`;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(it.a.sx, it.a.sy); ctx.lineTo(it.b.sx, it.b.sy); ctx.stroke();
+      }
+      // backbones: one continuous ribbon per strand, width and alpha by depth
+      const balls = items.filter((it) => it.kind === "ball");
+      for (const k of ["A", "B"]) {
+        const pts = balls.filter((b) => b.k === k).sort((m, n) => m.sy - n.sy);
+        const base = k === "A" ? "36,87,197" : "194,24,91";
+        for (let j = 1; j < pts.length; j++) {
+          const q0 = pts[j - 1], q1 = pts[j];
+          const d = (q0.facing + q1.facing) / 2;
+          ctx.strokeStyle = `rgba(${base},${0.25 + 0.65 * ((d + 1) / 2)})`;
+          ctx.lineWidth = (2.2 + 2.6 * ((d + 1) / 2)) * q1.sc;
+          ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(q0.sx, q0.sy); ctx.lineTo(q1.sx, q1.sy); ctx.stroke();
+        }
+      }
+      for (const it of items) {
+        if (it.kind === "rung") continue;
+        {
+          const isF = it.feature >= 0;
+          const r = (isF ? 12 : 4.6) * it.sc;
+          const base = it.k === "A" ? [36, 87, 197] : [194, 24, 91];
+          const dim = 0.45 + 0.55 * ((it.facing + 1) / 2);
+          if (isF) {
+            const g2 = ctx.createRadialGradient(it.sx, it.sy, r * 0.6, it.sx, it.sy, r * 3.2);
+            g2.addColorStop(0, `rgba(${base[0]},${base[1]},${base[2]},${0.35 * dim})`);
+            g2.addColorStop(1, `rgba(${base[0]},${base[1]},${base[2]},0)`);
+            ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(it.sx, it.sy, r * 3.2, 0, Math.PI * 2); ctx.fill();
+          }
+          const g = ctx.createRadialGradient(it.sx - r * 0.35, it.sy - r * 0.35, r * 0.1, it.sx, it.sy, r);
+          g.addColorStop(0, `rgba(${base[0] + 110},${base[1] + 110},${base[2] + 80},${dim})`);
+          g.addColorStop(0.6, `rgba(${base[0]},${base[1]},${base[2]},${dim})`);
+          g.addColorStop(1, `rgba(${base[0] * 0.4},${base[1] * 0.4},${base[2] * 0.4},${dim})`);
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(it.sx, it.sy, r, 0, Math.PI * 2); ctx.fill();
+          if (isF) {
+            // locus tag beside the bead, like an annotation on a molecule
+            const tag = features[it.feature].c.k.split(" ·")[0];
+            const right = it.sx >= cx;
+            ctx.font = `700 11px ${MONO}`;
+            ctx.textAlign = right ? "left" : "right";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = `rgba(${it.k === "A" ? "143,176,255" : "255,122,182"},${0.35 + 0.65 * ((it.facing + 1) / 2)})`;
+            ctx.fillText(tag, it.sx + (right ? r + 8 : -r - 8), it.sy);
+          }
+        }
+      }
+
+      // cards: hang off their bead, open when the bead swings to the front
+      featPos.forEach((q, fi) => {
+        const el = cardRefs.current[fi];
+        if (!el || !q) return;
+        const open = clamp((q.facing - 0.55) / 0.42, 0, 1);
+        const eased = open * open * (3 - 2 * open);
+        const right = q.sx >= cx;
+        const gap = 70;
+        // phones: the card sits under its bead, centered and kept on screen
+        const left = narrow ? clamp(q.sx - cardW / 2, 12, cw - cardW - 12) : right ? q.sx + gap : q.sx - gap - cardW;
+        const top = narrow ? q.sy + 28 : q.sy - 60;
+        el.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px) scale(${(0.86 + 0.14 * eased).toFixed(3)})`;
+        el.style.transformOrigin = narrow ? "50% 0%" : right ? "0% 50%" : "100% 50%";
+        el.style.opacity = String(eased);
+        el.style.pointerEvents = eased > 0.6 ? "auto" : "none";
+        el.style.zIndex = String(Math.round(10 + eased * 10));
+        if (eased > 0.05) {
+          ctx.strokeStyle = q.k === "A" ? `rgba(143,176,255,${0.7 * eased})` : `rgba(255,122,182,${0.7 * eased})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(q.sx, q.sy);
+          if (narrow) ctx.lineTo(q.sx, top); else ctx.lineTo(right ? left : left + cardW, q.sy);
+          ctx.stroke();
+        }
+      });
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => { window.removeEventListener("resize", resize); if (raf) cancelAnimationFrame(raf); };
+  }, [reduced, narrow, cardW, features, N]);
 
   if (reduced) {
     return (
@@ -813,64 +993,35 @@ function Helix({ reduced, zoom, setZoom }) {
           <Mono style={{ color: "#8A93A8" }}>base pair view · 10 features</Mono>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
-          {cards.map(({ c, strand }, i) => <HelixCard key={i} c={c} strand={strand} style={{ minHeight: 150 }} />)}
+          {features.map(({ c, strand }, i) => <HelixCard key={i} c={c} strand={strand} style={{ minHeight: 150 }} />)}
         </div>
       </section>
     );
   }
 
   return (
-    <section ref={ref} id="helix" style={{ height: "320vh", background: NIGHT, color: PAPER }}>
+    <section ref={ref} id="helix" style={{ height: "420vh", background: NIGHT, color: PAPER }}>
       <div className="sticky top-0 overflow-hidden" style={{ height: "100vh" }}>
-        <Mono style={{ position: "absolute", left: 24, top: 84, color: "#8A93A8" }}>base pair view · 10 features</Mono>
-        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 84, color: "#8A93A8" }}>chr1:1,300,000–1,900,000</Mono>
-        <div style={{ position: "absolute", left: 24, bottom: 24, zIndex: 2, display: "flex", flexDirection: "column", gap: 6 }}>
+        <Mono style={{ position: "absolute", left: 24, top: 84, color: "#8A93A8", zIndex: 3 }}>base pair view · 10 features</Mono>
+        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 84, color: "#8A93A8", zIndex: 3 }}>chr1:1,300,000–1,900,000</Mono>
+        <div style={{ position: "absolute", left: 24, bottom: 24, zIndex: 3, display: "flex", flexDirection: "column", gap: 6, pointerEvents: "none" }}>
           <span style={{ fontFamily: SANS, fontSize: "clamp(28px, 3.2vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1 }}>Work &amp; projects</span>
-          <Mono style={{ color: "#8A93A8" }}>two strands · scroll turns the helix</Mono>
+          <Mono style={{ color: "#8A93A8" }}><span style={{ color: "#8FB0FF" }}>●</span> strand A work &nbsp; <span style={{ color: "#FF7AB6" }}>●</span> strand B projects &nbsp;· scroll turns the helix</Mono>
         </div>
-        <div className="hidden sm:block" style={{ position: "absolute", right: 24, bottom: 24, zIndex: 2 }}>
+        <div className="hidden sm:block" style={{ position: "absolute", right: 24, bottom: 24, zIndex: 3 }}>
           <ZoomControl zoom={zoom} setZoom={setZoom} dark />
         </div>
 
-        <div style={{ position: "absolute", inset: "0 0 8vh 0", perspective: 1600 }}>
-          <div ref={groupRef} style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d", transform: "rotateX(-8deg) rotateY(-30deg)", willChange: "transform" }}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div
-                key={`rung-${i}`}
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  top: "50%",
-                  width: R * 2,
-                  height: 2,
-                  margin: `-1px 0 0 ${-R}px`,
-                  background: `linear-gradient(90deg, transparent, ${BLUE} 18%, ${MAG} 82%, transparent)`,
-                  transform: `translateY(${i * stepY - 2 * stepY}px) rotateY(${i * 72}deg)`,
-                }}
-              />
-            ))}
-            {cards.map(({ c, strand, angle, y }, i) => (
-              <HelixCard
-                key={i}
-                c={c}
-                strand={strand}
-                cardRef={(el) => { cardRefs.current[i] = el; }}
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  top: "50%",
-                  width: cardW,
-                  height: 150,
-                  margin: `-75px 0 0 ${-cardW / 2}px`,
-                  transform: `translateY(${y}px) rotateY(${angle}deg) translateZ(${R}px)`,
-                  backfaceVisibility: "hidden",
-                }}
-              />
-            ))}
-          </div>
-        </div>
-        <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse at 50% 50%, rgba(11,15,26,0) 36%, rgba(11,15,26,.88) 76%)" }} />
+        <canvas ref={canvasRef} aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+        {features.map(({ c, strand }, i) => (
+          <HelixCard
+            key={i}
+            c={c}
+            strand={strand}
+            cardRef={(el) => { cardRefs.current[i] = el; }}
+            style={{ position: "absolute", left: 0, top: 0, width: cardW, minHeight: 120, opacity: 0, willChange: "transform, opacity" }}
+          />
+        ))}
       </div>
     </section>
   );
@@ -1082,6 +1233,8 @@ export default function Adam() {
           100% { transform: rotateX(8deg) rotateY(-32deg) rotateZ(-3deg); }
         }
         .adam-chr-idle { animation: adam-chr-idle 10s ease-in-out infinite; }
+        @keyframes adam-blink { 0%, 60% { opacity: 1; } 61%, 100% { opacity: 0; } }
+        .adam-blink { animation: adam-blink 1s steps(1) infinite; }
         .adam-letter { transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), color 0.35s; }
         .adam-letter:hover { transform: translateY(-8%) rotateX(14deg) rotateY(-10deg) translateZ(40px); color: ${BLUE}; }
         .adam-row {
