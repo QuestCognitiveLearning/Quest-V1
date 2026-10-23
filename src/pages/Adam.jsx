@@ -50,11 +50,34 @@ const LOCI = [
     org: "Quest Learning",
     span: "2024 – now",
     strand: "+",
-    body: "Started Quest with a co-founder to turn state standards into complete, ready-to-teach lessons: hooks, videos, adaptive quizzes, AP-style case studies, each built around spaced repetition and scaffolding so the material sticks.",
-    more: "I lead product and engineering. We've grown a 15-person team, shipped 100+ learning resources, passed 110,000 views, and we're in conversations with Williamson County Schools about bringing Quest to their 42,000+ students.",
+    stack: "React · TypeScript · Supabase · Postgres · OpenAI API · Vercel",
+    body: "Engineered a platform that translates cognitive-science principles such as spaced repetition and scaffolding into generated lessons, orchestrating multi-step LLM calls through serverless edge functions.",
+    more: "Designed the Postgres schema, authentication, and row-level security policies as co-founder and lead engineer. Shipped 100+ resources and 110,000+ views into a 5,000-student pilot; in conversations with Williamson County Schools about their 42,000+ students.",
   },
   {
     no: "02",
+    locus: "DROS",
+    color: MAG,
+    feature: "Student researcher, Drosophila melanogaster",
+    org: "Biomedical Sciences Research Program, Ravenwood",
+    span: "2023 – 2026",
+    strand: "+",
+    body: "Designed and conducted two independent Drosophila studies end to end: hypothesis, experimental design, colony handling, data collection, analysis, and presentation.",
+    more: "Executed molecular workflows across a three-year sequence: DNA extraction, PCR, gene cloning, CRISPR editing, microarray gene-expression analysis, and dissection under standard aseptic practice. The bottleneck was always analysis, not pipetting. That pointed me at computational biology.",
+  },
+  {
+    no: "03",
+    locus: "NSPR",
+    color: MAG,
+    feature: "Project lead, NeuroSprout",
+    org: "TSA Biotechnology Design · 1st state, top 12 national",
+    span: "2025",
+    strand: "+",
+    body: "Proposed a non-invasive approach to restoring CNS axon regeneration, targeting the oligodendrocyte-derived inhibitors Nogo-A, MAG, and OMgp that arrest the axonal cytoskeleton after injury.",
+    more: "Specified peptide-functionalized nanoparticles crossing the blood-brain barrier, dCas9 reversibly repressing inhibitor transcription, and split photoactivatable padCas9 gated by infrared light. Rejected knockout, growth-factor, and stem-cell alternatives on glioma and immune risk.",
+  },
+  {
+    no: "04",
     locus: "TSA2",
     color: BLUE,
     feature: "State Secretary",
@@ -64,17 +87,19 @@ const LOCI = [
     body: "One of six state officers for Tennessee TSA: 3,100 members across 87 chapters. Ran statewide communications that passed 100K views, and built the event-selector tool new members use to pick their competitions.",
   },
   {
-    no: "03",
+    no: "05",
     locus: "NOVA1",
     color: BLUE,
     feature: "Software engineer in test",
-    org: "Novalab Tech",
+    org: "Novalab Tech, Nashville",
     span: "2022 – 2023",
     strand: "−",
-    body: "QA automation for two enterprise products, including datatruck.io. Selenium (Java) and Cucumber test suites across the front end, back end, and API layers, plus the manual smoke and regression cases the team ran each release.",
+    stack: "Selenium (Java) · Cucumber · Agile",
+    body: "Built automated test suites across front-end, back-end, and API layers for two enterprise products, including datatruck.io.",
+    more: "Authored smoke and regression suites within an Agile team and maintained the manual test-case library.",
   },
   {
-    no: "04",
+    no: "06",
     locus: "SALVO",
     color: BLUE,
     feature: "Manager, social",
@@ -84,7 +109,7 @@ const LOCI = [
     body: "My family's restaurant in Nashville. I managed and trained a staff of ten through high school, and I still run our social accounts: 1,000+ posts, 17,000 followers, 40M+ views.",
   },
   {
-    no: "05",
+    no: "07",
     locus: "WEI1",
     color: BLUE,
     feature: "Director & co-founder",
@@ -94,50 +119,63 @@ const LOCI = [
     body: "A 501(c)(3) that teaches practical financial literacy. We grew two chapters past 100 members and put an eBook into six high schools, and I sat on the county committee that shaped financial-education policy for 20,000+ students.",
   },
   {
-    no: "06",
-    locus: "DROS",
-    color: MAG,
-    feature: "Drosophila research: CRISPR, PCR, cloning",
-    org: "Biomedical research program",
-    span: "2023 – 2026",
-    strand: "+",
-    body: "Three years of bench work: DNA extraction, PCR, gene cloning, CRISPR editing. I designed, ran, and presented two independent projects using Drosophila models to study human-health questions.",
-    more: "That work is what pointed me at computational biology. In every experiment, the bottleneck was analysis, not pipetting.",
-  },
-  {
-    no: "07",
+    no: "08",
     locus: "DUKE",
     color: MUTED,
-    feature: "Neuroscience & computer science",
-    org: "Duke University",
+    feature: "B.S. Neuroscience & Computer Science",
+    org: "Duke University, Durham NC",
     span: "2026 – 2030",
     strand: "+",
     body: "Class of 2030. Headed toward computational biology.",
   },
+  {
+    no: "09",
+    locus: "RAVEN",
+    color: MUTED,
+    feature: "National Merit Finalist · ACT 35 · GPA 4.72",
+    org: "Ravenwood High School, Brentwood TN",
+    span: "2022 – 2026",
+    strand: "+",
+    body: "Biomedical Sciences Research Program, TSA, DECA, Model UN.",
+  },
 ];
 
 const WORK_CARDS = [
-  { k: "QUEST1 · 2024 – now", t: "Co-founder, Quest Learning", d: "State standards into ready-to-teach lessons. 15-person team, 42,000-student district in talks." },
+  { k: "QUEST1 · 2024 – now", t: "Co-founder, Quest Learning", d: "Cognitive-science lessons generated by multi-step LLM calls. 100+ resources, 110K+ views, 5,000-student pilot." },
+  { k: "DROS · 2023 – 2026", t: "Student researcher, Drosophila", d: "Two independent studies end to end. DNA extraction, PCR, cloning, CRISPR, microarray analysis." },
   { k: "TSA2 · 2025 – 2026", t: "State Secretary, Tennessee TSA", d: "Six state officers, 3,100 members, 87 chapters. Built the event-selector tool." },
-  { k: "NOVA1 · 2022 – 2023", t: "Software Engineer in Test, Novalab", d: "Selenium + Cucumber suites across front end, back end, API." },
+  { k: "NOVA1 · 2022 – 2023", t: "Software Engineer in Test, Novalab", d: "Selenium + Cucumber suites across front end, back end, API, in an Agile team." },
   { k: "SALVO · 2020 – now", t: "Manager, Salvo's Pizza", d: "Family shop in Nashville. 1,000+ posts, 17,000 followers, 40M+ views." },
-  { k: "WEI1 · 2023 – now", t: "Director, Wealth Education Initiative", d: "501(c)(3). Two chapters past 100 members, eBook in six schools." },
 ];
 
 const PROJECT_CARDS = [
-  { k: "ORF 01 · web", t: "TN TSA Event Selector", d: "Ranks competitive events against a member's strengths. 3,100 members.", link: "https://tntsaeventselector.com" },
-  { k: "ORF 02 · react native", t: "ExerciseBud", d: "HealthKit + Health Connect steps, four-week plans, friends leaderboard." },
-  { k: "ORF 03 · next.js", t: "Unitywall Profit Analysis", d: "Quotes vs. true costs for a web agency: hours, margins, variance.", link: "https://unitydashboard.vercel.app/" },
-  { k: "ORF 04 · selenium", t: "Vanderbilt Professor Scraper", d: "200+ VUMC faculty into a sheet for guest-speaker invites." },
+  { k: "ORF 01 · react native", t: "ExerciseBud", d: "HealthKit + Health Connect steps into a shared backend. LLM four-week plans, live presence leaderboard." },
+  { k: "ORF 02 · python · bandit", t: "FeelLoop", d: "Autonomous content system: generates, schedules, publishes across six accounts. Engagement-scored bandit allocator over 772 posts." },
+  { k: "ORF 03 · biotech design", t: "NeuroSprout", d: "Non-invasive CNS axon regeneration: nanoparticles, dCas9 repression, light-gated padCas9. 1st state, top 12 national." },
+  { k: "ORF 04 · web", t: "TN TSA Event Selector", d: "Ranks competitive events against a member's strengths. 3,100 members.", link: "https://tntsaeventselector.com" },
   { k: "ORF 05 · daily", t: "Stylize", d: "Picks an outfit from the forecast and color theory. Most-used thing I've built.", link: "https://stylize.base44.app" },
 ];
 
+const MORE_PROJECTS = [
+  ["Unitywall Profit Analysis", "Next.js", "Agency dashboard separating client quotes from true costs: hours, margins, variance.", "https://unitydashboard.vercel.app/"],
+  ["Vanderbilt Professor Scraper", "Selenium (Java)", "Crawled 200+ VUMC faculty into a sheet so the science club could invite guest speakers.", null],
+];
+
+const SKILLS = [
+  ["languages", "Python, Java, JavaScript, TypeScript, SQL (Postgres), HTML/CSS"],
+  ["frameworks & tools", "React, React Native, Node.js, Supabase, MongoDB, SQLite, Selenium, Playwright, Git, Vercel"],
+  ["laboratory", "DNA extraction, PCR, gene cloning, CRISPR editing, gene-expression analysis, microarray, Drosophila handling"],
+  ["research", "Experimental design, primary-literature review, technical writing, scientific presentation, A/B and bandit testing"],
+  ["spoken", "English, Russian, Uzbek, Arabic (fluent in all four)"],
+];
+
 const AWARDS = [
-  ["rs001", "2× DECA ICDC International Finalist, top 1% of 25,000+ competitors"],
-  ["rs002", "Breakthrough Junior Challenge Finalist, top 15 of 2,500+ submissions worldwide"],
-  ["rs003", "TSA Nationals: 6th in Data Science & Analytics, top 12 in Biotechnology Design; three state titles"],
-  ["rs004", "Biotechnology Aptitude and Competency Credential (BACC), Biotility, University of Florida, 2026"],
-  ["rs005", "INCubatoredu final pitch, $2,500 in funding, invited to pitch at the Nashville Entrepreneurship Center"],
+  ["rs001", "Breakthrough Junior Challenge Finalist, top 15 of 2,500+ international science-communication submissions (2025)"],
+  ["rs002", "TSA: 6th place Data Science & Analytics (national); 1st place Biotechnology, Data Science, Geospatial Technologies (state)"],
+  ["rs003", "2× DECA ICDC International Finalist, top 1% of 25,000+ competitors"],
+  ["rs004", "National Merit Finalist · ACT 35"],
+  ["rs005", "Biotechnology Aptitude and Competency Credential (BACC), Biotility, University of Florida, issued Apr 2026"],
+  ["rs006", "INCubatoredu final pitch, $2,500 in funding, invited to pitch at the Nashville Entrepreneurship Center"],
 ];
 
 const SERVICE = [
@@ -146,7 +184,6 @@ const SERVICE = [
   ["Communications director", "ScienceFinds", "Connected 75+ students with Nashville STEM professors as guest speakers for the science club."],
 ];
 
-const LANGUAGES = ["English", "Russian", "Arabic", "Uzbek"];
 const WEEKENDS = ["rock climbing", "wrestling & calisthenics", "rubik's cubes", "chess", "traveling"];
 
 const CODONS = "ATG GAT TCC AAG CTG TTC GGA CAT CCA TGA ACG TTA GCC AAT GTC TAG GCA TTC AGA CCT GGT AAC TGC ATA GCT CAG TTG ACC GTA TGC";
@@ -762,7 +799,7 @@ function PopLetters({ text }) {
   );
 }
 
-const BIO = "Builds software that makes sense of living things. First-year at Duke, neuroscience and computer science. Co-founder of Quest Learning.".split(" ");
+const BIO = "Builds software that makes sense of living things. Neuroscience and computer science at Duke, class of 2030. Co-founder of Quest Learning, three years of Drosophila bench work.".split(" ");
 
 function Hero({ reduced, zoom, setZoom, onLeave }) {
   const ref = useRef(null);
@@ -806,7 +843,9 @@ function Hero({ reduced, zoom, setZoom, onLeave }) {
       >
         {/* corners */}
         <Mono style={{ position: "absolute", left: 24, top: 20, color: INK }}>Adam Rakhmanov</Mono>
-        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 20 }}>chr-adam · chr1:1–2,400,000</Mono>
+        <Mono className="hidden sm:block" style={{ position: "absolute", right: 24, top: 20 }}>
+          chr-adam · chr1:1–2,400,000 · <a href="/adam-resume.pdf" style={{ color: INK, textDecoration: "underline", textUnderlineOffset: 3 }}>resume ↓</a>
+        </Mono>
         <Mono className="hidden sm:block" style={{ position: "absolute", left: 24, bottom: 20, opacity: textFade }}>Durham, NC · Duke '30 · Nashville</Mono>
         <div style={{ position: "absolute", right: 24, bottom: 20, zIndex: 3, opacity: textFade, pointerEvents: textFade < 0.3 ? "none" : "auto" }}>
           <ZoomControl zoom={zoom} setZoom={setZoom} />
@@ -904,6 +943,7 @@ const STOPS = [
   ["helix", "#helix"],
   ["coverage", "#coverage"],
   ["variants", "#variants"],
+  ["skills", "#skills"],
   ["3'", "#end"],
 ];
 
@@ -954,6 +994,7 @@ function Chrome({ zoom, setZoom }) {
             <span style={{ position: "absolute", left: `${frac * 100}%`, top: -4, width: 2, height: 10, background: BLUE, transform: "translateX(-1px)" }} />
           </div>
         </div>
+        <a href="/adam-resume.pdf" className="hidden md:inline" style={{ fontFamily: MONO, fontSize: 12, color: INK, textDecoration: "underline", textUnderlineOffset: 3 }}>resume ↓</a>
         <div className="hidden sm:block">
           <ZoomControl zoom={zoom} setZoom={setZoom} />
         </div>
@@ -1013,6 +1054,7 @@ function Index({ zoom }) {
                 <span className="md:hidden" style={{ fontFamily: SANS, fontSize: 14, color: BODY }}>{l.org} · <Mono>{l.span}</Mono></span>
                 {expanded && (
                   <div className="flex flex-col gap-2" style={{ maxWidth: "62ch", fontFamily: SANS, fontSize: 15, lineHeight: 1.6, color: BODY }}>
+                    {l.stack && <Mono style={{ color: l.color }}>{l.stack}</Mono>}
                     <p style={{ margin: 0 }}>{l.body}</p>
                     {zoom === 2 && l.more && <p style={{ margin: 0 }}>{l.more}</p>}
                   </div>
@@ -1323,7 +1365,7 @@ const FAINT_STARS = Array.from({ length: 46 }, (_, i) => {
   const b = Math.sin(i * 78.233) * 12345.678;
   return [a - Math.floor(a), b - Math.floor(b), 0.6 + ((i * 7) % 5) * 0.25];
 });
-const STAR_POS = [[0.1, 0.42], [0.3, 0.2], [0.5, 0.62], [0.7, 0.3], [0.88, 0.5]];
+const STAR_POS = [[0.08, 0.42], [0.26, 0.2], [0.42, 0.64], [0.58, 0.28], [0.76, 0.56], [0.92, 0.34]];
 
 function Constellation({ lit }) {
   const ref = useRef(null);
@@ -1404,7 +1446,7 @@ function Constellation({ lit }) {
 }
 
 function Variants({ zoom }) {
-  const awards = zoom === 0 ? AWARDS.slice(0, 2) : zoom === 1 ? AWARDS.slice(0, 3) : AWARDS;
+  const awards = zoom === 0 ? AWARDS.slice(0, 2) : zoom === 1 ? AWARDS.slice(0, 4) : AWARDS;
   return (
     <section id="variants" className="flex flex-col gap-4" style={{ scrollMarginTop: 90 }}>
       <H2>Variants</H2>
@@ -1415,6 +1457,25 @@ function Variants({ zoom }) {
           <div key={id} className="grid gap-4 py-3" style={{ gridTemplateColumns: "72px minmax(0,1fr)", borderTop: `1px solid ${RULE}` }}>
             <Mono style={{ color: MAG }}>{id}</Mono>
             <span style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.5, color: INK }}>{text}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Skills() {
+  return (
+    <section id="skills" className="px-6 py-16 flex flex-col gap-4" style={{ borderBottom: `1px solid ${RULE}`, scrollMarginTop: 90 }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <H2>Annotations</H2>
+        <Mono>technical skills · from the resume</Mono>
+      </div>
+      <div style={{ borderBottom: `1px solid ${RULE}` }}>
+        {SKILLS.map(([k, v]) => (
+          <div key={k} className="grid gap-4 py-3" style={{ gridTemplateColumns: "clamp(110px, 16vw, 180px) minmax(0,1fr)", borderTop: `1px solid ${RULE}` }}>
+            <Mono style={{ color: INK }}>{k}</Mono>
+            <span style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.55, color: BODY }}>{v}</span>
           </div>
         ))}
       </div>
@@ -1439,13 +1500,23 @@ function BasePairExtras() {
         </div>
       </div>
       <div className="flex flex-col gap-4">
-        <H2>Off the computer</H2>
-        <Mono>languages · most weekends</Mono>
-        <div className="flex flex-wrap gap-2">
-          {LANGUAGES.map((l) => <span key={l} className="px-3 py-1.5 rounded" style={{ fontFamily: MONO, fontSize: 12, color: INK, border: `1px solid ${INK}` }}>{l.toLowerCase()}</span>)}
+        <H2>More ORFs</H2>
+        <Mono>older projects · most weekends</Mono>
+        <div style={{ borderBottom: `1px solid ${RULE}` }}>
+          {MORE_PROJECTS.map(([name, stack, d, link]) => (
+            <div key={name} className="py-4 flex flex-col gap-1" style={{ borderTop: `1px solid ${RULE}` }}>
+              {link ? (
+                <a href={link} target="_blank" rel="noreferrer" style={{ fontFamily: SANS, fontSize: 16, fontWeight: 600, color: INK, textDecoration: "none" }}>{name} ↗</a>
+              ) : (
+                <span style={{ fontFamily: SANS, fontSize: 16, fontWeight: 600, color: INK }}>{name}</span>
+              )}
+              <Mono>{stack}</Mono>
+              <p style={{ margin: "4px 0 0", fontFamily: SANS, fontSize: 15, lineHeight: 1.55, color: BODY, maxWidth: "56ch" }}>{d}</p>
+            </div>
+          ))}
         </div>
-        <p style={{ margin: 0, fontFamily: SANS, fontSize: 15, lineHeight: 1.55, color: BODY, maxWidth: "48ch" }}>Grew up between Tashkent, Cairo, and Nashville. That's where the four come from.</p>
-        <div className="flex flex-wrap gap-2 mt-2">
+        <p style={{ margin: 0, fontFamily: SANS, fontSize: 15, lineHeight: 1.55, color: BODY, maxWidth: "48ch" }}>Grew up between Tashkent, Cairo, and Nashville. That's where the four languages come from.</p>
+        <div className="flex flex-wrap gap-2">
           {WEEKENDS.map((l) => <span key={l} className="px-3 py-1.5 rounded" style={{ fontFamily: MONO, fontSize: 12, color: BODY, border: `1px solid ${RULE}` }}>{l}</span>)}
         </div>
       </div>
@@ -1515,6 +1586,7 @@ export default function Adam() {
           <Coverage zoom={zoom} />
           <Variants zoom={zoom} />
         </div>
+        {zoom >= 1 && <Skills />}
         {zoom === 2 && <BasePairExtras />}
       </main>
 
@@ -1522,6 +1594,7 @@ export default function Adam() {
         <div className="flex flex-col gap-3">
           <span style={{ fontFamily: SANS, fontSize: "clamp(32px, 3.4vw, 44px)", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1 }}>3' end</span>
           <div className="flex flex-wrap gap-2">
+            <Pill href="/adam-resume.pdf">resume ↓</Pill>
             <Pill href="mailto:adamrakhmanovit@gmail.com">email</Pill>
             <Pill href="tel:+16157088786">(615) 708-8786</Pill>
             <Pill href="https://www.linkedin.com/in/adamrakhmanov/">linkedin ↗</Pill>
