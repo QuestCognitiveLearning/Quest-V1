@@ -45,6 +45,8 @@ const LOCI = [
   {
     no: "01",
     locus: "QUEST1",
+    photo: "/adam-photos/quest-check.jpg",
+    photoCap: "$2,500 at the Entrepreneurship Center, Feb 2026",
     color: BLUE,
     feature: "Co-founder, product & engineering",
     org: "Quest Learning",
@@ -69,6 +71,8 @@ const LOCI = [
   {
     no: "03",
     locus: "DROS",
+    photo: "/adam-photos/white-coat.jpg",
+    photoCap: "white coat ceremony, biomedical sciences program",
     color: MAG,
     feature: "Student researcher, Drosophila melanogaster",
     org: "Biomedical Sciences Research Program, Ravenwood",
@@ -80,6 +84,8 @@ const LOCI = [
   {
     no: "04",
     locus: "NSPR",
+    photo: "/adam-photos/neurosprout-poster.jpg",
+    photoCap: "the board at nationals",
     color: MAG,
     feature: "Project lead, NeuroSprout",
     org: "TSA Biotechnology Design · 1st state, top 12 national",
@@ -91,6 +97,8 @@ const LOCI = [
   {
     no: "05",
     locus: "TSA2",
+    photo: "/adam-photos/tsa-stage.jpg",
+    photoCap: "on stage as a state officer",
     color: BLUE,
     feature: "State Secretary",
     org: "Tennessee Technology Student Association",
@@ -171,6 +179,7 @@ const PROJECT_CARDS = [
 const FEATURED = [
   {
     name: "Quest Learning",
+    preview: "/adam-previews/quest.jpg",
     url: "https://www.questlearning.co/",
     host: "questlearning.co",
     role: "co-founder · product & engineering",
@@ -181,6 +190,7 @@ const FEATURED = [
   },
   {
     name: "Unitywalls",
+    preview: "/adam-previews/unitywalls.jpg",
     url: "https://www.unitywalls.app/",
     host: "unitywalls.app",
     role: "built it",
@@ -191,6 +201,7 @@ const FEATURED = [
   },
   {
     name: "Datatruck",
+    preview: "/adam-previews/datatruck.jpg",
     url: "https://www.datatruck.io/",
     host: "datatruck.io",
     role: "software engineer in test · Novalab",
@@ -201,6 +212,7 @@ const FEATURED = [
   },
   {
     name: "Aros Market",
+    preview: "/adam-previews/aros.jpg",
     url: "https://aros.uz/en",
     host: "aros.uz",
     role: "web · Uzbekistan",
@@ -234,6 +246,7 @@ const FEATURED = [
   },
   {
     name: "TN TSA Event Selector",
+    preview: "/adam-previews/eventselector.jpg",
     url: "https://tntsaeventselector.com",
     host: "tntsaeventselector.com",
     role: "built it · state officer project",
@@ -244,9 +257,15 @@ const FEATURED = [
   },
 ];
 
-// Field notes: photos. Add a file to public/adam-photos/ and an entry here.
+// Field notes: photos. Each entry hides itself until its file exists in
+// public/adam-photos/, so these can be dropped in without a code change.
 const PHOTOS = [
-  { src: "/adam-neurosprout.jpg", alt: "NeuroSprout booth at TSA nationals", cap: "NeuroSprout booth · TSA nationals", tag: "NSPR" },
+  { src: "/adam-photos/tsa-stage.jpg", alt: "Adam waving on stage at a TSA conference in the officer blazer", cap: "on stage · Tennessee TSA state officer", tag: "TSA2" },
+  { src: "/adam-photos/quest-check.jpg", alt: "Adam and co-founder holding a $2,500 check at the Entrepreneurship Center", cap: "$2,500 for Quest · Entrepreneurship Center, Feb 2026", tag: "QUEST1" },
+  { src: "/adam-photos/white-coat.jpg", alt: "Adam in a white lab coat with his teacher at the white coat ceremony", cap: "white coat ceremony · biomedical sciences program · BACC", tag: "DROS" },
+  { src: "/adam-photos/neurosprout-poster.jpg", alt: "The NeuroSprout display board with its demo circuit", cap: "NeuroSprout board · TSA nationals", tag: "NSPR" },
+  { src: "/adam-neurosprout.jpg", alt: "NeuroSprout booth at TSA nationals", cap: "NeuroSprout booth · walk-around", tag: "NSPR" },
+  { src: "/adam-photos/wrestling.jpg", alt: "Adam wrestling on the mat at a tournament", cap: "off the computer · wrestling", tag: "WEEKENDS" },
 ];
 
 const MORE_PROJECTS = [
@@ -272,6 +291,8 @@ const AWARDS = [
   },
   {
     id: "rs002",
+    photo: "/adam-photos/tsa-stage.jpg",
+    photoCap: "on stage at TSA",
     title: "TSA Nationals: 6th in Data Science & Analytics, top 12 in Biotechnology Design",
     sub: "Technology Student Association · 3× first-place state titles",
     d: "6th nationally in Data Science and Analytics for a full data investigation: cleaning, statistical analysis, and visualization of trends. Top 12 nationally in Biotechnology Design for a sonogenetics-based answer to the microplastic epidemic: ultrasound activation of Ideonella sakaiensis to produce PETase at scale. Three first-place state titles across Biotechnology, Data Science, and Geospatial Technologies.",
@@ -290,12 +311,16 @@ const AWARDS = [
   },
   {
     id: "rs005",
+    photo: "/adam-photos/white-coat.jpg",
+    photoCap: "white coat ceremony, where the credential was earned",
     title: "Biotechnology Aptitude and Competency Credential (BACC)",
     sub: "Biotility, University of Florida · issued Apr 2026, valid through Apr 2031",
     d: "Industry-recognized credential in laboratory practice, biotechnology concepts, and aseptic technique.",
   },
   {
     id: "rs006",
+    photo: "/adam-photos/quest-check.jpg",
+    photoCap: "the check, Feb 11, 2026",
     title: "INCubatoredu final pitch, $2,500 in funding",
     sub: "Entrepreneurship & Innovation Center · invited to pitch at the Nashville Entrepreneurship Center",
     d: "Funded in the program's final pitch and invited to present at the Nashville Entrepreneurship Center.",
@@ -693,6 +718,17 @@ function PuzzleCube({ size = 240, scrollRot = 0, idle = true, onStatus }) {
 // ---------------------------------------------------------------------------
 // Small pieces
 // ---------------------------------------------------------------------------
+
+function Photo({ src, alt, cap, style, className = "" }) {
+  const [ok, setOk] = useState(true);
+  if (!ok) return null;
+  return (
+    <figure className={`m-0 flex flex-col gap-1.5 ${className}`} style={style}>
+      <img src={src} alt={alt} loading="lazy" onError={() => setOk(false)} style={{ width: "100%", aspectRatio: "3 / 2", objectFit: "cover", borderRadius: 6, border: `1px solid ${RULE}`, background: "#fff", display: "block" }} />
+      {cap && <figcaption><Mono>{cap}</Mono></figcaption>}
+    </figure>
+  );
+}
 
 function Mono({ children, style, className = "" }) {
   return (
@@ -1178,10 +1214,13 @@ function Index({ zoom }) {
                 </button>
                 <span className="md:hidden" style={{ fontFamily: SANS, fontSize: 14, color: BODY }}>{l.org} · <Mono>{l.span}</Mono></span>
                 {expanded && (
-                  <div className="flex flex-col gap-2" style={{ maxWidth: "62ch", fontFamily: SANS, fontSize: 15, lineHeight: 1.6, color: BODY }}>
-                    {l.stack && <Mono style={{ color: l.color }}>{l.stack}</Mono>}
-                    <p style={{ margin: 0 }}>{l.body}</p>
-                    {zoom === 2 && l.more && <p style={{ margin: 0 }}>{l.more}</p>}
+                  <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+                    <div className="flex flex-col gap-2" style={{ maxWidth: "62ch", fontFamily: SANS, fontSize: 15, lineHeight: 1.6, color: BODY }}>
+                      {l.stack && <Mono style={{ color: l.color }}>{l.stack}</Mono>}
+                      <p style={{ margin: 0 }}>{l.body}</p>
+                      {zoom === 2 && l.more && <p style={{ margin: 0 }}>{l.more}</p>}
+                    </div>
+                    {l.photo && <Photo src={l.photo} alt={l.photoCap} cap={l.photoCap} className="shrink-0" style={{ width: "min(280px, 100%)" }} />}
                   </div>
                 )}
               </div>
@@ -1586,6 +1625,7 @@ function Variants({ zoom }) {
             </div>
             <Mono>{a.sub}</Mono>
             {zoom >= 1 && <p style={{ margin: "4px 0 0", fontFamily: SANS, fontSize: 14.5, lineHeight: 1.55, color: BODY }}>{a.d}</p>}
+            {zoom >= 1 && a.photo && <Photo src={a.photo} alt={a.photoCap} cap={a.photoCap} style={{ width: "min(320px, 100%)", marginTop: 6 }} />}
             {a.link && zoom >= 1 && (
               <a href={a.link} target="_blank" rel="noreferrer" style={{ fontFamily: MONO, fontSize: 12, color: BLUE, textDecoration: "underline", textUnderlineOffset: 3, marginTop: 4 }}>watch the video ↗</a>
             )}
@@ -1630,6 +1670,14 @@ function Featured() {
                 onTouchStart={(e) => { e.currentTarget.play().catch(() => {}); }}
                 style={{ width: "100%", aspectRatio: "16 / 9", objectFit: "cover", display: "block", background: INK }}
               />
+            ) : f.preview ? (
+              <div style={{ position: "relative", aspectRatio: "16 / 10", background: "#EEF0F4", borderBottom: `1px solid ${RULE}` }}>
+                <img src={f.preview} alt={`${f.name} website`} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />
+                <div className="flex items-center justify-between px-3" style={{ position: "absolute", left: 10, right: 10, bottom: 10, height: 30, borderRadius: 6, background: "rgba(16,24,40,0.82)", backdropFilter: "blur(4px)" }}>
+                  <Mono style={{ color: PAPER, fontWeight: 700 }}>{f.host}</Mono>
+                  <Mono style={{ color: "rgba(247,246,242,0.8)" }}>open ↗</Mono>
+                </div>
+              </div>
             ) : f.video ? (
               <div style={{ position: "relative", aspectRatio: "16 / 9", background: INK }}>
                 <img src={`https://img.youtube.com/vi/${f.video}/hqdefault.jpg`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -1663,17 +1711,11 @@ function FieldNotes() {
     <section id="photos" className="px-6 py-16 flex flex-col gap-5" style={{ borderBottom: `1px solid ${RULE}`, scrollMarginTop: 90 }}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <H2>Field notes</H2>
-        <Mono>{PHOTOS.length} {PHOTOS.length === 1 ? "image" : "images"}</Mono>
+        <Mono>field notes · photos</Mono>
       </div>
       <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollSnapType: "x mandatory" }}>
         {PHOTOS.map((ph) => (
-          <figure key={ph.src} className="shrink-0 m-0 flex flex-col gap-2" style={{ width: "min(420px, 82vw)", scrollSnapAlign: "start" }}>
-            <img src={ph.src} alt={ph.alt} loading="lazy" style={{ width: "100%", aspectRatio: "3 / 2", objectFit: "cover", borderRadius: 6, border: `1px solid ${RULE}`, background: "#fff", display: "block" }} />
-            <figcaption className="flex items-baseline gap-3">
-              <Mono style={{ color: MAG, fontWeight: 700 }}>{ph.tag}</Mono>
-              <Mono style={{ color: BODY }}>{ph.cap}</Mono>
-            </figcaption>
-          </figure>
+          <Photo key={ph.src} src={ph.src} alt={ph.alt} cap={`${ph.tag} · ${ph.cap}`} className="shrink-0" style={{ width: "min(420px, 82vw)", scrollSnapAlign: "start" }} />
         ))}
       </div>
     </section>
