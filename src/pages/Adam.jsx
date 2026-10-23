@@ -221,6 +221,18 @@ const FEATURED = [
     stat: "top 0.5% worldwide · Dec 2025",
   },
   {
+    name: "NeuroSprout",
+    url: "#variants",
+    host: "TSA Biotechnology Design",
+    role: "project lead · 1st state · top 12 national",
+    accent: MAG,
+    clip: "/adam-neurosprout.mp4",
+    poster: "/adam-neurosprout.jpg",
+    d: "Non-invasive CNS axon regeneration: peptide-functionalized nanoparticles across the blood-brain barrier, dCas9 repressing the inhibitors that stop axons regrowing, and a light-gated padCas9 switch. The booth, with its working demo board.",
+    stack: ["dCas9", "nanoparticles", "Arduino demo"],
+    stat: "30 million people affected · the problem we picked",
+  },
+  {
     name: "TN TSA Event Selector",
     url: "https://tntsaeventselector.com",
     host: "tntsaeventselector.com",
@@ -230,6 +242,11 @@ const FEATURED = [
     stack: ["web"],
     stat: "3,100 members",
   },
+];
+
+// Field notes: photos. Add a file to public/adam-photos/ and an entry here.
+const PHOTOS = [
+  { src: "/adam-neurosprout.jpg", alt: "NeuroSprout booth at TSA nationals", cap: "NeuroSprout booth · TSA nationals", tag: "NSPR" },
 ];
 
 const MORE_PROJECTS = [
@@ -1588,7 +1605,7 @@ function Featured() {
     <section id="projects" className="px-6 py-16 flex flex-col gap-6" style={{ borderBottom: `1px solid ${RULE}`, scrollMarginTop: 90 }}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <H2>Projects</H2>
-        <Mono>{FEATURED.length} features · each box opens the site</Mono>
+        <Mono>{FEATURED.length} features · each box opens the site · hover the booth to play</Mono>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {FEATURED.map((f) => (
@@ -1600,7 +1617,20 @@ function Featured() {
             className="adam-box flex flex-col rounded-md overflow-hidden"
             style={{ background: "#fff", border: `1px solid ${RULE}`, textDecoration: "none", color: INK }}
           >
-            {f.video ? (
+            {f.clip ? (
+              <video
+                src={f.clip}
+                poster={f.poster}
+                muted
+                loop
+                playsInline
+                preload="none"
+                onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
+                onMouseLeave={(e) => { e.currentTarget.pause(); }}
+                onTouchStart={(e) => { e.currentTarget.play().catch(() => {}); }}
+                style={{ width: "100%", aspectRatio: "16 / 9", objectFit: "cover", display: "block", background: INK }}
+              />
+            ) : f.video ? (
               <div style={{ position: "relative", aspectRatio: "16 / 9", background: INK }}>
                 <img src={`https://img.youtube.com/vi/${f.video}/hqdefault.jpg`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 52, height: 52, borderRadius: "50%", background: "rgba(247,246,242,0.92)", display: "flex", alignItems: "center", justifyContent: "center", color: INK, fontSize: 18 }}>▶</span>
@@ -1621,6 +1651,29 @@ function Featured() {
               <Mono style={{ marginTop: 6 }}>{f.stat}</Mono>
             </div>
           </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FieldNotes() {
+  if (!PHOTOS.length) return null;
+  return (
+    <section id="photos" className="px-6 py-16 flex flex-col gap-5" style={{ borderBottom: `1px solid ${RULE}`, scrollMarginTop: 90 }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <H2>Field notes</H2>
+        <Mono>{PHOTOS.length} {PHOTOS.length === 1 ? "image" : "images"}</Mono>
+      </div>
+      <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollSnapType: "x mandatory" }}>
+        {PHOTOS.map((ph) => (
+          <figure key={ph.src} className="shrink-0 m-0 flex flex-col gap-2" style={{ width: "min(420px, 82vw)", scrollSnapAlign: "start" }}>
+            <img src={ph.src} alt={ph.alt} loading="lazy" style={{ width: "100%", aspectRatio: "3 / 2", objectFit: "cover", borderRadius: 6, border: `1px solid ${RULE}`, background: "#fff", display: "block" }} />
+            <figcaption className="flex items-baseline gap-3">
+              <Mono style={{ color: MAG, fontWeight: 700 }}>{ph.tag}</Mono>
+              <Mono style={{ color: BODY }}>{ph.cap}</Mono>
+            </figcaption>
+          </figure>
         ))}
       </div>
     </section>
@@ -1752,6 +1805,7 @@ export default function Adam() {
           <Coverage zoom={zoom} />
           <Variants zoom={zoom} />
         </div>
+        <FieldNotes />
         {zoom >= 1 && <Skills />}
         {zoom === 2 && <BasePairExtras />}
       </main>
